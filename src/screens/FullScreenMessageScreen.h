@@ -2,17 +2,17 @@
 #include <string>
 #include <utility>
 
+#include "EpdFontFamily.h"
 #include "Screen.h"
 
 class FullScreenMessageScreen final : public Screen {
   std::string text;
-  bool bold;
-  bool italic;
+  EpdFontStyle style;
   bool invert;
 
  public:
-  explicit FullScreenMessageScreen(EpdRenderer* renderer, std::string text, const bool bold = false,
-                                   const bool italic = false, const bool invert = false)
-      : Screen(renderer), text(std::move(text)), bold(bold), italic(italic), invert(invert) {}
+  explicit FullScreenMessageScreen(EpdRenderer* renderer, std::string text, const EpdFontStyle style = REGULAR,
+                                   const bool invert = false)
+      : Screen(renderer), text(std::move(text)), style(style), invert(invert) {}
   void onEnter() override;
 };

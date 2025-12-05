@@ -134,8 +134,8 @@ void EpubReaderScreen::renderPage() {
         const int h = renderer->getLineHeight() + margin * 2;
         renderer->fillRect(x, y, w, h, 0);
         renderer->drawText(x + margin, y + margin, "Indexing...");
-        renderer->drawRect(x + 5, y + 5, w - 10, h - 10, 1);
-        renderer->flushArea(x - 20, y - 20, w + 40, h + 40);
+        renderer->drawRect(x + 5, y + 5, w - 10, h - 10);
+        renderer->flushArea(x, y, w, h);
       }
 
       section->setupCacheDir();
@@ -199,23 +199,23 @@ void EpubReaderScreen::renderStatusBar() const {
   constexpr int y = 772;
 
   // Top line
-  renderer->drawLine(x, y, x + batteryWidth - 4, y, 1);
+  renderer->drawLine(x, y, x + batteryWidth - 4, y);
   // Bottom line
-  renderer->drawLine(x, y + batteryHeight - 1, x + batteryWidth - 4, y + batteryHeight - 1, 1);
+  renderer->drawLine(x, y + batteryHeight - 1, x + batteryWidth - 4, y + batteryHeight - 1);
   // Left line
-  renderer->drawLine(x, y, x, y + batteryHeight - 1, 1);
+  renderer->drawLine(x, y, x, y + batteryHeight - 1);
   // Battery end
-  renderer->drawLine(x + batteryWidth - 4, y, x + batteryWidth - 4, y + batteryHeight - 1, 1);
-  renderer->drawLine(x + batteryWidth - 3, y + 2, x + batteryWidth - 3, y + batteryHeight - 3, 1);
-  renderer->drawLine(x + batteryWidth - 2, y + 2, x + batteryWidth - 2, y + batteryHeight - 3, 1);
-  renderer->drawLine(x + batteryWidth - 1, y + 2, x + batteryWidth - 1, y + batteryHeight - 3, 1);
+  renderer->drawLine(x + batteryWidth - 4, y, x + batteryWidth - 4, y + batteryHeight - 1);
+  renderer->drawLine(x + batteryWidth - 3, y + 2, x + batteryWidth - 3, y + batteryHeight - 3);
+  renderer->drawLine(x + batteryWidth - 2, y + 2, x + batteryWidth - 2, y + batteryHeight - 3);
+  renderer->drawLine(x + batteryWidth - 1, y + 2, x + batteryWidth - 1, y + batteryHeight - 3);
 
   // The +1 is to round up, so that we always fill at least one pixel
   int filledWidth = percentage * (batteryWidth - 5) / 100 + 1;
   if (filledWidth > batteryWidth - 5) {
     filledWidth = batteryWidth - 5;  // Ensure we don't overflow
   }
-  renderer->fillRect(x + 1, y + 1, filledWidth, batteryHeight - 2, 1);
+  renderer->fillRect(x + 1, y + 1, filledWidth, batteryHeight - 2);
 
   // Page width minus existing content with 30px padding on each side
   const int leftMargin = 20 + percentageTextWidth + 30;

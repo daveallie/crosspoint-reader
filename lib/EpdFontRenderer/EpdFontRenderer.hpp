@@ -1,5 +1,5 @@
 #pragma once
-#include <EpdFont.h>
+#include <EpdFontFamily.h>
 #include <HardwareSerial.h>
 #include <Utf8.h>
 #include <miniz.h>
@@ -12,13 +12,14 @@ static tinfl_decompressor decomp;
 template <typename Renderable>
 class EpdFontRenderer {
   Renderable* renderer;
-  void renderChar(uint32_t cp, int* x, const int* y, uint16_t color);
+  void renderChar(uint32_t cp, int* x, const int* y, uint16_t color, EpdFontStyle style = REGULAR);
 
  public:
-  const EpdFont* font;
-  explicit EpdFontRenderer(const EpdFont* font, Renderable* renderer);
+  const EpdFontFamily* fontFamily;
+  explicit EpdFontRenderer(const EpdFontFamily* fontFamily, Renderable* renderer)
+      : fontFamily(fontFamily), renderer(renderer) {}
   ~EpdFontRenderer() = default;
-  void renderString(const char* string, int* x, int* y, uint16_t color);
+  void renderString(const char* string, int* x, int* y, uint16_t color, EpdFontStyle style = REGULAR);
 };
 
 inline int uncompress(uint8_t* dest, size_t uncompressedSize, const uint8_t* source, size_t sourceSize) {
@@ -38,37 +39,33 @@ inline int uncompress(uint8_t* dest, size_t uncompressedSize, const uint8_t* sou
 }
 
 template <typename Renderable>
-EpdFontRenderer<Renderable>::EpdFontRenderer(const EpdFont* font, Renderable* renderer) {
-  this->font = font;
-  this->renderer = renderer;
-}
-
-template <typename Renderable>
-void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* y, const uint16_t color) {
+void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* y, const uint16_t color,
+                                               const EpdFontStyle style) {
   // cannot draw a NULL / empty string
   if (string == nullptr || *string == '\0') {
     return;
   }
 
   // no printable characters
-  if (!font->hasPrintableChars(string)) {
+  if (!fontFamily->hasPrintableChars(string, style)) {
     return;
   }
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&string)))) {
-    renderChar(cp, x, y, color);
+    renderChar(cp, x, y, color, style);
   }
 
-  *y += font->data->advanceY;
+  *y += fontFamily->getData(style)->advanceY;
 }
 
 template <typename Renderable>
-void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const int* y, uint16_t color) {
-  const EpdGlyph* glyph = font->getGlyph(cp);
+void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const int* y, uint16_t color,
+                                             const EpdFontStyle style) {
+  const EpdGlyph* glyph = fontFamily->getGlyph(cp, style);
   if (!glyph) {
     // TODO: Replace with fallback glyph property?
-    glyph = font->getGlyph('?');
+    glyph = fontFamily->getGlyph('?', style);
   }
 
   // no glyph?
@@ -86,17 +83,17 @@ void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const in
   const unsigned long bitmapSize = byteWidth * height;
   const uint8_t* bitmap = nullptr;
 
-  if (font->data->compressed) {
+  if (fontFamily->getData(style)->compressed) {
     auto* tmpBitmap = static_cast<uint8_t*>(malloc(bitmapSize));
     if (tmpBitmap == nullptr && bitmapSize) {
       Serial.println("Failed to allocate memory for decompression buffer");
       return;
     }
 
-    uncompress(tmpBitmap, bitmapSize, &font->data->bitmap[offset], glyph->compressedSize);
+    uncompress(tmpBitmap, bitmapSize, &fontFamily->getData(style)->bitmap[offset], glyph->compressedSize);
     bitmap = tmpBitmap;
   } else {
-    bitmap = &font->data->bitmap[offset];
+    bitmap = &fontFamily->getData(style)->bitmap[offset];
   }
 
   if (bitmap != nullptr) {
@@ -123,7 +120,7 @@ void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const in
       }
     }
 
-    if (font->data->compressed) {
+    if (fontFamily->getData(style)->compressed) {
       free(const_cast<uint8_t*>(bitmap));
     }
   }

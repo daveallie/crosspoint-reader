@@ -89,7 +89,7 @@ void waitForNoButton() {
 
 // Enter deep sleep mode
 void enterDeepSleep() {
-  enterNewScreen(new FullScreenMessageScreen(renderer, "Sleeping", true, false, true));
+  enterNewScreen(new FullScreenMessageScreen(renderer, "Sleeping", BOLD, true));
 
   Serial.println("Power button released after a long press. Entering deep sleep.");
   delay(1000);  // Allow Serial buffer to empty and display to update
@@ -137,7 +137,7 @@ void setup() {
   display.setTextColor(GxEPD_BLACK);
   Serial.println("Display initialized");
 
-  enterNewScreen(new FullScreenMessageScreen(renderer, "Booting...", true));
+  enterNewScreen(new FullScreenMessageScreen(renderer, "Booting...", BOLD));
 
   // SD Card Initialization
   SD.begin(SD_SPI_CS, SPI, SPI_FQ);

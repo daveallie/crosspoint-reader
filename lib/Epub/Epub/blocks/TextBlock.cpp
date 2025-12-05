@@ -56,7 +56,17 @@ std::list<TextBlock*> TextBlock::splitIntoLines(const EpdRenderer* renderer) {
   uint16_t wordWidths[totalWordCount];
   for (int i = 0; i < words.size(); i++) {
     // measure the word
-    const int width = renderer->getTextWidth(words[i].c_str(), wordStyles[i] & BOLD_SPAN, wordStyles[i] & ITALIC_SPAN);
+    EpdFontStyle fontStyle = REGULAR;
+    if (wordStyles[i] & BOLD_SPAN) {
+      if (wordStyles[i] & ITALIC_SPAN) {
+        fontStyle = BOLD_ITALIC;
+      } else {
+        fontStyle = BOLD;
+      }
+    } else if (wordStyles[i] & ITALIC_SPAN) {
+      fontStyle = ITALIC;
+    }
+    const int width = renderer->getTextWidth(words[i].c_str(), fontStyle);
     wordWidths[i] = width;
   }
 
@@ -182,7 +192,18 @@ void TextBlock::render(const EpdRenderer* renderer, const int x, const int y) co
     // get the style
     const uint8_t wordStyle = wordStyles[i];
     // render the word
-    renderer->drawText(x + wordXpos[i], y, words[i].c_str(), wordStyle & BOLD_SPAN, wordStyle & ITALIC_SPAN);
+    EpdFontStyle fontStyle = REGULAR;
+    if (wordStyles[i] & BOLD_SPAN) {
+      if (wordStyles[i] & ITALIC_SPAN) {
+        fontStyle = BOLD_ITALIC;
+      } else {
+        fontStyle = BOLD;
+      }
+
+    } else if (wordStyles[i] & ITALIC_SPAN) {
+      fontStyle = ITALIC;
+    }
+    renderer->drawText(x + wordXpos[i], y, words[i].c_str(), 1, fontStyle);
   }
 }
 

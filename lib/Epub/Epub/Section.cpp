@@ -107,11 +107,11 @@ void Section::renderPage() {
     delete p;
   } else if (pageCount == 0) {
     Serial.println("No pages to render");
-    const int width = renderer->getTextWidth("Empty chapter", true);
-    renderer->drawText((renderer->getPageWidth() - width) / 2, 300, "Empty chapter", true);
+    const int width = renderer->getTextWidth("Empty chapter", BOLD);
+    renderer->drawText((renderer->getPageWidth() - width) / 2, 300, "Empty chapter", 1, BOLD);
   } else {
     Serial.printf("Page out of bounds: %d (max %d)\n", currentPage, pageCount);
-    const int width = renderer->getTextWidth("Out of bounds", true);
-    renderer->drawText((renderer->getPageWidth() - width) / 2, 300, "Out of bounds", true);
+    const int width = renderer->getTextWidth("Out of bounds", BOLD);
+    renderer->drawText((renderer->getPageWidth() - width) / 2, 300, "Out of bounds", 1, BOLD);
   }
 }
