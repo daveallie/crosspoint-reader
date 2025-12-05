@@ -32,7 +32,10 @@ class EpdRenderer {
   void fillRect(int x, int y, int width, int height, uint16_t color = 1) const;
   void drawCircle(int x, int y, int radius, uint16_t color = 1) const;
   void fillCircle(int x, int y, int radius, uint16_t color = 1) const;
-  void drawImage(const uint8_t bitmap[], int x, int y, int width, int height, bool invert = false) const;
+  void drawImage(const uint8_t bitmap[], int x, int y, int width, int height, bool invert = false,
+                 bool mirrorY = false) const;
+  void drawImageNoMargin(const uint8_t bitmap[], int x, int y, int width, int height, bool invert = false,
+                         bool mirrorY = false) const;
   void clearScreen(bool black = false) const;
   void flushDisplay(bool partialUpdate = true) const;
   void flushArea(int x, int y, int width, int height) const;

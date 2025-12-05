@@ -128,8 +128,13 @@ void EpdRenderer::fillCircle(const int x, const int y, const int radius, const u
 }
 
 void EpdRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height,
-                            const bool invert) const {
-  display->drawImage(bitmap, x + marginLeft, y + marginTop, width, height, invert);
+                            const bool invert, const bool mirrorY) const {
+  drawImageNoMargin(bitmap, x + marginLeft, y + marginTop, width, height, invert, mirrorY);
+}
+
+void EpdRenderer::drawImageNoMargin(const uint8_t bitmap[], const int x, const int y, const int width, const int height,
+                                    const bool invert, const bool mirrorY) const {
+  display->drawImage(bitmap, x, y, width, height, invert, mirrorY);
 }
 
 void EpdRenderer::clearScreen(const bool black) const {

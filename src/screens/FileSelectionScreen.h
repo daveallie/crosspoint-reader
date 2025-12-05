@@ -1,7 +1,7 @@
 #pragma once
 #include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 
 #include <functional>
 #include <string>

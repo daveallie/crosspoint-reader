@@ -12,6 +12,7 @@
 #include "screens/EpubReaderScreen.h"
 #include "screens/FileSelectionScreen.h"
 #include "screens/FullScreenMessageScreen.h"
+#include "screens/SleepScreen.h"
 
 #define SPI_FQ 40000000
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
@@ -94,7 +95,7 @@ void waitForNoButton() {
 // Enter deep sleep mode
 void enterDeepSleep() {
   exitScreen();
-  enterNewScreen(new FullScreenMessageScreen(renderer, "Sleeping", BOLD, true, false));
+  enterNewScreen(new SleepScreen(renderer));
 
   Serial.println("Power button released after a long press. Entering deep sleep.");
   delay(1000);  // Allow Serial buffer to empty and display to update
@@ -135,8 +136,12 @@ void onGoHome() {
 void setup() {
   setupInputPinModes();
   verifyWakeupLongPress();
-  Serial.begin(115200);
-  Serial.println("Booting...");
+
+  // Begin serial only if USB connected
+  pinMode(UART0_RXD, INPUT);
+  if (digitalRead(UART0_RXD) == HIGH) {
+    Serial.begin(115200);
+  }
 
   // Initialize pins
   pinMode(BAT_GPIO0, INPUT);
