@@ -27,7 +27,7 @@ constexpr int NUM_SKIP_TAGS = sizeof(SKIP_TAGS) / sizeof(SKIP_TAGS[0]);
 bool isWhitespace(const char c) { return c == ' ' || c == '\r' || c == '\n'; }
 
 // given the start and end of a tag, check to see if it matches a known tag
-bool matches_s(const char* tag_name, const char* possible_tags[], const int possible_tag_count) {
+bool matches(const char* tag_name, const char* possible_tags[], const int possible_tag_count) {
   for (int i = 0; i < possible_tag_count; i++) {
     if (strcmp(tag_name, possible_tags[i]) == 0) {
       return true;
@@ -64,7 +64,7 @@ void XMLCALL EpubHtmlParserSlim::startElement(void* userData, const XML_Char* na
     return;
   }
 
-  if (matches_s(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
+  if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
     // const char* src = element.Attribute("src");
     // if (src) {
     //   // don't leave an empty text block in the list
@@ -87,25 +87,25 @@ void XMLCALL EpubHtmlParserSlim::startElement(void* userData, const XML_Char* na
     return;
   }
 
-  if (matches_s(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
+  if (matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
     // start skip
     self->skipUntilDepth = self->depth;
     self->depth += 1;
     return;
   }
 
-  if (matches_s(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
+  if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     self->startNewTextBlock(CENTER_ALIGN);
     self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
-  } else if (matches_s(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
+  } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
     if (strcmp(name, "br") == 0) {
       self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
       self->startNewTextBlock(JUSTIFIED);
     }
-  } else if (matches_s(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
+  } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
     self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
-  } else if (matches_s(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
+  } else if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
     self->italicUntilDepth = min(self->italicUntilDepth, self->depth);
   }
 
@@ -150,10 +150,22 @@ void XMLCALL EpubHtmlParserSlim::endElement(void* userData, const XML_Char* name
   (void)name;
 
   if (self->partWordBufferIndex > 0) {
-    self->partWordBuffer[self->partWordBufferIndex] = '\0';
-    self->currentTextBlock->addWord(replaceHtmlEntities(self->partWordBuffer), self->boldUntilDepth < self->depth,
-                                    self->italicUntilDepth < self->depth);
-    self->partWordBufferIndex = 0;
+    // Only flush out part word buffer if we're closing a block tag or are at the top of the HTML file.
+    // We don't want to flush out content when closing inline tags like <span>.
+    // Currently this also flushes out on closing <b> and <i> tags, but they are line tags so that shouldn't happen,
+    // text styling needs to be overhauled to fix it.
+    const bool shouldBreakText = matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) ||
+      matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
+      matches(name, BOLD_TAGS, NUM_BOLD_TAGS) ||
+      matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) ||
+        self->depth == 1;
+
+    if (shouldBreakText) {
+      self->partWordBuffer[self->partWordBufferIndex] = '\0';
+      self->currentTextBlock->addWord(replaceHtmlEntities(self->partWordBuffer), self->boldUntilDepth < self->depth,
+                                      self->italicUntilDepth < self->depth);
+      self->partWordBufferIndex = 0;
+    }
   }
 
   self->depth -= 1;
