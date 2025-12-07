@@ -9,18 +9,19 @@ inline int max(const int a, const int b) { return a > b ? a : b; }
 template <typename Renderable>
 class EpdFontRenderer {
   Renderable& renderer;
-  void renderChar(uint32_t cp, int* x, const int* y, uint16_t color, EpdFontStyle style = REGULAR);
+  void renderChar(uint32_t cp, int* x, const int* y, bool pixelState, EpdFontStyle style = REGULAR);
 
  public:
   const EpdFontFamily* fontFamily;
   explicit EpdFontRenderer(const EpdFontFamily* fontFamily, Renderable& renderer)
       : fontFamily(fontFamily), renderer(renderer) {}
   ~EpdFontRenderer() = default;
-  void renderString(const char* string, int* x, int* y, uint16_t color, EpdFontStyle style = REGULAR);
+  void renderString(const char* string, int* x, int* y, bool pixelState = true, EpdFontStyle style = REGULAR);
+  void drawPixel(int x, int y, bool pixelState);
 };
 
 template <typename Renderable>
-void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* y, const uint16_t color,
+void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* y, const bool pixelState,
                                                const EpdFontStyle style) {
   // cannot draw a NULL / empty string
   if (string == nullptr || *string == '\0') {
@@ -34,14 +35,48 @@ void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* 
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&string)))) {
-    renderChar(cp, x, y, color, style);
+    renderChar(cp, x, y, pixelState, style);
   }
 
   *y += fontFamily->getData(style)->advanceY;
 }
 
+// TODO: Consolidate this with EpdRenderer implementation
 template <typename Renderable>
-void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const int* y, uint16_t color,
+void EpdFontRenderer<Renderable>::drawPixel(const int x, const int y, const bool pixelState) {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+
+  // Early return if no framebuffer is set
+  if (!frameBuffer) {
+    Serial.printf("!!No framebuffer\n");
+    return;
+  }
+
+  // Bounds checking (portrait: 480x800)
+  if (x < 0 || x >= EInkDisplay::DISPLAY_HEIGHT || y < 0 || y >= EInkDisplay::DISPLAY_WIDTH) {
+    Serial.printf("!!Outside range (%d, %d)\n", x, y);
+    return;
+  }
+
+  // Rotate coordinates: portrait (480x800) -> landscape (800x480)
+  // Rotation: 90 degrees clockwise
+  const int16_t rotatedX = y;
+  const int16_t rotatedY = EInkDisplay::DISPLAY_HEIGHT - 1 - x;
+
+  // Calculate byte position and bit position
+  const uint16_t byteIndex = rotatedY * EInkDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+  const uint8_t bitPosition = 7 - (rotatedX % 8);  // MSB first
+
+  // Set or clear the bit
+  if (pixelState) {
+    frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+  } else {
+    frameBuffer[byteIndex] |= (1 << bitPosition);  // Set bit
+  }
+}
+
+template <typename Renderable>
+void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const int* y, const bool pixelState,
                                              const EpdFontStyle style) {
   const EpdGlyph* glyph = fontFamily->getGlyph(cp, style);
   if (!glyph) {
@@ -74,7 +109,7 @@ void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const in
         const uint8_t bit_index = 7 - (pixelPosition % 8);
 
         if ((byte >> bit_index) & 1) {
-          renderer.drawPixel(screenX, screenY, color);
+          drawPixel(screenX, screenY, pixelState);
         }
       }
     }

@@ -1,7 +1,7 @@
 #include <Arduino.h>
+#include <EInkDisplay.h>
 #include <EpdRenderer.h>
 #include <Epub.h>
-#include <GxEPD2_BW.h>
 #include <InputManager.h>
 #include <SD.h>
 #include <SPI.h>
@@ -28,10 +28,9 @@
 #define SD_SPI_CS 12
 #define SD_SPI_MISO 7
 
-GxEPD2_BW<GxEPD2_426_GDEQ0426T82, GxEPD2_426_GDEQ0426T82::HEIGHT> display(GxEPD2_426_GDEQ0426T82(EPD_CS, EPD_DC,
-                                                                                                 EPD_RST, EPD_BUSY));
+EInkDisplay einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
 InputManager inputManager;
-EpdRenderer renderer(display);
+EpdRenderer renderer(einkDisplay);
 Screen* currentScreen;
 CrossPointState appState;
 
@@ -123,7 +122,7 @@ void enterDeepSleep() {
   // Enable Wakeup on LOW (button press)
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
 
-  display.hibernate();
+  einkDisplay.deepSleep();
 
   // Enter Deep Sleep
   esp_deep_sleep_start();
@@ -170,10 +169,7 @@ void setup() {
   SPI.begin(EPD_SCLK, SD_SPI_MISO, EPD_MOSI, EPD_CS);
 
   // Initialize display
-  const SPISettings spi_settings(SPI_FQ, MSBFIRST, SPI_MODE0);
-  display.init(115200, true, 2, false, SPI, spi_settings);
-  display.setRotation(3);  // 270 degrees
-  display.setTextColor(GxEPD_BLACK);
+  einkDisplay.begin();
   Serial.println("Display initialized");
 
   exitScreen();

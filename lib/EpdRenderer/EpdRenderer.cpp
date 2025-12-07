@@ -21,17 +21,56 @@ EpdFont ubuntu10Font(&ubuntu_10);
 EpdFont ununtuBold10Font(&ubuntu_bold_10);
 EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ununtuBold10Font);
 
-EpdRenderer::EpdRenderer(XteinkDisplay& display)
-    : display(display), marginTop(11), marginBottom(30), marginLeft(10), marginRight(10), lineCompression(0.95f) {
-  this->regularFontRenderer = new EpdFontRenderer<XteinkDisplay>(&bookerlyFontFamily, display);
-  this->smallFontRenderer = new EpdFontRenderer<XteinkDisplay>(&smallFontFamily, display);
-  this->uiFontRenderer = new EpdFontRenderer<XteinkDisplay>(&ubuntuFontFamily, display);
+EpdRenderer::EpdRenderer(EInkDisplay& einkDisplay)
+    : einkDisplay(einkDisplay),
+      marginTop(11),
+      marginBottom(30),
+      marginLeft(10),
+      marginRight(10),
+      lineCompression(0.95f) {
+  this->regularFontRenderer = new EpdFontRenderer<EInkDisplay>(&bookerlyFontFamily, einkDisplay);
+  this->smallFontRenderer = new EpdFontRenderer<EInkDisplay>(&smallFontFamily, einkDisplay);
+  this->uiFontRenderer = new EpdFontRenderer<EInkDisplay>(&ubuntuFontFamily, einkDisplay);
 }
 
 EpdRenderer::~EpdRenderer() {
   delete regularFontRenderer;
   delete smallFontRenderer;
   delete uiFontRenderer;
+}
+
+void EpdRenderer::drawPixel(const int x, const int y, const bool state) const {
+  uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+
+  // Early return if no framebuffer is set
+  if (!frameBuffer) {
+    Serial.printf("!!No framebuffer\n");
+    return;
+  }
+
+  const int adjX = x + marginLeft;
+  const int adjY = y + marginTop;
+
+  // Bounds checking (portrait: 480x800)
+  if (adjX < 0 || adjX >= EInkDisplay::DISPLAY_HEIGHT || adjY < 0 || adjY >= EInkDisplay::DISPLAY_WIDTH) {
+    Serial.printf("!!Outside range (%d, %d)\n", adjX, adjY);
+    return;
+  }
+
+  // Rotate coordinates: portrait (480x800) -> landscape (800x480)
+  // Rotation: 90 degrees clockwise
+  const int rotatedX = adjY;
+  const int rotatedY = EInkDisplay::DISPLAY_HEIGHT - 1 - adjX;
+
+  // Calculate byte position and bit position
+  const uint16_t byteIndex = rotatedY * EInkDisplay::DISPLAY_WIDTH_BYTES + (rotatedX / 8);
+  const uint8_t bitPosition = 7 - (rotatedX % 8);  // MSB first
+
+  if (state) {
+    frameBuffer[byteIndex] &= ~(1 << bitPosition);  // Clear bit
+  } else {
+    frameBuffer[byteIndex] |= 1 << bitPosition;  // Set bit
+  }
 }
 
 int EpdRenderer::getTextWidth(const char* text, const EpdFontStyle style) const {
@@ -58,25 +97,25 @@ int EpdRenderer::getSmallTextWidth(const char* text, const EpdFontStyle style) c
   return w;
 }
 
-void EpdRenderer::drawText(const int x, const int y, const char* text, const uint16_t color,
+void EpdRenderer::drawText(const int x, const int y, const char* text, const bool state,
                            const EpdFontStyle style) const {
   int ypos = y + getLineHeight() + marginTop;
   int xpos = x + marginLeft;
-  regularFontRenderer->renderString(text, &xpos, &ypos, color > 0 ? GxEPD_BLACK : GxEPD_WHITE, style);
+  regularFontRenderer->renderString(text, &xpos, &ypos, state, style);
 }
 
-void EpdRenderer::drawUiText(const int x, const int y, const char* text, const uint16_t color,
+void EpdRenderer::drawUiText(const int x, const int y, const char* text, const bool state,
                              const EpdFontStyle style) const {
   int ypos = y + uiFontRenderer->fontFamily->getData(style)->advanceY + marginTop;
   int xpos = x + marginLeft;
-  uiFontRenderer->renderString(text, &xpos, &ypos, color > 0 ? GxEPD_BLACK : GxEPD_WHITE, style);
+  uiFontRenderer->renderString(text, &xpos, &ypos, state, style);
 }
 
-void EpdRenderer::drawSmallText(const int x, const int y, const char* text, const uint16_t color,
+void EpdRenderer::drawSmallText(const int x, const int y, const char* text, const bool state,
                                 const EpdFontStyle style) const {
   int ypos = y + smallFontRenderer->fontFamily->getData(style)->advanceY + marginTop;
   int xpos = x + marginLeft;
-  smallFontRenderer->renderString(text, &xpos, &ypos, color > 0 ? GxEPD_BLACK : GxEPD_WHITE, style);
+  smallFontRenderer->renderString(text, &xpos, &ypos, state, style);
 }
 
 void EpdRenderer::drawTextBox(const int x, const int y, const std::string& text, const int width, const int height,
@@ -115,51 +154,67 @@ void EpdRenderer::drawTextBox(const int x, const int y, const std::string& text,
   }
 }
 
-void EpdRenderer::drawLine(int x1, int y1, int x2, int y2, uint16_t color) const {
-  display.drawLine(x1 + marginLeft, y1 + marginTop, x2 + marginLeft, y2 + marginTop,
-                   color > 0 ? GxEPD_BLACK : GxEPD_WHITE);
+void EpdRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) const {
+  if (x1 == x2) {
+    if (y2 < y1) {
+      std::swap(y1, y2);
+    }
+    for (int y = y1; y <= y2; y++) {
+      drawPixel(x1, y, state);
+    }
+  } else if (y1 == y2) {
+    if (x2 < x1) {
+      std::swap(x1, x2);
+    }
+    for (int x = x1; x <= x2; x++) {
+      drawPixel(x, y1, state);
+    }
+  } else {
+    // TODO: Implement
+    Serial.println("Line drawing not supported");
+  }
 }
 
-void EpdRenderer::drawRect(const int x, const int y, const int width, const int height, const uint16_t color) const {
-  display.drawRect(x + marginLeft, y + marginTop, width, height, color > 0 ? GxEPD_BLACK : GxEPD_WHITE);
+void EpdRenderer::drawRect(const int x, const int y, const int width, const int height, const bool state) const {
+  drawLine(x, y, x + width - 1, y, state);
+  drawLine(x + width - 1, y, x + width - 1, y + height - 1, state);
+  drawLine(x + width - 1, y + height - 1, x, y + height - 1, state);
+  drawLine(x, y, x, y + height - 1, state);
 }
 
-void EpdRenderer::fillRect(const int x, const int y, const int width, const int height, const uint16_t color) const {
-  display.fillRect(x + marginLeft, y + marginTop, width, height, color > 0 ? GxEPD_BLACK : GxEPD_WHITE);
+void EpdRenderer::fillRect(const int x, const int y, const int width, const int height, const bool state) const {
+  for (int fillY = y; fillY < y + height; fillY++) {
+    drawLine(x, fillY, x + width - 1, fillY, state);
+  }
 }
 
-void EpdRenderer::drawCircle(const int x, const int y, const int radius, const uint16_t color) const {
-  display.drawCircle(x + marginLeft, y + marginTop, radius, color > 0 ? GxEPD_BLACK : GxEPD_WHITE);
+void EpdRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height) const {
+  drawImageNoMargin(bitmap, x + marginLeft, y + marginTop, width, height);
 }
 
-void EpdRenderer::fillCircle(const int x, const int y, const int radius, const uint16_t color) const {
-  display.fillCircle(x + marginLeft, y + marginTop, radius, color > 0 ? GxEPD_BLACK : GxEPD_WHITE);
+// TODO: Support y-mirror?
+void EpdRenderer::drawImageNoMargin(const uint8_t bitmap[], const int x, const int y, const int width,
+                                    const int height) const {
+  einkDisplay.drawImage(bitmap, x, y, width, height);
 }
 
-void EpdRenderer::drawImage(const uint8_t bitmap[], const int x, const int y, const int width, const int height,
-                            const bool invert, const bool mirrorY) const {
-  drawImageNoMargin(bitmap, x + marginLeft, y + marginTop, width, height, invert, mirrorY);
-}
-
-void EpdRenderer::drawImageNoMargin(const uint8_t bitmap[], const int x, const int y, const int width, const int height,
-                                    const bool invert, const bool mirrorY) const {
-  display.drawImage(bitmap, x, y, width, height, invert, mirrorY);
-}
-
-void EpdRenderer::clearScreen(const bool black) const {
+void EpdRenderer::clearScreen(const uint8_t color) const {
   Serial.println("Clearing screen");
-  display.fillScreen(black ? GxEPD_BLACK : GxEPD_WHITE);
+  einkDisplay.clearScreen(color);
 }
 
-void EpdRenderer::flushDisplay(const bool partialUpdate) const { display.display(partialUpdate); }
+void EpdRenderer::flushDisplay(const bool partialUpdate) const {
+  einkDisplay.displayBuffer(partialUpdate ? EInkDisplay::FAST_REFRESH : EInkDisplay::FULL_REFRESH);
+}
 
+// TODO: Support partial window update
 void EpdRenderer::flushArea(const int x, const int y, const int width, const int height) const {
-  display.displayWindow(x + marginLeft, y + marginTop, width, height);
+  einkDisplay.displayBuffer();
 }
 
-int EpdRenderer::getPageWidth() const { return display.width() - marginLeft - marginRight; }
+int EpdRenderer::getPageWidth() const { return EInkDisplay::DISPLAY_HEIGHT - marginLeft - marginRight; }
 
-int EpdRenderer::getPageHeight() const { return display.height() - marginTop - marginBottom; }
+int EpdRenderer::getPageHeight() const { return EInkDisplay::DISPLAY_WIDTH - marginTop - marginBottom; }
 
 int EpdRenderer::getSpaceWidth() const { return regularFontRenderer->fontFamily->getGlyph(' ', REGULAR)->advanceX; }
 
