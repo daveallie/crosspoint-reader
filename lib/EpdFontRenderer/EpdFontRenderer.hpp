@@ -6,23 +6,27 @@
 inline int min(const int a, const int b) { return a < b ? a : b; }
 inline int max(const int a, const int b) { return a > b ? a : b; }
 
+enum EpdFontRendererMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
+
 template <typename Renderable>
 class EpdFontRenderer {
   Renderable& renderer;
-  void renderChar(uint32_t cp, int* x, const int* y, bool pixelState, EpdFontStyle style = REGULAR);
+  void renderChar(uint32_t cp, int* x, const int* y, bool pixelState, EpdFontStyle style = REGULAR,
+                  EpdFontRendererMode mode = BW);
 
  public:
   const EpdFontFamily* fontFamily;
   explicit EpdFontRenderer(const EpdFontFamily* fontFamily, Renderable& renderer)
       : fontFamily(fontFamily), renderer(renderer) {}
   ~EpdFontRenderer() = default;
-  void renderString(const char* string, int* x, int* y, bool pixelState = true, EpdFontStyle style = REGULAR);
+  void renderString(const char* string, int* x, int* y, bool pixelState = true, EpdFontStyle style = REGULAR,
+                    EpdFontRendererMode mode = BW);
   void drawPixel(int x, int y, bool pixelState);
 };
 
 template <typename Renderable>
 void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* y, const bool pixelState,
-                                               const EpdFontStyle style) {
+                                               const EpdFontStyle style, const EpdFontRendererMode mode) {
   // cannot draw a NULL / empty string
   if (string == nullptr || *string == '\0') {
     return;
@@ -35,7 +39,7 @@ void EpdFontRenderer<Renderable>::renderString(const char* string, int* x, int* 
 
   uint32_t cp;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&string)))) {
-    renderChar(cp, x, y, pixelState, style);
+    renderChar(cp, x, y, pixelState, style, mode);
   }
 
   *y += fontFamily->getData(style)->advanceY;
@@ -77,7 +81,7 @@ void EpdFontRenderer<Renderable>::drawPixel(const int x, const int y, const bool
 
 template <typename Renderable>
 void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const int* y, const bool pixelState,
-                                             const EpdFontStyle style) {
+                                             const EpdFontStyle style, const EpdFontRendererMode mode) {
   const EpdGlyph* glyph = fontFamily->getGlyph(cp, style);
   if (!glyph) {
     // TODO: Replace with fallback glyph property?
@@ -90,6 +94,7 @@ void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const in
     return;
   }
 
+  const int is2Bit = fontFamily->getData(style)->is2Bit;
   const uint32_t offset = glyph->dataOffset;
   const uint8_t width = glyph->width;
   const uint8_t height = glyph->height;
@@ -105,11 +110,26 @@ void EpdFontRenderer<Renderable>::renderChar(const uint32_t cp, int* x, const in
         const int pixelPosition = glyphY * width + glyphX;
         int screenX = *x + left + glyphX;
 
-        const uint8_t byte = bitmap[pixelPosition / 8];
-        const uint8_t bit_index = 7 - (pixelPosition % 8);
+        if (is2Bit) {
+          const uint8_t byte = bitmap[pixelPosition / 4];
+          const uint8_t bit_index = (3 - pixelPosition % 4) * 2;
 
-        if ((byte >> bit_index) & 1) {
-          drawPixel(screenX, screenY, pixelState);
+          const uint8_t val = (byte >> bit_index) & 0x3;
+          if (mode == BW && val > 0) {
+            drawPixel(screenX, screenY, pixelState);
+          } else if (mode == GRAYSCALE_MSB && val == 1) {
+            // TODO: Not sure how this anti-aliasing goes on black backgrounds
+            drawPixel(screenX, screenY, false);
+          } else if (mode == GRAYSCALE_LSB && val == 2) {
+            drawPixel(screenX, screenY, false);
+          }
+        } else {
+          const uint8_t byte = bitmap[pixelPosition / 8];
+          const uint8_t bit_index = 7 - (pixelPosition % 8);
+
+          if ((byte >> bit_index) & 1) {
+            drawPixel(screenX, screenY, pixelState);
+          }
         }
       }
     }

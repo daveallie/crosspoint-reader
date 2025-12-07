@@ -31,4 +31,5 @@ typedef struct {
   uint8_t advanceY;                     ///< Newline distance (y axis)
   int ascender;                         ///< Maximal height of a glyph above the base line
   int descender;                        ///< Maximal height of a glyph below the base line
+  bool is2Bit;
 } EpdFontData;

@@ -1,17 +1,17 @@
 #include "EpdRenderer.h"
 
 #include "builtinFonts/babyblue.h"
-#include "builtinFonts/bookerly.h"
-#include "builtinFonts/bookerly_bold.h"
-#include "builtinFonts/bookerly_bold_italic.h"
-#include "builtinFonts/bookerly_italic.h"
+#include "builtinFonts/bookerly_2b.h"
+#include "builtinFonts/bookerly_bold_2b.h"
+#include "builtinFonts/bookerly_bold_italic_2b.h"
+#include "builtinFonts/bookerly_italic_2b.h"
 #include "builtinFonts/ubuntu_10.h"
 #include "builtinFonts/ubuntu_bold_10.h"
 
-EpdFont bookerlyFont(&bookerly);
-EpdFont bookerlyBoldFont(&bookerly_bold);
-EpdFont bookerlyItalicFont(&bookerly_italic);
-EpdFont bookerlyBoldItalicFont(&bookerly_bold_italic);
+EpdFont bookerlyFont(&bookerly_2b);
+EpdFont bookerlyBoldFont(&bookerly_bold_2b);
+EpdFont bookerlyItalicFont(&bookerly_italic_2b);
+EpdFont bookerlyBoldItalicFont(&bookerly_bold_italic_2b);
 EpdFontFamily bookerlyFontFamily(&bookerlyFont, &bookerlyBoldFont, &bookerlyItalicFont, &bookerlyBoldItalicFont);
 
 EpdFont smallFont(&babyblue);
@@ -27,6 +27,7 @@ EpdRenderer::EpdRenderer(EInkDisplay& einkDisplay)
       marginBottom(30),
       marginLeft(10),
       marginRight(10),
+      fontRendererMode(BW),
       lineCompression(0.95f) {
   this->regularFontRenderer = new EpdFontRenderer<EInkDisplay>(&bookerlyFontFamily, einkDisplay);
   this->smallFontRenderer = new EpdFontRenderer<EInkDisplay>(&smallFontFamily, einkDisplay);
@@ -101,21 +102,21 @@ void EpdRenderer::drawText(const int x, const int y, const char* text, const boo
                            const EpdFontStyle style) const {
   int ypos = y + getLineHeight() + marginTop;
   int xpos = x + marginLeft;
-  regularFontRenderer->renderString(text, &xpos, &ypos, state, style);
+  regularFontRenderer->renderString(text, &xpos, &ypos, state, style, fontRendererMode);
 }
 
 void EpdRenderer::drawUiText(const int x, const int y, const char* text, const bool state,
                              const EpdFontStyle style) const {
   int ypos = y + uiFontRenderer->fontFamily->getData(style)->advanceY + marginTop;
   int xpos = x + marginLeft;
-  uiFontRenderer->renderString(text, &xpos, &ypos, state, style);
+  uiFontRenderer->renderString(text, &xpos, &ypos, state, style, fontRendererMode);
 }
 
 void EpdRenderer::drawSmallText(const int x, const int y, const char* text, const bool state,
                                 const EpdFontStyle style) const {
   int ypos = y + smallFontRenderer->fontFamily->getData(style)->advanceY + marginTop;
   int xpos = x + marginLeft;
-  smallFontRenderer->renderString(text, &xpos, &ypos, state, style);
+  smallFontRenderer->renderString(text, &xpos, &ypos, state, style, fontRendererMode);
 }
 
 void EpdRenderer::drawTextBox(const int x, const int y, const std::string& text, const int width, const int height,
@@ -221,3 +222,9 @@ int EpdRenderer::getSpaceWidth() const { return regularFontRenderer->fontFamily-
 int EpdRenderer::getLineHeight() const {
   return regularFontRenderer->fontFamily->getData(REGULAR)->advanceY * lineCompression;
 }
+
+void EpdRenderer::copyGrayscaleLsbBuffers() const { einkDisplay.copyGrayscaleLsbBuffers(einkDisplay.getFrameBuffer()); }
+
+void EpdRenderer::copyGrayscaleMsbBuffers() const { einkDisplay.copyGrayscaleMsbBuffers(einkDisplay.getFrameBuffer()); }
+
+void EpdRenderer::displayGrayBuffer() const { einkDisplay.displayGrayBuffer(); }

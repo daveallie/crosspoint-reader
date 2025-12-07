@@ -98,21 +98,15 @@ bool Section::persistPageDataToSD() {
   return true;
 }
 
-void Section::renderPage() const {
-  if (0 <= currentPage && currentPage < pageCount) {
-    const auto filePath = "/sd" + cachePath + "/page_" + std::to_string(currentPage) + ".bin";
-    std::ifstream inputFile(filePath);
-    const Page* p = Page::deserialize(inputFile);
-    inputFile.close();
-    p->render(renderer);
-    delete p;
-  } else if (pageCount == 0) {
-    Serial.println("No pages to render");
-    const int width = renderer.getTextWidth("Empty chapter", BOLD);
-    renderer.drawText((renderer.getPageWidth() - width) / 2, 300, "Empty chapter", 1, BOLD);
-  } else {
-    Serial.printf("Page out of bounds: %d (max %d)\n", currentPage, pageCount);
-    const int width = renderer.getTextWidth("Out of bounds", BOLD);
-    renderer.drawText((renderer.getPageWidth() - width) / 2, 300, "Out of bounds", 1, BOLD);
+Page* Section::loadPageFromSD() const {
+  const auto filePath = "/sd" + cachePath + "/page_" + std::to_string(currentPage) + ".bin";
+  if (!SD.exists(filePath.c_str() + 3)) {
+    Serial.printf("Page file does not exist: %s\n", filePath.c_str());
+    return nullptr;
   }
+
+  std::ifstream inputFile(filePath);
+  Page* p = Page::deserialize(inputFile);
+  inputFile.close();
+  return p;
 }

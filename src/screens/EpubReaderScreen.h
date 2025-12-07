@@ -20,7 +20,8 @@ class EpubReaderScreen final : public Screen {
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
-  void renderPage();
+  void renderScreen();
+  void renderContents(const Page* p) const;
   void renderStatusBar() const;
 
  public:

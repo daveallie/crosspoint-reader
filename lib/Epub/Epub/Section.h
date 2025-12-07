@@ -26,5 +26,5 @@ class Section {
   void setupCacheDir() const;
   void clearCache() const;
   bool persistPageDataToSD();
-  void renderPage() const;
+  Page* loadPageFromSD() const;
 };

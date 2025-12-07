@@ -13,6 +13,7 @@ class EpdRenderer {
   int marginBottom;
   int marginLeft;
   int marginRight;
+  EpdFontRendererMode fontRendererMode;
   float lineCompression;
 
  public:
@@ -32,6 +33,9 @@ class EpdRenderer {
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height) const;
   void drawImageNoMargin(const uint8_t bitmap[], int x, int y, int width, int height) const;
 
+  void copyGrayscaleLsbBuffers() const;
+  void copyGrayscaleMsbBuffers() const;
+  void displayGrayBuffer() const;
   void clearScreen(uint8_t color = 0xFF) const;
   void flushDisplay(bool partialUpdate = true) const;
   void flushArea(int x, int y, int width, int height) const;
@@ -46,4 +50,5 @@ class EpdRenderer {
   void setMarginBottom(const int newMarginBottom) { this->marginBottom = newMarginBottom; }
   void setMarginLeft(const int newMarginLeft) { this->marginLeft = newMarginLeft; }
   void setMarginRight(const int newMarginRight) { this->marginRight = newMarginRight; }
+  void setFontRendererMode(const EpdFontRendererMode mode) { this->fontRendererMode = mode; }
 };
