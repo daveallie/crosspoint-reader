@@ -199,6 +199,11 @@ bool EpubHtmlParserSlim::parseAndBuildPages() {
   XML_SetCharacterDataHandler(parser, characterData);
 
   FILE* file = fopen(filepath, "r");
+  if (!file) {
+    Serial.printf("Couldn't open file %s\n", filepath);
+    XML_ParserFree(parser);
+    return false;
+  }
 
   do {
     void* const buf = XML_GetBuffer(parser, 1024);

@@ -135,6 +135,7 @@ void EpubReaderScreen::displayTaskLoop() {
   }
 }
 
+// TODO: Failure handling
 void EpubReaderScreen::renderPage() {
   if (!epub) {
     return;

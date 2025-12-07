@@ -9,7 +9,7 @@
 bool Epub::findContentOpfFile(const ZipFile& zip, std::string& contentOpfFile) {
   // open up the meta data to find where the content.opf file lives
   size_t s;
-  const auto metaInfo = zip.readTextFileToMemory("META-INF/container.xml", &s);
+  const auto metaInfo = reinterpret_cast<char*>(zip.readFileToMemory("META-INF/container.xml", &s, true));
   if (!metaInfo) {
     Serial.println("Could not find META-INF/container.xml");
     return false;
@@ -57,7 +57,7 @@ bool Epub::findContentOpfFile(const ZipFile& zip, std::string& contentOpfFile) {
 
 bool Epub::parseContentOpf(ZipFile& zip, std::string& content_opf_file) {
   // read in the content.opf file and parse it
-  auto contents = zip.readTextFileToMemory(content_opf_file.c_str());
+  auto contents = reinterpret_cast<char*>(zip.readFileToMemory(content_opf_file.c_str(), nullptr, true));
 
   // parse the contents
   tinyxml2::XMLDocument doc;
@@ -168,7 +168,7 @@ bool Epub::parseTocNcxFile(const ZipFile& zip) {
     return false;
   }
 
-  const auto ncxData = zip.readTextFileToMemory(tocNcxItem.c_str());
+  const auto ncxData = reinterpret_cast<char*>(zip.readFileToMemory(tocNcxItem.c_str(), nullptr, true));
   if (!ncxData) {
     Serial.printf("Could not find %s\n", tocNcxItem.c_str());
     return false;
@@ -308,11 +308,11 @@ std::string normalisePath(const std::string& path) {
   return result;
 }
 
-uint8_t* Epub::getItemContents(const std::string& itemHref, size_t* size) const {
+uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, bool trailingNullByte) const {
   const ZipFile zip("/sd" + filepath);
   const std::string path = normalisePath(itemHref);
 
-  const auto content = zip.readFileToMemory(path.c_str(), size);
+  const auto content = zip.readFileToMemory(path.c_str(), size, trailingNullByte);
   if (!content) {
     Serial.printf("Failed to read item %s\n", path.c_str());
     return nullptr;
@@ -321,17 +321,11 @@ uint8_t* Epub::getItemContents(const std::string& itemHref, size_t* size) const 
   return content;
 }
 
-char* Epub::getTextItemContents(const std::string& itemHref, size_t* size) const {
+bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, const size_t chunkSize) const {
   const ZipFile zip("/sd" + filepath);
   const std::string path = normalisePath(itemHref);
 
-  const auto content = zip.readTextFileToMemory(path.c_str(), size);
-  if (!content) {
-    Serial.printf("Failed to read item %s\n", path.c_str());
-    return nullptr;
-  }
-
-  return content;
+  return zip.readFileToStream(path.c_str(), out, chunkSize);
 }
 
 int Epub::getSpineItemsCount() const { return spine.size(); }

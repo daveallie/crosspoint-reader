@@ -64,35 +64,28 @@ void Section::setupCacheDir() const {
 void Section::clearCache() const { SD.rmdir(cachePath.c_str()); }
 
 bool Section::persistPageDataToSD() {
-  size_t size = 0;
-  auto localPath = epub->getSpineItem(spineIndex);
+  const auto localPath = epub->getSpineItem(spineIndex);
 
-  const auto html = epub->getItemContents(epub->getSpineItem(spineIndex), &size);
-  if (!html) {
-    Serial.println("Failed to read item contents");
-    return false;
-  }
-
-  // TODO: Would love to stream this through an XML visitor
+  // TODO: Should we get rid of this file all together?
+  //       It currently saves us a bit of memory by allowing for all the inflation bits to be released
+  //       before loading the XML parser
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
-  File f = SD.open(tmpHtmlPath.c_str(), FILE_WRITE);
-  const auto written = f.write(html, size);
+  File f = SD.open(tmpHtmlPath.c_str(), FILE_WRITE, true);
+  bool success = epub->readItemContentsToStream(localPath, f, 1024);
   f.close();
-  free(html);
 
-  Serial.printf("Wrote %d bytes to %s\n", written, tmpHtmlPath.c_str());
-
-  if (size != written) {
-    Serial.println("Failed to inflate section contents to SD");
-    SD.remove(tmpHtmlPath.c_str());
+  if (!success) {
+    Serial.println("Failed to stream item contents");
     return false;
   }
+
+  Serial.printf("Streamed HTML to %s\n", tmpHtmlPath.c_str());
 
   const auto sdTmpHtmlPath = "/sd" + tmpHtmlPath;
 
   auto visitor =
       EpubHtmlParserSlim(sdTmpHtmlPath.c_str(), renderer, [this](const Page* page) { this->onPageComplete(page); });
-  const bool success = visitor.parseAndBuildPages();
+  success = visitor.parseAndBuildPages();
 
   SD.remove(tmpHtmlPath.c_str());
   if (!success) {
