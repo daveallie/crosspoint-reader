@@ -11,9 +11,9 @@ void SleepScreen::onEnter() {
   renderer.clearScreen();
   renderer.drawImage(CrossLarge, (pageHeight - 128) / 2, (pageWidth - 128) / 2, 128, 128);
   const int width = renderer.getUiTextWidth("CrossPoint", BOLD);
-  renderer.drawUiText((pageWidth - width)/ 2, pageHeight / 2 + 100, "CrossPoint", true, BOLD);
+  renderer.drawUiText((pageWidth - width)/ 2, pageHeight / 2 + 70, "CrossPoint", true, BOLD);
   const int bootingWidth = renderer.getSmallTextWidth("SLEEPING");
-  renderer.drawSmallText((pageWidth - bootingWidth) / 2, pageHeight / 2 + 125, "SLEEPING");
+  renderer.drawSmallText((pageWidth - bootingWidth) / 2, pageHeight / 2 + 95, "SLEEPING");
   renderer.invertScreen();
-  renderer.flushDisplay(EInkDisplay::HALF_REFRESH);
+  renderer.flushDisplay(EInkDisplay::FULL_REFRESH);
 }
