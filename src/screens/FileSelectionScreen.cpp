@@ -51,7 +51,7 @@ void FileSelectionScreen::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&FileSelectionScreen::taskTrampoline, "FileSelectionScreenTask",
-              1024,               // Stack size
+              2048,               // Stack size
               this,               // Parameters
               1,                  // Priority
               &displayTaskHandle  // Task handle
