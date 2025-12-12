@@ -6,6 +6,8 @@
 
 #include <map>
 
+#include "Epub/FsHelpers.h"
+
 bool Epub::findContentOpfFile(const ZipFile& zip, std::string& contentOpfFile) {
   // open up the meta data to find where the content.opf file lives
   size_t s;
@@ -249,46 +251,13 @@ bool Epub::load() {
   return true;
 }
 
-bool removeDir(const char *path) {
-  // 1. Open the directory
-  File dir = SD.open(path);
-  if (!dir) {
-    return false;
-  }
-  if (!dir.isDirectory()) {
-    return false;
-  }
-
-  File file = dir.openNextFile();
-  while (file) {
-    String filePath = path;
-    if (!filePath.endsWith("/")) {
-      filePath += "/";
-    }
-    filePath += file.name();
-
-    if (file.isDirectory()) {
-      if (!removeDir(filePath.c_str())) {
-        return false;
-      }
-    } else {
-      if (!SD.remove(filePath.c_str())) {
-        return false;
-      }
-    }
-    file = dir.openNextFile();
-  }
-
-  return SD.rmdir(path);
-}
-
 bool Epub::clearCache() const {
   if (!SD.exists(cachePath.c_str())) {
     Serial.printf("[%lu] [EPB] Cache does not exist, no action needed\n", millis());
     return true;
   }
 
-  if (!removeDir(cachePath.c_str())) {
+  if (!FsHelpers::removeDir(cachePath.c_str())) {
     Serial.printf("[%lu] [EPB] Failed to clear cache\n", millis());
     return false;
   }

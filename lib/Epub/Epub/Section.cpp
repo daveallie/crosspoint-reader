@@ -1,12 +1,13 @@
 #include "Section.h"
 
 #include <SD.h>
+#include <Serialization.h>
 
 #include <fstream>
 
 #include "EpubHtmlParserSlim.h"
+#include "FsHelpers.h"
 #include "Page.h"
-#include "Serialization.h"
 
 constexpr uint8_t SECTION_FILE_VERSION = 4;
 
@@ -89,39 +90,6 @@ void Section::setupCacheDir() const {
   SD.mkdir(cachePath.c_str());
 }
 
-bool removeDir(const char *path) {
-  // 1. Open the directory
-  File dir = SD.open(path);
-  if (!dir) {
-    return false;
-  }
-  if (!dir.isDirectory()) {
-    return false;
-  }
-
-  File file = dir.openNextFile();
-  while (file) {
-    String filePath = path;
-    if (!filePath.endsWith("/")) {
-      filePath += "/";
-    }
-    filePath += file.name();
-
-    if (file.isDirectory()) {
-      if (!removeDir(filePath.c_str())) {
-        return false;
-      }
-    } else {
-      if (!SD.remove(filePath.c_str())) {
-        return false;
-      }
-    }
-    file = dir.openNextFile();
-  }
-
-  return SD.rmdir(path);
-}
-
 // Your updated class method (assuming you are using the 'SD' object, which is a wrapper for a specific filesystem)
 bool Section::clearCache() const {
   if (!SD.exists(cachePath.c_str())) {
@@ -129,7 +97,7 @@ bool Section::clearCache() const {
     return true;
   }
 
-  if (!removeDir(cachePath.c_str())) {
+  if (!FsHelpers::removeDir(cachePath.c_str())) {
     Serial.printf("[%lu] [SCT] Failed to clear cache\n", millis());
     return false;
   }
