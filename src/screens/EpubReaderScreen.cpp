@@ -208,6 +208,12 @@ void EpubReaderScreen::renderScreen() {
 
   {
     auto p = section->loadPageFromSD();
+    if (!p) {
+      Serial.printf("[%lu] [ERS] Failed to load page from SD - clearing section cache\n", millis());
+      section->clearCache();
+      section.reset();
+      return renderScreen();
+    }
     const auto start = millis();
     renderContents(std::move(p));
     Serial.printf("[%lu] [ERS] Rendered page in %dms\n", millis(), millis() - start);

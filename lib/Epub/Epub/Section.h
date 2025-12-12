@@ -28,7 +28,7 @@ class Section {
   bool loadCacheMetadata(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
                          int marginLeft);
   void setupCacheDir() const;
-  void clearCache() const;
+  bool clearCache() const;
   bool persistPageDataToSD(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
                            int marginLeft);
   std::unique_ptr<Page> loadPageFromSD() const;

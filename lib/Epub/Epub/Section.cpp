@@ -55,8 +55,8 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     serialization::readPod(inputFile, version);
     if (version != SECTION_FILE_VERSION) {
       inputFile.close();
-      clearCache();
       Serial.printf("[%lu] [SCT] Deserialization failed: Unknown version %u\n", millis(), version);
+      clearCache();
       return false;
     }
 
@@ -72,8 +72,8 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     if (fontId != fileFontId || lineCompression != fileLineCompression || marginTop != fileMarginTop ||
         marginRight != fileMarginRight || marginBottom != fileMarginBottom || marginLeft != fileMarginLeft) {
       inputFile.close();
-      clearCache();
       Serial.printf("[%lu] [SCT] Deserialization failed: Parameters do not match\n", millis());
+      clearCache();
       return false;
     }
   }
@@ -89,7 +89,54 @@ void Section::setupCacheDir() const {
   SD.mkdir(cachePath.c_str());
 }
 
-void Section::clearCache() const { SD.rmdir(cachePath.c_str()); }
+bool removeDir(const char *path) {
+  // 1. Open the directory
+  File dir = SD.open(path);
+  if (!dir) {
+    return false;
+  }
+  if (!dir.isDirectory()) {
+    return false;
+  }
+
+  File file = dir.openNextFile();
+  while (file) {
+    String filePath = path;
+    if (!filePath.endsWith("/")) {
+      filePath += "/";
+    }
+    filePath += file.name();
+
+    if (file.isDirectory()) {
+      if (!removeDir(filePath.c_str())) {
+        return false;
+      }
+    } else {
+      if (!SD.remove(filePath.c_str())) {
+        return false;
+      }
+    }
+    file = dir.openNextFile();
+  }
+
+  return SD.rmdir(path);
+}
+
+// Your updated class method (assuming you are using the 'SD' object, which is a wrapper for a specific filesystem)
+bool Section::clearCache() const {
+  if (!SD.exists(cachePath.c_str())) {
+    Serial.printf("[%lu] [SCT] Cache does not exist, no action needed\n", millis());
+    return true;
+  }
+
+  if (!removeDir(cachePath.c_str())) {
+    Serial.printf("[%lu] [SCT] Failed to clear cache\n", millis());
+    return false;
+  }
+
+  Serial.printf("[%lu] [SCT] Cache cleared successfully\n", millis());
+  return true;
+}
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft) {
