@@ -16,7 +16,7 @@ void SleepScreen::onEnter() {
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
 
   // Apply white screen if enabled in settings
-  if (!settings.whiteSleepScreen) {
+  if (!SETTINGS.whiteSleepScreen) {
     renderer.invertScreen();
   }
 

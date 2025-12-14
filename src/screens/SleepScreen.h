@@ -5,10 +5,7 @@ class CrossPointSettings;
 
 class SleepScreen final : public Screen {
  public:
-  explicit SleepScreen(GfxRenderer& renderer, InputManager& inputManager, const CrossPointSettings& settings)
-      : Screen(renderer, inputManager), settings(settings) {}
+  explicit SleepScreen(GfxRenderer& renderer, InputManager& inputManager)
+      : Screen(renderer, inputManager) {}
   void onEnter() override;
-
- private:
-  const CrossPointSettings& settings;
 };

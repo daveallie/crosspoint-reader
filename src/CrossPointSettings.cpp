@@ -6,6 +6,9 @@
 
 #include <fstream>
 
+// Initialize the static instance
+CrossPointSettings CrossPointSettings::instance;
+
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
 constexpr char SETTINGS_FILE[] = "/sd/.crosspoint/settings.bin";
 

@@ -21,6 +21,7 @@
 #include "screens/EpubReaderScreen.h"
 #include "screens/FileSelectionScreen.h"
 #include "screens/FullScreenMessageScreen.h"
+#include "screens/SettingsScreen.h"
 #include "screens/SleepScreen.h"
 
 #define SPI_FQ 40000000
@@ -42,7 +43,6 @@ InputManager inputManager;
 GfxRenderer renderer(einkDisplay);
 Screen* currentScreen;
 CrossPointState appState;
-CrossPointSettings appSettings;
 
 // Fonts
 EpdFont bookerlyFont(&bookerly_2b);
@@ -133,8 +133,8 @@ void waitForPowerRelease() {
 // Enter deep sleep mode
 void enterDeepSleep() {
   exitScreen();
-  appSettings.saveToFile();
-  enterNewScreen(new SleepScreen(renderer, inputManager, appSettings));
+  SETTINGS.saveToFile();
+  enterNewScreen(new SleepScreen(renderer, inputManager));
 
   Serial.printf("[%lu] [   ] Power button released after a long press. Entering deep sleep.\n", millis());
   delay(1000);  // Allow Serial buffer to empty and display to update
@@ -168,9 +168,14 @@ void onSelectEpubFile(const std::string& path) {
   }
 }
 
+void onGoToSettings() {
+  exitScreen();
+  enterNewScreen(new SettingsScreen(renderer, inputManager, onGoHome));
+}
+
 void onGoHome() {
   exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile));
+  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
 }
 
 void setup() {
@@ -202,7 +207,7 @@ void setup() {
   // SD Card Initialization
   SD.begin(SD_SPI_CS, SPI, SPI_FQ);
 
-  appSettings.loadFromFile();
+  SETTINGS.loadFromFile();
   appState.loadFromFile();
   if (!appState.openEpubPath.empty()) {
     auto epub = loadEpub(appState.openEpubPath);
@@ -216,7 +221,7 @@ void setup() {
   }
 
   exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile));
+  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
 
   // Ensure we're not still holding the power button before leaving setup
   waitForPowerRelease();

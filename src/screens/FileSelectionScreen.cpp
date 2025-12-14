@@ -91,11 +91,16 @@ void FileSelectionScreen::handleInput() {
     } else {
       onSelect(basepath + files[selectorIndex]);
     }
-  } else if (inputManager.wasPressed(InputManager::BTN_BACK) && basepath != "/") {
-    basepath = basepath.substr(0, basepath.rfind('/'));
-    if (basepath.empty()) basepath = "/";
-    loadFiles();
-    updateRequired = true;
+  } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (basepath != "/") {
+      basepath = basepath.substr(0, basepath.rfind('/'));
+      if (basepath.empty()) basepath = "/";
+      loadFiles();
+      updateRequired = true;
+    } else {
+      // At root level, go to settings
+      onSettingsOpen();
+    }
   } else if (prevPressed) {
     selectorIndex = (selectorIndex + files.size() - 1) % files.size();
     updateRequired = true;
@@ -122,6 +127,10 @@ void FileSelectionScreen::render() const {
 
   const auto pageWidth = GfxRenderer::getScreenWidth();
   renderer.drawCenteredText(READER_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
+
+  // Help text
+  renderer.drawText(SMALL_FONT_ID, 20, GfxRenderer::getScreenHeight() - 30,
+                   "Press BACK for Settings");
 
   if (files.empty()) {
     renderer.drawText(UI_FONT_ID, 20, 60, "No EPUBs found");
