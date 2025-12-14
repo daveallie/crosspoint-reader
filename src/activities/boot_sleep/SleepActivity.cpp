@@ -3,10 +3,23 @@
 #include <GfxRenderer.h>
 
 #include "CrossPointSettings.h"
+#include "SD.h"
 #include "config.h"
 #include "images/CrossLarge.h"
 
 void SleepActivity::onEnter() {
+  // Look for sleep.bmp on the root of the sd card to determine if we should
+  // render a custom sleep screen instead of the default.
+  auto file = SD.open("/sleep.bmp");
+  if (file) {
+    renderCustomSleepScreen(file);
+    return;
+  }
+
+  renderDefaultSleepScreen();
+}
+
+void SleepActivity::renderDefaultSleepScreen() {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
 
@@ -19,6 +32,19 @@ void SleepActivity::onEnter() {
   if (!SETTINGS.whiteSleepScreen) {
     renderer.invertScreen();
   }
+
+  renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
+}
+
+void SleepActivity::renderCustomSleepScreen(File file) {
+  Serial.println("Rendering custom sleep screen from sleep.bmp");
+
+  const auto pageWidth = GfxRenderer::getScreenWidth();
+  const auto pageHeight = GfxRenderer::getScreenHeight();
+
+  renderer.clearScreen();
+
+  renderer.drawCenteredText(UI_FONT_ID, pageHeight / 2 + 70, "CUSTOM SLEEP SCREEN", true, BOLD);
 
   renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
 }
