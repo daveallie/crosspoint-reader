@@ -58,9 +58,9 @@ EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ubuntuBold10Font);
 
 // Power button timing
 // Time required to confirm boot from sleep
-constexpr unsigned long POWER_BUTTON_WAKEUP_MS = 1000;
+constexpr unsigned long POWER_BUTTON_WAKEUP_MS = 500;
 // Time required to enter sleep mode
-constexpr unsigned long POWER_BUTTON_SLEEP_MS = 1000;
+constexpr unsigned long POWER_BUTTON_SLEEP_MS = 500;
 
 std::unique_ptr<Epub> loadEpub(const std::string& path) {
   if (!SD.exists(path.c_str())) {
