@@ -13,7 +13,7 @@ class Section {
   std::string cachePath;
 
   void writeCacheMetadata(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                          int marginLeft) const;
+                          int marginLeft, bool extraParagraphSpacing) const;
   void onPageComplete(std::unique_ptr<Page> page);
 
  public:
@@ -26,10 +26,10 @@ class Section {
   }
   ~Section() = default;
   bool loadCacheMetadata(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                         int marginLeft);
+                         int marginLeft, bool extraParagraphSpacing);
   void setupCacheDir() const;
   bool clearCache() const;
   bool persistPageDataToSD(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                           int marginLeft);
+                           int marginLeft, bool extraParagraphSpacing);
   std::unique_ptr<Page> loadPageFromSD() const;
 };

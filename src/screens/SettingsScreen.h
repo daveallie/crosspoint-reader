@@ -24,7 +24,7 @@ class SettingsScreen final : public Screen {
   const std::function<void()> onGoHome;
   
   // Static settings list
-  static constexpr int settingsCount = 1;  // Number of settings
+  static constexpr int settingsCount = 2;  // Number of settings
   static const SettingInfo settingsList[settingsCount];
 
   static void taskTrampoline(void* param);

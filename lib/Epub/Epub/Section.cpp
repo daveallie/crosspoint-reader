@@ -24,7 +24,8 @@ void Section::onPageComplete(std::unique_ptr<Page> page) {
 }
 
 void Section::writeCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
-                                 const int marginRight, const int marginBottom, const int marginLeft) const {
+                                 const int marginRight, const int marginBottom, const int marginLeft,
+                                 const bool extraParagraphSpacing) const {
   std::ofstream outputFile(("/sd" + cachePath + "/section.bin").c_str());
   serialization::writePod(outputFile, SECTION_FILE_VERSION);
   serialization::writePod(outputFile, fontId);
@@ -33,12 +34,14 @@ void Section::writeCacheMetadata(const int fontId, const float lineCompression, 
   serialization::writePod(outputFile, marginRight);
   serialization::writePod(outputFile, marginBottom);
   serialization::writePod(outputFile, marginLeft);
+  serialization::writePod(outputFile, extraParagraphSpacing);
   serialization::writePod(outputFile, pageCount);
   outputFile.close();
 }
 
 bool Section::loadCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
-                                const int marginRight, const int marginBottom, const int marginLeft) {
+                                const int marginRight, const int marginBottom, const int marginLeft,
+                                const bool extraParagraphSpacing) {
   if (!SD.exists(cachePath.c_str())) {
     return false;
   }
@@ -63,15 +66,18 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
 
     int fileFontId, fileMarginTop, fileMarginRight, fileMarginBottom, fileMarginLeft;
     float fileLineCompression;
+    bool fileExtraParagraphSpacing;
     serialization::readPod(inputFile, fileFontId);
     serialization::readPod(inputFile, fileLineCompression);
     serialization::readPod(inputFile, fileMarginTop);
     serialization::readPod(inputFile, fileMarginRight);
     serialization::readPod(inputFile, fileMarginBottom);
     serialization::readPod(inputFile, fileMarginLeft);
+    serialization::readPod(inputFile, fileExtraParagraphSpacing);
 
     if (fontId != fileFontId || lineCompression != fileLineCompression || marginTop != fileMarginTop ||
-        marginRight != fileMarginRight || marginBottom != fileMarginBottom || marginLeft != fileMarginLeft) {
+        marginRight != fileMarginRight || marginBottom != fileMarginBottom || marginLeft != fileMarginLeft ||
+        extraParagraphSpacing != fileExtraParagraphSpacing) {
       inputFile.close();
       Serial.printf("[%lu] [SCT] Deserialization failed: Parameters do not match\n", millis());
       clearCache();
@@ -107,7 +113,8 @@ bool Section::clearCache() const {
 }
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
-                                  const int marginRight, const int marginBottom, const int marginLeft) {
+                                  const int marginRight, const int marginBottom, const int marginLeft,
+                                  const bool extraParagraphSpacing) {
   const auto localPath = epub->getSpineItem(spineIndex);
 
   // TODO: Should we get rid of this file all together?
@@ -128,7 +135,7 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
   const auto sdTmpHtmlPath = "/sd" + tmpHtmlPath;
 
   ChapterHtmlSlimParser visitor(sdTmpHtmlPath.c_str(), renderer, fontId, lineCompression, marginTop, marginRight,
-                                marginBottom, marginLeft,
+                                marginBottom, marginLeft, extraParagraphSpacing,
                                 [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); });
   success = visitor.parseAndBuildPages();
 
@@ -138,7 +145,7 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
     return false;
   }
 
-  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft);
+  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft, extraParagraphSpacing);
 
   return true;
 }

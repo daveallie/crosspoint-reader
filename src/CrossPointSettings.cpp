@@ -19,6 +19,7 @@ bool CrossPointSettings::saveToFile() const {
   std::ofstream outputFile(SETTINGS_FILE);
   serialization::writePod(outputFile, SETTINGS_FILE_VERSION);
   serialization::writePod(outputFile, whiteSleepScreen);
+  serialization::writePod(outputFile, extraParagraphSpacing);
   outputFile.close();
   
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -42,6 +43,7 @@ bool CrossPointSettings::loadFromFile() {
   }
 
   serialization::readPod(inputFile, whiteSleepScreen);
+  serialization::readPod(inputFile, extraParagraphSpacing);
 
   inputFile.close();
   Serial.printf("[%lu] [CPS] Settings loaded from file\n", millis());

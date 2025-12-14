@@ -5,6 +5,7 @@
 #include <SD.h>
 
 #include "Battery.h"
+#include "CrossPointSettings.h"
 #include "EpubReaderChapterSelectionScreen.h"
 #include "config.h"
 
@@ -205,7 +206,7 @@ void EpubReaderScreen::renderScreen() {
     Serial.printf("[%lu] [ERS] Loading file: %s, index: %d\n", millis(), filepath.c_str(), currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
     if (!section->loadCacheMetadata(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom,
-                                    marginLeft)) {
+                                    marginLeft, SETTINGS.extraParagraphSpacing)) {
       Serial.printf("[%lu] [ERS] Cache not found, building...\n", millis());
 
       {
@@ -228,7 +229,7 @@ void EpubReaderScreen::renderScreen() {
 
       section->setupCacheDir();
       if (!section->persistPageDataToSD(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom,
-                                        marginLeft)) {
+                                        marginLeft, SETTINGS.extraParagraphSpacing)) {
         Serial.printf("[%lu] [ERS] Failed to persist page data to SD\n", millis());
         section.reset();
         return;

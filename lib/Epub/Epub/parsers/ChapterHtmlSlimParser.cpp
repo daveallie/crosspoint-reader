@@ -274,6 +274,8 @@ void ChapterHtmlSlimParser::makePages() {
   currentTextBlock->layoutAndExtractLines(
       renderer, fontId, marginLeft + marginRight,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
-  // Extra paragrpah spacing
-  //currentPageNextY += lineHeight / 2;
+  // Extra paragraph spacing if enabled
+  if (extraParagraphSpacing) {
+    currentPageNextY += lineHeight / 2;
+  }
 }

@@ -17,6 +17,9 @@ class CrossPointSettings {
   // Sleep screen settings
   bool whiteSleepScreen = false;
   
+  // Text rendering settings
+  bool extraParagraphSpacing = false;
+  
   ~CrossPointSettings() = default;
 
   // Get singleton instance

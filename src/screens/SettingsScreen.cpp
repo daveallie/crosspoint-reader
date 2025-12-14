@@ -7,7 +7,8 @@
 
 // Define the static settings list
 const SettingInfo SettingsScreen::settingsList[SettingsScreen::settingsCount] = {
-  {"White Splash Screen", &CrossPointSettings::whiteSleepScreen}
+  {"White Splash Screen", &CrossPointSettings::whiteSleepScreen},
+  {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing}
 };
 
 void SettingsScreen::taskTrampoline(void* param) {
