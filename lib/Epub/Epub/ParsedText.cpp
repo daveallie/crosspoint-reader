@@ -123,8 +123,11 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
     // Calculate spacing
     int spareSpace = pageWidth - lineWordWidthSum;
+    // width of 1em to indent first line of paragraph
+    const int indentWidth = 1 * renderer.getTextWidth(fontId, "m", REGULAR);
+
     if (!extraParagraphSpacing && wordWidthIndex ==0) {
-        spareSpace -= 3*spaceWidth;
+        spareSpace -= indentWidth;
     }
     int spacing = spaceWidth;
     const bool isLastLine = lineBreak == totalWordCount;
@@ -136,7 +139,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     // Calculate initial x position
     uint16_t xpos = 0;
     if (!extraParagraphSpacing && wordWidthIndex ==0) {
-        xpos = 3*spaceWidth;
+        xpos = indentWidth;
     }
     if (style == TextBlock::RIGHT_ALIGN) {
       xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
