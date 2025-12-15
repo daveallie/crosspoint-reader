@@ -7,7 +7,7 @@
 
 // Define the static settings list
 const SettingInfo SettingsScreen::settingsList[SettingsScreen::settingsCount] = {
-  {"White Splash Screen", &CrossPointSettings::whiteSleepScreen},
+  {"White Sleep Screen", &CrossPointSettings::whiteSleepScreen},
   {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing}
 };
 
@@ -121,12 +121,12 @@ void SettingsScreen::render() const {
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
     const int settingY = 60 + i * 30; // 30 pixels between settings
-    
+
     // Draw selection indicator for the selected setting
     if (i == selectedSettingIndex) {
       renderer.drawText(UI_FONT_ID, 5, settingY, ">");
     }
-    
+
     // Draw setting name and value
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
     bool value = SETTINGS.*(settingsList[i].valuePtr);
