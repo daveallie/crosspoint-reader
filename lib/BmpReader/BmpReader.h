@@ -10,7 +10,7 @@ struct MonoBitmap {
   uint8_t* data = nullptr;  // row-aligned, MSB-first, 1=white 0=black
 };
 
-enum class BmpToMonoError : uint8_t {
+enum class BmpReaderError : uint8_t {
   Ok = 0,
   FileInvalid,
   SeekStartFailed,
@@ -30,14 +30,14 @@ enum class BmpToMonoError : uint8_t {
   ShortReadRow,
 };
 
-class BmpToMono {
+class BmpReader {
  public:
   // Rotate 90° counter-clockwise: (w,h) -> (h,w)
   // Used for converting portrait BMP (480x800) into landscape framebuffer (800x480)
-  static BmpToMonoError convert24BitRotate90CCW(File& file, MonoBitmap& out, uint8_t threshold = 160);
+  static BmpReaderError convert24BitRotate90CCW(File& file, MonoBitmap& out, uint8_t threshold = 160);
 
   static void freeMonoBitmap(MonoBitmap& bmp);
-  static const char* errorToString(BmpToMonoError err);
+  static const char* errorToString(BmpReaderError err);
 
  private:
   static uint16_t readLE16(File& f);
@@ -54,5 +54,5 @@ class BmpToMono {
       buf[idx] |= mask;
   }
 
-  static BmpToMonoError convert24BitImpl(File& file, MonoBitmap& out, uint8_t threshold, bool rotate90CW);
+  static BmpReaderError convert24BitImpl(File& file, MonoBitmap& out, uint8_t threshold, bool rotate90CCW);
 };

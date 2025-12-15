@@ -1,9 +1,9 @@
-#include "BmpToMono.h"
+#include "BmpReader.h"
 
 #include <cstdlib>
 #include <cstring>
 
-uint16_t BmpToMono::readLE16(File& f) {
+uint16_t BmpReader::readLE16(File& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const uint8_t b0 = (uint8_t)(c0 < 0 ? 0 : c0);
@@ -11,7 +11,7 @@ uint16_t BmpToMono::readLE16(File& f) {
   return (uint16_t)b0 | ((uint16_t)b1 << 8);
 }
 
-uint32_t BmpToMono::readLE32(File& f) {
+uint32_t BmpReader::readLE32(File& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const int c2 = f.read();
@@ -25,7 +25,7 @@ uint32_t BmpToMono::readLE32(File& f) {
   return (uint32_t)b0 | ((uint32_t)b1 << 8) | ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
 }
 
-void BmpToMono::freeMonoBitmap(MonoBitmap& bmp) {
+void BmpReader::freeMonoBitmap(MonoBitmap& bmp) {
   if (bmp.data) {
     free(bmp.data);
     bmp.data = nullptr;
@@ -35,51 +35,51 @@ void BmpToMono::freeMonoBitmap(MonoBitmap& bmp) {
   bmp.len = 0;
 }
 
-const char* BmpToMono::errorToString(BmpToMonoError err) {
+const char* BmpReader::errorToString(BmpReaderError err) {
   switch (err) {
-    case BmpToMonoError::Ok:
+    case BmpReaderError::Ok:
       return "Ok";
-    case BmpToMonoError::FileInvalid:
+    case BmpReaderError::FileInvalid:
       return "FileInvalid";
-    case BmpToMonoError::SeekStartFailed:
+    case BmpReaderError::SeekStartFailed:
       return "SeekStartFailed";
-    case BmpToMonoError::NotBMP:
+    case BmpReaderError::NotBMP:
       return "NotBMP (missing 'BM')";
-    case BmpToMonoError::DIBTooSmall:
+    case BmpReaderError::DIBTooSmall:
       return "DIBTooSmall (<40 bytes)";
-    case BmpToMonoError::BadPlanes:
+    case BmpReaderError::BadPlanes:
       return "BadPlanes (!= 1)";
-    case BmpToMonoError::UnsupportedBpp:
+    case BmpReaderError::UnsupportedBpp:
       return "UnsupportedBpp (expected 24)";
-    case BmpToMonoError::UnsupportedCompression:
+    case BmpReaderError::UnsupportedCompression:
       return "UnsupportedCompression (expected BI_RGB)";
-    case BmpToMonoError::BadDimensions:
+    case BmpReaderError::BadDimensions:
       return "BadDimensions";
-    case BmpToMonoError::SeekPixelDataFailed:
+    case BmpReaderError::SeekPixelDataFailed:
       return "SeekPixelDataFailed";
-    case BmpToMonoError::OomOutput:
+    case BmpReaderError::OomOutput:
       return "OomOutput";
-    case BmpToMonoError::OomRowBuffer:
+    case BmpReaderError::OomRowBuffer:
       return "OomRowBuffer";
-    case BmpToMonoError::ShortReadRow:
+    case BmpReaderError::ShortReadRow:
       return "ShortReadRow";
   }
   return "Unknown";
 }
 
-BmpToMonoError BmpToMono::convert24BitRotate90CCW(File& file, MonoBitmap& out, uint8_t threshold) {
+BmpReaderError BmpReader::convert24BitRotate90CCW(File& file, MonoBitmap& out, uint8_t threshold) {
   return convert24BitImpl(file, out, threshold, true);
 }
 
-BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t threshold, bool rotate90CCW) {
+BmpReaderError BmpReader::convert24BitImpl(File& f, MonoBitmap& out, uint8_t threshold, bool rotate90CCW) {
   freeMonoBitmap(out);
 
-  if (!f) return BmpToMonoError::FileInvalid;
-  if (!f.seek(0)) return BmpToMonoError::SeekStartFailed;
+  if (!f) return BmpReaderError::FileInvalid;
+  if (!f.seek(0)) return BmpReaderError::SeekStartFailed;
 
   // --- BMP FILE HEADER ---
   const uint16_t bfType = readLE16(f);
-  if (bfType != 0x4D42) return BmpToMonoError::NotBMP;
+  if (bfType != 0x4D42) return BmpReaderError::NotBMP;
 
   (void)readLE32(f);
   (void)readLE16(f);
@@ -88,7 +88,7 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
 
   // --- DIB HEADER ---
   const uint32_t biSize = readLE32(f);
-  if (biSize < 40) return BmpToMonoError::DIBTooSmall;
+  if (biSize < 40) return BmpReaderError::DIBTooSmall;
 
   const int32_t srcW = (int32_t)readLE32(f);
   int32_t srcHRaw = (int32_t)readLE32(f);
@@ -96,9 +96,9 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
   const uint16_t bpp = readLE16(f);
   const uint32_t comp = readLE32(f);
 
-  if (planes != 1) return BmpToMonoError::BadPlanes;
-  if (bpp != 24) return BmpToMonoError::UnsupportedBpp;
-  if (comp != 0) return BmpToMonoError::UnsupportedCompression;
+  if (planes != 1) return BmpReaderError::BadPlanes;
+  if (bpp != 24) return BmpReaderError::UnsupportedBpp;
+  if (comp != 0) return BmpReaderError::UnsupportedCompression;
 
   (void)readLE32(f);
   (void)readLE32(f);
@@ -106,11 +106,11 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
   (void)readLE32(f);
   (void)readLE32(f);
 
-  if (srcW <= 0) return BmpToMonoError::BadDimensions;
+  if (srcW <= 0) return BmpReaderError::BadDimensions;
 
   const bool topDown = (srcHRaw < 0);
   const int32_t srcH = topDown ? -srcHRaw : srcHRaw;
-  if (srcH <= 0) return BmpToMonoError::BadDimensions;
+  if (srcH <= 0) return BmpReaderError::BadDimensions;
 
   // Output dimensions
   out.width = rotate90CCW ? (int)srcH : (int)srcW;
@@ -120,7 +120,7 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
   out.len = outBytesPerRow * (size_t)out.height;
 
   out.data = (uint8_t*)malloc(out.len);
-  if (!out.data) return BmpToMonoError::OomOutput;
+  if (!out.data) return BmpReaderError::OomOutput;
   memset(out.data, 0xFF, out.len);
 
   // Source row stride (padded to 4 bytes)
@@ -129,20 +129,20 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
 
   if (!f.seek(bfOffBits)) {
     freeMonoBitmap(out);
-    return BmpToMonoError::SeekPixelDataFailed;
+    return BmpReaderError::SeekPixelDataFailed;
   }
 
   uint8_t* rowBuf = (uint8_t*)malloc(srcRowStride);
   if (!rowBuf) {
     freeMonoBitmap(out);
-    return BmpToMonoError::OomRowBuffer;
+    return BmpReaderError::OomRowBuffer;
   }
 
   for (int fileRow = 0; fileRow < (int)srcH; fileRow++) {
     if (f.read(rowBuf, srcRowStride) != (int)srcRowStride) {
       free(rowBuf);
       freeMonoBitmap(out);
-      return BmpToMonoError::ShortReadRow;
+      return BmpReaderError::ShortReadRow;
     }
 
     const int srcY = topDown ? fileRow : ((int)srcH - 1 - fileRow);
@@ -170,5 +170,5 @@ BmpToMonoError BmpToMono::convert24BitImpl(File& f, MonoBitmap& out, uint8_t thr
   }
 
   free(rowBuf);
-  return BmpToMonoError::Ok;
+  return BmpReaderError::Ok;
 }

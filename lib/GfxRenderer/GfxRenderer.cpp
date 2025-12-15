@@ -2,7 +2,7 @@
 
 #include <Utf8.h>
 
-#include "BmpToMono.h"
+#include "BmpReader.h"
 
 void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) { fontMap.insert({fontId, font}); }
 
@@ -130,10 +130,10 @@ bool GfxRenderer::drawFullScreenBmp(File& file) {
   file.seek(0);  // Ensure we're at the start of the file
 
   MonoBitmap bmp;
-  auto err = BmpToMono::convert24BitRotate90CCW(file, bmp);
+  auto err = BmpReader::convert24BitRotate90CCW(file, bmp);
 
-  if (err != BmpToMonoError::Ok) {
-    Serial.printf("[%lu] [GFX] BMP convert failed: %s\n", millis(), BmpToMono::errorToString(err));
+  if (err != BmpReaderError::Ok) {
+    Serial.printf("[%lu] [GFX] BMP convert failed: %s\n", millis(), BmpReader::errorToString(err));
     return false;
   }
 
@@ -141,14 +141,14 @@ bool GfxRenderer::drawFullScreenBmp(File& file) {
   if (bmp.width != EInkDisplay::DISPLAY_WIDTH || bmp.height != EInkDisplay::DISPLAY_HEIGHT) {
     Serial.printf("[%lu] [GFX] drawFullScreenBmp: rotated BMP size %dx%d does not match panel %dx%d\n", millis(),
                   bmp.width, bmp.height, EInkDisplay::DISPLAY_WIDTH, EInkDisplay::DISPLAY_HEIGHT);
-    BmpToMono::freeMonoBitmap(bmp);
+    BmpReader::freeMonoBitmap(bmp);
     return false;
   }
 
   // Full-screen blit
   einkDisplay.drawImage(bmp.data, 0, 0, bmp.width, bmp.height);
 
-  BmpToMono::freeMonoBitmap(bmp);
+  BmpReader::freeMonoBitmap(bmp);
   return true;
 }
 
