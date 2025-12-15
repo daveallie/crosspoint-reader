@@ -122,7 +122,10 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     }
 
     // Calculate spacing
-    const int spareSpace = pageWidth - lineWordWidthSum;
+    int spareSpace = pageWidth - lineWordWidthSum;
+    if (!extraParagraphSpacing && wordWidthIndex ==0) {
+        spareSpace -= 3*spaceWidth;
+    }
     int spacing = spaceWidth;
     const bool isLastLine = lineBreak == totalWordCount;
 
@@ -132,6 +135,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
     // Calculate initial x position
     uint16_t xpos = 0;
+    if (!extraParagraphSpacing && wordWidthIndex ==0) {
+        xpos = 3*spaceWidth;
+    }
     if (style == TextBlock::RIGHT_ALIGN) {
       xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
     } else if (style == TextBlock::CENTER_ALIGN) {
