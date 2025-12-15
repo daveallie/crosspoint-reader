@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <iosfwd>
 
 class CrossPointSettings {
@@ -15,10 +16,10 @@ class CrossPointSettings {
   CrossPointSettings& operator=(const CrossPointSettings&) = delete;
 
   // Sleep screen settings
-  bool whiteSleepScreen = false;
+  uint8_t whiteSleepScreen = 0;
 
   // Text rendering settings
-  bool extraParagraphSpacing = true;
+  uint8_t extraParagraphSpacing = 1;
 
   ~CrossPointSettings() = default;
 
