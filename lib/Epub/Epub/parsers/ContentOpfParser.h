@@ -28,6 +28,7 @@ class ContentOpfParser final : public Print {
  public:
   std::string title;
   std::string tocNcxPath;
+  std::string coverItemId;
   std::map<std::string, std::string> items;
   std::vector<std::string> spineRefs;
 
