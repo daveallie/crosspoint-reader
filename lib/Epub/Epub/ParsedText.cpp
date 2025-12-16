@@ -27,6 +27,8 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   const size_t totalWordCount = words.size();
   const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
+  // width of 1em to indent first line of paragraph if Extra Spacing is enabled
+  const int indentWidth = (!extraParagraphSpacing) ? 1 * renderer.getTextWidth(fontId, "m", REGULAR) : 0;
 
   std::vector<uint16_t> wordWidths;
   wordWidths.reserve(totalWordCount);
@@ -51,7 +53,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   ans[totalWordCount - 1] = totalWordCount - 1;
 
   for (int i = totalWordCount - 2; i >= 0; --i) {
-    int currlen = -spaceWidth;
+    int currlen = -spaceWidth + indentWidth;
     dp[i] = MAX_COST;
 
     for (size_t j = i; j < totalWordCount; ++j) {
@@ -123,12 +125,10 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
     // Calculate spacing
     int spareSpace = pageWidth - lineWordWidthSum;
-    // width of 1em to indent first line of paragraph
-    const int indentWidth = 1 * renderer.getTextWidth(fontId, "m", REGULAR);
-
-    if (!extraParagraphSpacing && wordWidthIndex ==0) {
+    if (wordWidthIndex == 0) {
         spareSpace -= indentWidth;
     }
+
     int spacing = spaceWidth;
     const bool isLastLine = lineBreak == totalWordCount;
 
@@ -137,10 +137,8 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     }
 
     // Calculate initial x position
-    uint16_t xpos = 0;
-    if (!extraParagraphSpacing && wordWidthIndex ==0) {
-        xpos = indentWidth;
-    }
+    uint16_t xpos = (wordWidthIndex == 0) ? indentWidth : 0;
+
     if (style == TextBlock::RIGHT_ALIGN) {
       xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
     } else if (style == TextBlock::CENTER_ALIGN) {
