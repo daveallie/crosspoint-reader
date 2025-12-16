@@ -15,10 +15,7 @@ void UploadServer::begin() {
   server->on("/upload", HTTP_GET, [](AsyncWebServerRequest* request) { request->send(200, "text/html", UploadHtml); });
 
   server->on(
-      "/upload", HTTP_POST,
-      [](AsyncWebServerRequest* request) {
-        request->send(200, "text/html", UploadSuccessHtml);
-      },
+      "/upload", HTTP_POST, [](AsyncWebServerRequest* request) { request->send(200, "text/html", UploadSuccessHtml); },
       [this](AsyncWebServerRequest* request, const String& filename, const size_t index, const uint8_t* data,
              const size_t len, const bool final) {
         // This function is called multiple times as data chunks are received

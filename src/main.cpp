@@ -21,8 +21,10 @@
 #include "screens/EpubReaderScreen.h"
 #include "screens/FileSelectionScreen.h"
 #include "screens/FullScreenMessageScreen.h"
+#include "screens/HomeScreen.h"
 #include "screens/SettingsScreen.h"
 #include "screens/SleepScreen.h"
+#include "screens/UploadFileScreen.h"
 
 #define SPI_FQ 40000000
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
@@ -150,6 +152,7 @@ void enterDeepSleep() {
 }
 
 void onGoHome();
+void onGoToFileSelection();
 void onSelectEpubFile(const std::string& path) {
   exitScreen();
   enterNewScreen(new FullScreenMessageScreen(renderer, inputManager, "Loading..."));
@@ -165,8 +168,13 @@ void onSelectEpubFile(const std::string& path) {
     enterNewScreen(
         new FullScreenMessageScreen(renderer, inputManager, "Failed to load epub", REGULAR, EInkDisplay::HALF_REFRESH));
     delay(2000);
-    onGoHome();
+    onGoToFileSelection();
   }
+}
+
+void onGoToFileSelection() {
+  exitScreen();
+  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoHome));
 }
 
 void onGoToSettings() {
@@ -174,9 +182,14 @@ void onGoToSettings() {
   enterNewScreen(new SettingsScreen(renderer, inputManager, onGoHome));
 }
 
+void onGoToUploadFile() {
+  exitScreen();
+  enterNewScreen(new UploadFileScreen(renderer, inputManager, onGoHome));
+}
+
 void onGoHome() {
   exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
+  enterNewScreen(new HomeScreen(renderer, inputManager, onGoToFileSelection, onGoToSettings, onGoToUploadFile));
 }
 
 void setup() {
@@ -221,8 +234,7 @@ void setup() {
     }
   }
 
-  exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
+  onGoHome();
 
   // Ensure we're not still holding the power button before leaving setup
   waitForPowerRelease();
@@ -233,8 +245,8 @@ void loop() {
 
   static unsigned long lastMemPrint = 0;
   if (Serial && millis() - lastMemPrint >= 10000) {
-    Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes\n", millis(), ESP.getFreeHeap(),
-                  ESP.getHeapSize(), ESP.getMinFreeHeap());
+    Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes, Max alloc: %d\n", millis(),
+                  ESP.getFreeHeap(), ESP.getHeapSize(), ESP.getMinFreeHeap(), ESP.getMaxAllocHeap());
     lastMemPrint = millis();
   }
 
