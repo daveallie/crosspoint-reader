@@ -22,6 +22,7 @@ constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73,
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
 
 void WifiCredentialStore::obfuscate(std::string& data) const {
+  Serial.printf("[%lu] [WCS] Obfuscating/deobfuscating %zu bytes\n", millis(), data.size());
   for (size_t i = 0; i < data.size(); i++) {
     data[i] ^= OBFUSCATION_KEY[i % KEY_LENGTH];
   }
@@ -45,6 +46,7 @@ bool WifiCredentialStore::saveToFile() const {
   for (const auto& cred : credentials) {
     // Write SSID (plaintext - not sensitive)
     serialization::writeString(file, cred.ssid);
+    Serial.printf("[%lu] [WCS] Saving SSID: %s, password length: %zu\n", millis(), cred.ssid.c_str(), cred.password.size());
 
     // Write password (obfuscated)
     std::string obfuscatedPwd = cred.password;
@@ -92,7 +94,9 @@ bool WifiCredentialStore::loadFromFile() {
 
     // Read and deobfuscate password
     serialization::readString(file, cred.password);
+    Serial.printf("[%lu] [WCS] Loaded SSID: %s, obfuscated password length: %zu\n", millis(), cred.ssid.c_str(), cred.password.size());
     obfuscate(cred.password);  // XOR is symmetric, so same function deobfuscates
+    Serial.printf("[%lu] [WCS] After deobfuscation, password length: %zu\n", millis(), cred.password.size());
 
     credentials.push_back(cred);
   }

@@ -28,6 +28,7 @@ void WifiScreen::onEnter() {
   enteredPassword.clear();
   usedSavedPassword = false;
   savePromptSelection = 0;
+  forgetPromptSelection = 0;
   keyboard.reset();
 
   // Trigger first update to show scanning message
@@ -135,6 +136,7 @@ void WifiScreen::selectNetwork(int index) {
     // Use saved password - connect directly
     enteredPassword = savedCred->password;
     usedSavedPassword = true;
+    Serial.printf("[%lu] [WiFi] Using saved password for %s, length: %zu\n", millis(), selectedSSID.c_str(), enteredPassword.size());
     attemptConnection();
     return;
   }
@@ -289,18 +291,66 @@ void WifiScreen::handleInput() {
     return;
   }
 
-  // Handle connected/failed states
-  if (state == WifiScreenState::CONNECTED || state == WifiScreenState::CONNECTION_FAILED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK) || 
+  // Handle forget prompt state (connection failed with saved credentials)
+  if (state == WifiScreenState::FORGET_PROMPT) {
+    if (inputManager.wasPressed(InputManager::BTN_LEFT) ||
+        inputManager.wasPressed(InputManager::BTN_UP)) {
+      if (forgetPromptSelection > 0) {
+        forgetPromptSelection--;
+        updateRequired = true;
+      }
+    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) ||
+               inputManager.wasPressed(InputManager::BTN_DOWN)) {
+      if (forgetPromptSelection < 1) {
+        forgetPromptSelection++;
+        updateRequired = true;
+      }
+    } else if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+      if (forgetPromptSelection == 0) {
+        // User chose "Yes" - forget the network
+        WIFI_STORE.removeCredential(selectedSSID);
+        // Update the network list to reflect the change
+        for (auto& network : networks) {
+          if (network.ssid == selectedSSID) {
+            network.hasSavedPassword = false;
+            break;
+          }
+        }
+      }
+      // Go back to network list
+      state = WifiScreenState::NETWORK_LIST;
+      updateRequired = true;
+    } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+      // Skip forgetting, go back to network list
+      state = WifiScreenState::NETWORK_LIST;
+      updateRequired = true;
+    }
+    return;
+  }
+
+  // Handle connected state
+  if (state == WifiScreenState::CONNECTED) {
+    if (inputManager.wasPressed(InputManager::BTN_BACK) ||
         inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-      if (state == WifiScreenState::CONNECTION_FAILED) {
+      // Exit screen on success
+      onGoBack();
+      return;
+    }
+  }
+
+  // Handle connection failed state
+  if (state == WifiScreenState::CONNECTION_FAILED) {
+    if (inputManager.wasPressed(InputManager::BTN_BACK) ||
+        inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+      // If we used saved credentials, offer to forget the network
+      if (usedSavedPassword) {
+        state = WifiScreenState::FORGET_PROMPT;
+        forgetPromptSelection = 0;  // Default to "Yes"
+      } else {
         // Go back to network list on failure
         state = WifiScreenState::NETWORK_LIST;
-        updateRequired = true;
-      } else {
-        // Exit screen on success
-        onGoBack();
       }
+      updateRequired = true;
       return;
     }
   }
@@ -388,6 +438,9 @@ void WifiScreen::render() const {
       break;
     case WifiScreenState::CONNECTION_FAILED:
       renderConnectionFailed();
+      break;
+    case WifiScreenState::FORGET_PROMPT:
+      renderForgetPrompt();
       break;
   }
 
@@ -578,5 +631,45 @@ void WifiScreen::renderConnectionFailed() const {
 
   renderer.drawCenteredText(READER_FONT_ID, top - 20, "Connection Failed", true, BOLD);
   renderer.drawCenteredText(UI_FONT_ID, top + 20, connectionError.c_str(), true, REGULAR);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to go back", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
+}
+
+void WifiScreen::renderForgetPrompt() const {
+  const auto pageWidth = GfxRenderer::getScreenWidth();
+  const auto pageHeight = GfxRenderer::getScreenHeight();
+  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto top = (pageHeight - height * 3) / 2;
+
+  renderer.drawCenteredText(READER_FONT_ID, top - 40, "Forget Network?", true, BOLD);
+
+  std::string ssidInfo = "Network: " + selectedSSID;
+  if (ssidInfo.length() > 28) {
+    ssidInfo = ssidInfo.substr(0, 25) + "...";
+  }
+  renderer.drawCenteredText(UI_FONT_ID, top, ssidInfo.c_str(), true, REGULAR);
+
+  renderer.drawCenteredText(UI_FONT_ID, top + 40, "Remove saved password?", true, REGULAR);
+
+  // Draw Yes/No buttons
+  const int buttonY = top + 80;
+  const int buttonWidth = 60;
+  const int buttonSpacing = 30;
+  const int totalWidth = buttonWidth * 2 + buttonSpacing;
+  const int startX = (pageWidth - totalWidth) / 2;
+
+  // Draw "Yes" button
+  if (forgetPromptSelection == 0) {
+    renderer.drawText(UI_FONT_ID, startX, buttonY, "[Yes]");
+  } else {
+    renderer.drawText(UI_FONT_ID, startX + 4, buttonY, "Yes");
+  }
+
+  // Draw "No" button
+  if (forgetPromptSelection == 1) {
+    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+  } else {
+    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+  }
+
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm", true, REGULAR);
 }

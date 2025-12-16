@@ -28,7 +28,8 @@ enum class WifiScreenState {
   CONNECTING,         // Attempting to connect
   CONNECTED,          // Successfully connected, showing IP
   SAVE_PROMPT,        // Asking user if they want to save the password
-  CONNECTION_FAILED   // Connection failed
+  CONNECTION_FAILED,  // Connection failed
+  FORGET_PROMPT       // Asking user if they want to forget the network
 };
 
 class WifiScreen final : public Screen {
@@ -57,8 +58,9 @@ class WifiScreen final : public Screen {
   // Whether network was connected using a saved password (skip save prompt)
   bool usedSavedPassword = false;
   
-  // Save prompt selection (0 = Yes, 1 = No)
+  // Save/forget prompt selection (0 = Yes, 1 = No)
   int savePromptSelection = 0;
+  int forgetPromptSelection = 0;
 
   // Connection timeout
   static constexpr unsigned long CONNECTION_TIMEOUT_MS = 15000;
@@ -73,6 +75,7 @@ class WifiScreen final : public Screen {
   void renderConnected() const;
   void renderSavePrompt() const;
   void renderConnectionFailed() const;
+  void renderForgetPrompt() const;
 
   void startWifiScan();
   void processWifiScanResults();

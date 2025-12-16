@@ -217,7 +217,7 @@ void OnScreenKeyboard::render(int startY) const {
   int keyboardStartY = inputY + 25;
   const int keyWidth = 18;
   const int keyHeight = 18;
-  const int keySpacing = 1;
+  const int keySpacing = 3;
   
   const char* const* layout = shiftActive ? keyboardShift : keyboard;
   
