@@ -12,6 +12,7 @@ class GfxRenderer {
  private:
   EInkDisplay& einkDisplay;
   RenderMode renderMode;
+  uint8_t* bwBuffer = nullptr;
   std::map<int, EpdFontFamily> fontMap;
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontStyle style) const;
@@ -49,9 +50,11 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
+  void storeBwBuffer();
+  void restoreBwBuffer();
 
   // Low level functions
   uint8_t* getFrameBuffer() const;
-  void swapBuffers() const;
+  static size_t getBufferSize();
   void grayscaleRevert() const;
 };

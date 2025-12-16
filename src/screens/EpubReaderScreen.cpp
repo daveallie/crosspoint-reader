@@ -217,9 +217,8 @@ void EpubReaderScreen::renderScreen() {
         const int w = textWidth + margin * 2;
         const int h = renderer.getLineHeight(READER_FONT_ID) + margin * 2;
         renderer.grayscaleRevert();
-        uint8_t* fb1 = renderer.getFrameBuffer();
-        renderer.swapBuffers();
-        memcpy(fb1, renderer.getFrameBuffer(), EInkDisplay::BUFFER_SIZE);
+
+        // TODO: This looks like garbage again, need to implement windowed updates
         renderer.fillRect(x, y, w, h, 0);
         renderer.drawText(READER_FONT_ID, x + margin, y + margin, "Indexing...");
         renderer.drawRect(x + 5, y + 5, w - 10, h - 10);
@@ -297,6 +296,9 @@ void EpubReaderScreen::renderContents(std::unique_ptr<Page> page) {
     pagesUntilFullRefresh--;
   }
 
+  // Save bw buffer to reset buffer state after grayscale data sync
+  renderer.storeBwBuffer();
+
   // grayscale rendering
   // TODO: Only do this if font supports it
   {
@@ -315,6 +317,9 @@ void EpubReaderScreen::renderContents(std::unique_ptr<Page> page) {
     renderer.displayGrayBuffer();
     renderer.setRenderMode(GfxRenderer::BW);
   }
+
+  // restore the bw data
+  renderer.restoreBwBuffer();
 }
 
 void EpubReaderScreen::renderStatusBar() const {
