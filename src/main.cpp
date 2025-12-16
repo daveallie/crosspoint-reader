@@ -23,6 +23,7 @@
 #include "screens/FullScreenMessageScreen.h"
 #include "screens/SettingsScreen.h"
 #include "screens/SleepScreen.h"
+#include "screens/WifiScreen.h"
 
 #define SPI_FQ 40000000
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
@@ -167,9 +168,16 @@ void onSelectEpubFile(const std::string& path) {
   }
 }
 
+void onGoToSettings();
+
+void onGoToWifi() {
+  exitScreen();
+  enterNewScreen(new WifiScreen(renderer, inputManager, onGoToSettings));
+}
+
 void onGoToSettings() {
   exitScreen();
-  enterNewScreen(new SettingsScreen(renderer, inputManager, onGoHome));
+  enterNewScreen(new SettingsScreen(renderer, inputManager, onGoHome, onGoToWifi));
 }
 
 void onGoHome() {

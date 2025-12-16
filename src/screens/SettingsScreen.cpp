@@ -8,8 +8,9 @@
 // Define the static settings list
 
 const SettingInfo SettingsScreen::settingsList[SettingsScreen::settingsCount] = {
-    {"White Sleep Screen", &CrossPointSettings::whiteSleepScreen},
-    {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing}};
+    {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
+    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
+    {"WiFi", SettingType::ACTION, nullptr}};
 
 void SettingsScreen::taskTrampoline(void* param) {
   auto* self = static_cast<SettingsScreen*>(param);
@@ -45,14 +46,10 @@ void SettingsScreen::onExit() {
 }
 
 void SettingsScreen::handleInput() {
-  // Check for Confirm button to toggle setting
+  // Check for Confirm button to toggle/activate setting
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-    // Toggle the current setting
-    toggleCurrentSetting();
-
-    // Trigger a redraw of the entire screen
-    updateRequired = true;
-    return;  // Return early to prevent further processing
+    activateCurrentSetting();
+    return;
   }
 
   // Check for Back button to exit settings
@@ -79,15 +76,42 @@ void SettingsScreen::handleInput() {
   }
 }
 
+void SettingsScreen::activateCurrentSetting() {
+  // Validate index
+  if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
+    return;
+  }
+
+  const auto& setting = settingsList[selectedSettingIndex];
+
+  if (setting.type == SettingType::TOGGLE) {
+    toggleCurrentSetting();
+    // Trigger a redraw of the entire screen
+    updateRequired = true;
+  } else if (setting.type == SettingType::ACTION) {
+    // Handle action settings
+    if (std::string(setting.name) == "WiFi") {
+      onGoWifi();
+    }
+  }
+}
+
 void SettingsScreen::toggleCurrentSetting() {
   // Validate index
   if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
     return;
   }
 
+  const auto& setting = settingsList[selectedSettingIndex];
+  
+  // Only toggle if it's a toggle type and has a value pointer
+  if (setting.type != SettingType::TOGGLE || setting.valuePtr == nullptr) {
+    return;
+  }
+
   // Toggle the boolean value using the member pointer
-  bool currentValue = SETTINGS.*(settingsList[selectedSettingIndex].valuePtr);
-  SETTINGS.*(settingsList[selectedSettingIndex].valuePtr) = !currentValue;
+  bool currentValue = SETTINGS.*(setting.valuePtr);
+  SETTINGS.*(setting.valuePtr) = !currentValue;
 
   // Save settings when they change
   SETTINGS.saveToFile();
@@ -125,14 +149,20 @@ void SettingsScreen::render() const {
       renderer.drawText(UI_FONT_ID, 5, settingY, ">");
     }
 
-    // Draw setting name and value
+    // Draw setting name
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
-    bool value = SETTINGS.*(settingsList[i].valuePtr);
-    renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+
+    // Draw value based on setting type
+    if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
+      bool value = SETTINGS.*(settingsList[i].valuePtr);
+      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+    } else if (settingsList[i].type == SettingType::ACTION) {
+      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, ">");
+    }
   }
 
   // Draw help text
-  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to toggle, BACK to save & exit");
+  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to select, BACK to save & exit");
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();

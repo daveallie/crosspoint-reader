@@ -1,0 +1,78 @@
+#pragma once
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "OnScreenKeyboard.h"
+#include "Screen.h"
+
+// Structure to hold WiFi network information
+struct WifiNetworkInfo {
+  std::string ssid;
+  int32_t rssi;
+  bool isEncrypted;
+};
+
+// WiFi screen states
+enum class WifiScreenState {
+  SCANNING,           // Scanning for networks
+  NETWORK_LIST,       // Displaying available networks
+  PASSWORD_ENTRY,     // Entering password for selected network
+  CONNECTING,         // Attempting to connect
+  CONNECTED,          // Successfully connected, showing IP
+  CONNECTION_FAILED   // Connection failed
+};
+
+class WifiScreen final : public Screen {
+  TaskHandle_t displayTaskHandle = nullptr;
+  SemaphoreHandle_t renderingMutex = nullptr;
+  bool updateRequired = false;
+  WifiScreenState state = WifiScreenState::SCANNING;
+  int selectedNetworkIndex = 0;
+  std::vector<WifiNetworkInfo> networks;
+  const std::function<void()> onGoBack;
+
+  // Selected network for connection
+  std::string selectedSSID;
+  bool selectedRequiresPassword = false;
+
+  // On-screen keyboard for password entry
+  std::unique_ptr<OnScreenKeyboard> keyboard;
+
+  // Connection result
+  std::string connectedIP;
+  std::string connectionError;
+
+  // Connection timeout
+  static constexpr unsigned long CONNECTION_TIMEOUT_MS = 15000;
+  unsigned long connectionStartTime = 0;
+
+  static void taskTrampoline(void* param);
+  [[noreturn]] void displayTaskLoop();
+  void render() const;
+  void renderNetworkList() const;
+  void renderPasswordEntry() const;
+  void renderConnecting() const;
+  void renderConnected() const;
+  void renderConnectionFailed() const;
+
+  void startWifiScan();
+  void processWifiScanResults();
+  void selectNetwork(int index);
+  void attemptConnection();
+  void checkConnectionStatus();
+  std::string getSignalStrengthIndicator(int32_t rssi) const;
+
+ public:
+  explicit WifiScreen(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoBack)
+      : Screen(renderer, inputManager), onGoBack(onGoBack) {}
+  void onEnter() override;
+  void onExit() override;
+  void handleInput() override;
+};
