@@ -210,7 +210,7 @@ void setup() {
 
   SETTINGS.loadFromFile();
   appState.loadFromFile();
-  if (!appState.openEpubPath.empty()) {
+  if (SETTINGS.autoResumeLastBook && !appState.openEpubPath.empty()) {
     auto epub = loadEpub(appState.openEpubPath);
     if (epub) {
       exitScreen();

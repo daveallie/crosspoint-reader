@@ -21,6 +21,9 @@ class CrossPointSettings {
   // Text rendering settings
   uint8_t extraParagraphSpacing = 1;
 
+  // Resume behavior
+  uint8_t autoResumeLastBook = 1;
+
   ~CrossPointSettings() = default;
 
   // Get singleton instance
