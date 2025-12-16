@@ -1,6 +1,8 @@
 #include "CrossPointWebServer.h"
 
+#include <SD.h>
 #include <WiFi.h>
+#include <algorithm>
 
 #include "config.h"
 
@@ -18,7 +20,7 @@ static const char* HTML_PAGE = R"rawliteral(
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      max-width: 600px;
+      max-width: 800px;
       margin: 0 auto;
       padding: 20px;
       background-color: #f5f5f5;
@@ -28,6 +30,10 @@ static const char* HTML_PAGE = R"rawliteral(
       color: #2c3e50;
       border-bottom: 2px solid #3498db;
       padding-bottom: 10px;
+    }
+    h2 {
+      color: #34495e;
+      margin-top: 0;
     }
     .card {
       background: white;
@@ -60,16 +66,30 @@ static const char* HTML_PAGE = R"rawliteral(
       color: white;
       font-size: 0.9em;
     }
-    .coming-soon {
-      color: #95a5a6;
-      font-style: italic;
-      text-align: center;
-      padding: 20px;
+    .nav-links {
+      margin: 20px 0;
+    }
+    .nav-links a {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #3498db;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    .nav-links a:hover {
+      background-color: #2980b9;
     }
   </style>
 </head>
 <body>
   <h1>📚 CrossPoint Reader</h1>
+  
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/files">File Manager</a>
+  </div>
   
   <div class="card">
     <h2>Device Status</h2>
@@ -92,15 +112,289 @@ static const char* HTML_PAGE = R"rawliteral(
   </div>
 
   <div class="card">
-    <h2>File Management</h2>
-    <p class="coming-soon">📁 File upload functionality coming soon...</p>
+    <p style="text-align: center; color: #95a5a6; margin: 0;">
+      CrossPoint E-Reader • Open Source
+    </p>
   </div>
+</body>
+</html>
+)rawliteral";
 
+// File listing page template
+static const char* FILES_PAGE_HEADER = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrossPoint Reader - Files</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #34495e;
+      margin-top: 0;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .nav-links {
+      margin: 20px 0;
+    }
+    .nav-links a {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #3498db;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    .nav-links a:hover {
+      background-color: #2980b9;
+    }
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .file-table th, .file-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    .file-table th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: #7f8c8d;
+    }
+    .file-table tr:hover {
+      background-color: #f8f9fa;
+    }
+    .epub-file {
+      background-color: #e8f6e9 !important;
+    }
+    .epub-file:hover {
+      background-color: #d4edda !important;
+    }
+    .epub-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background-color: #27ae60;
+      color: white;
+      border-radius: 10px;
+      font-size: 0.75em;
+      margin-left: 8px;
+    }
+    .file-icon {
+      margin-right: 8px;
+    }
+    .upload-form {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 2px dashed #ddd;
+    }
+    .upload-form input[type="file"] {
+      margin: 10px 0;
+    }
+    .upload-btn {
+      background-color: #27ae60;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .upload-btn:hover {
+      background-color: #219a52;
+    }
+    .upload-btn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    .file-info {
+      color: #7f8c8d;
+      font-size: 0.85em;
+      margin-top: 5px;
+    }
+    .no-files {
+      text-align: center;
+      color: #95a5a6;
+      padding: 40px;
+      font-style: italic;
+    }
+    .message {
+      padding: 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+    }
+    .message.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 2px solid #eee;
+      margin-bottom: 10px;
+    }
+    .summary-item {
+      text-align: center;
+    }
+    .summary-number {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    .summary-label {
+      font-size: 0.85em;
+      color: #7f8c8d;
+    }
+    #progress-container {
+      display: none;
+      margin-top: 10px;
+    }
+    #progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #progress-fill {
+      height: 100%;
+      background-color: #27ae60;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    #progress-text {
+      text-align: center;
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #7f8c8d;
+    }
+  </style>
+</head>
+<body>
+  <h1>📁 File Manager</h1>
+  
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/files">File Manager</a>
+  </div>
+)rawliteral";
+
+static const char* FILES_PAGE_FOOTER = R"rawliteral(
   <div class="card">
     <p style="text-align: center; color: #95a5a6; margin: 0;">
       CrossPoint E-Reader • Open Source
     </p>
   </div>
+  
+  <script>
+    function validateFile() {
+      const fileInput = document.getElementById('fileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+      const file = fileInput.files[0];
+      
+      if (file) {
+        const fileName = file.name.toLowerCase();
+        if (!fileName.endsWith('.epub')) {
+          alert('Only .epub files are allowed!');
+          fileInput.value = '';
+          uploadBtn.disabled = true;
+          return;
+        }
+        uploadBtn.disabled = false;
+      } else {
+        uploadBtn.disabled = true;
+      }
+    }
+    
+    function uploadFile() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        alert('Please select a file first!');
+        return;
+      }
+      
+      const fileName = file.name.toLowerCase();
+      if (!fileName.endsWith('.epub')) {
+        alert('Only .epub files are allowed!');
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const progressContainer = document.getElementById('progress-container');
+      const progressFill = document.getElementById('progress-fill');
+      const progressText = document.getElementById('progress-text');
+      const uploadBtn = document.getElementById('uploadBtn');
+      
+      progressContainer.style.display = 'block';
+      uploadBtn.disabled = true;
+      
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload', true);
+      
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          progressFill.style.width = percent + '%';
+          progressText.textContent = 'Uploading: ' + percent + '%';
+        }
+      };
+      
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          progressText.textContent = 'Upload complete!';
+          setTimeout(function() {
+            window.location.reload();
+          }, 1000);
+        } else {
+          progressText.textContent = 'Upload failed: ' + xhr.responseText;
+          progressFill.style.backgroundColor = '#e74c3c';
+          uploadBtn.disabled = false;
+        }
+      };
+      
+      xhr.onerror = function() {
+        progressText.textContent = 'Upload failed - network error';
+        progressFill.style.backgroundColor = '#e74c3c';
+        uploadBtn.disabled = false;
+      };
+      
+      xhr.send(formData);
+    }
+  </script>
 </body>
 </html>
 )rawliteral";
@@ -134,6 +428,11 @@ void CrossPointWebServer::begin() {
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
   server->on("/", HTTP_GET, [this]() { handleRoot(); });
   server->on("/status", HTTP_GET, [this]() { handleStatus(); });
+  server->on("/files", HTTP_GET, [this]() { handleFileList(); });
+  
+  // Upload endpoint with special handling for multipart form data
+  server->on("/upload", HTTP_POST, [this]() { handleUploadPost(); }, [this]() { handleUpload(); });
+  
   server->onNotFound([this]() { handleNotFound(); });
 
   server->begin();
@@ -196,4 +495,226 @@ void CrossPointWebServer::handleStatus() {
   json += "}";
 
   server->send(200, "application/json", json);
+}
+
+std::vector<FileInfo> CrossPointWebServer::scanFiles(const char* path) {
+  std::vector<FileInfo> files;
+  
+  File root = SD.open(path);
+  if (!root) {
+    Serial.printf("[%lu] [WEB] Failed to open directory: %s\n", millis(), path);
+    return files;
+  }
+  
+  if (!root.isDirectory()) {
+    Serial.printf("[%lu] [WEB] Not a directory: %s\n", millis(), path);
+    root.close();
+    return files;
+  }
+
+  Serial.printf("[%lu] [WEB] Scanning files in: %s\n", millis(), path);
+  
+  File file = root.openNextFile();
+  while (file) {
+    if (!file.isDirectory()) {
+      FileInfo info;
+      info.name = String(file.name());
+      info.size = file.size();
+      info.isEpub = isEpubFile(info.name);
+      files.push_back(info);
+    }
+    file.close();
+    file = root.openNextFile();
+  }
+  root.close();
+  
+  Serial.printf("[%lu] [WEB] Found %d files\n", millis(), files.size());
+  return files;
+}
+
+String CrossPointWebServer::formatFileSize(size_t bytes) {
+  if (bytes < 1024) {
+    return String(bytes) + " B";
+  } else if (bytes < 1024 * 1024) {
+    return String(bytes / 1024.0, 1) + " KB";
+  } else {
+    return String(bytes / (1024.0 * 1024.0), 1) + " MB";
+  }
+}
+
+bool CrossPointWebServer::isEpubFile(const String& filename) {
+  String lower = filename;
+  lower.toLowerCase();
+  return lower.endsWith(".epub");
+}
+
+void CrossPointWebServer::handleFileList() {
+  String html = FILES_PAGE_HEADER;
+  
+  // Get message from query string if present
+  if (server->hasArg("msg")) {
+    String msg = server->arg("msg");
+    String msgType = server->hasArg("type") ? server->arg("type") : "success";
+    html += "<div class=\"message " + msgType + "\">" + msg + "</div>";
+  }
+  
+  // Upload form
+  html += "<div class=\"card\">";
+  html += "<h2>📤 Upload eBook</h2>";
+  html += "<div class=\"upload-form\">";
+  html += "<p><strong>Select an .epub file to upload:</strong></p>";
+  html += "<input type=\"file\" id=\"fileInput\" accept=\".epub\" onchange=\"validateFile()\">";
+  html += "<div class=\"file-info\">Only .epub files are accepted</div>";
+  html += "<button id=\"uploadBtn\" class=\"upload-btn\" onclick=\"uploadFile()\" disabled>Upload</button>";
+  html += "<div id=\"progress-container\">";
+  html += "<div id=\"progress-bar\"><div id=\"progress-fill\"></div></div>";
+  html += "<div id=\"progress-text\"></div>";
+  html += "</div>";
+  html += "</div>";
+  html += "</div>";
+  
+  // Scan files
+  std::vector<FileInfo> files = scanFiles("/");
+  
+  // Count epub files
+  int epubCount = 0;
+  size_t totalSize = 0;
+  for (const auto& file : files) {
+    if (file.isEpub) epubCount++;
+    totalSize += file.size;
+  }
+  
+  // File listing
+  html += "<div class=\"card\">";
+  html += "<h2>📁 Files on SD Card</h2>";
+  
+  // Summary
+  html += "<div class=\"summary\">";
+  html += "<div class=\"summary-item\"><div class=\"summary-number\">" + String(files.size()) + "</div><div class=\"summary-label\">Total Files</div></div>";
+  html += "<div class=\"summary-item\"><div class=\"summary-number\">" + String(epubCount) + "</div><div class=\"summary-label\">eBooks</div></div>";
+  html += "<div class=\"summary-item\"><div class=\"summary-number\">" + formatFileSize(totalSize) + "</div><div class=\"summary-label\">Total Size</div></div>";
+  html += "</div>";
+  
+  if (files.empty()) {
+    html += "<div class=\"no-files\">No files found on SD card</div>";
+  } else {
+    html += "<table class=\"file-table\">";
+    html += "<tr><th>Filename</th><th>Type</th><th>Size</th></tr>";
+    
+    // Sort files: epub files first, then alphabetically
+    std::sort(files.begin(), files.end(), [](const FileInfo& a, const FileInfo& b) {
+      if (a.isEpub != b.isEpub) return a.isEpub > b.isEpub;
+      return a.name < b.name;
+    });
+    
+    for (const auto& file : files) {
+      String rowClass = file.isEpub ? "epub-file" : "";
+      String icon = file.isEpub ? "📗" : "📄";
+      String badge = file.isEpub ? "<span class=\"epub-badge\">EPUB</span>" : "";
+      String ext = file.name.substring(file.name.lastIndexOf('.') + 1);
+      ext.toUpperCase();
+      
+      html += "<tr class=\"" + rowClass + "\">";
+      html += "<td><span class=\"file-icon\">" + icon + "</span>" + file.name + badge + "</td>";
+      html += "<td>" + ext + "</td>";
+      html += "<td>" + formatFileSize(file.size) + "</td>";
+      html += "</tr>";
+    }
+    
+    html += "</table>";
+  }
+  
+  html += "</div>";
+  
+  html += FILES_PAGE_FOOTER;
+  
+  server->send(200, "text/html", html);
+  Serial.printf("[%lu] [WEB] Served file listing page\n", millis());
+}
+
+// Static variables for upload handling
+static File uploadFile;
+static String uploadFileName;
+static size_t uploadSize = 0;
+static bool uploadSuccess = false;
+static String uploadError = "";
+
+void CrossPointWebServer::handleUpload() {
+  HTTPUpload& upload = server->upload();
+  
+  if (upload.status == UPLOAD_FILE_START) {
+    uploadFileName = upload.filename;
+    uploadSize = 0;
+    uploadSuccess = false;
+    uploadError = "";
+    
+    Serial.printf("[%lu] [WEB] Upload start: %s\n", millis(), uploadFileName.c_str());
+    
+    // Validate file extension
+    if (!isEpubFile(uploadFileName)) {
+      uploadError = "Only .epub files are allowed";
+      Serial.printf("[%lu] [WEB] Upload rejected - not an epub file\n", millis());
+      return;
+    }
+    
+    // Create file path
+    String filePath = "/" + uploadFileName;
+    
+    // Check if file already exists
+    if (SD.exists(filePath.c_str())) {
+      Serial.printf("[%lu] [WEB] Overwriting existing file: %s\n", millis(), filePath.c_str());
+      SD.remove(filePath.c_str());
+    }
+    
+    // Open file for writing
+    uploadFile = SD.open(filePath.c_str(), FILE_WRITE);
+    if (!uploadFile) {
+      uploadError = "Failed to create file on SD card";
+      Serial.printf("[%lu] [WEB] Failed to create file: %s\n", millis(), filePath.c_str());
+      return;
+    }
+    
+    Serial.printf("[%lu] [WEB] File created: %s\n", millis(), filePath.c_str());
+  }
+  else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (uploadFile && uploadError.isEmpty()) {
+      size_t written = uploadFile.write(upload.buf, upload.currentSize);
+      if (written != upload.currentSize) {
+        uploadError = "Failed to write to SD card - disk may be full";
+        uploadFile.close();
+        Serial.printf("[%lu] [WEB] Write error - expected %d, wrote %d\n", millis(), upload.currentSize, written);
+      } else {
+        uploadSize += written;
+      }
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_END) {
+    if (uploadFile) {
+      uploadFile.close();
+      
+      if (uploadError.isEmpty()) {
+        uploadSuccess = true;
+        Serial.printf("[%lu] [WEB] Upload complete: %s (%d bytes)\n", millis(), uploadFileName.c_str(), uploadSize);
+      }
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_ABORTED) {
+    if (uploadFile) {
+      uploadFile.close();
+      // Try to delete the incomplete file
+      String filePath = "/" + uploadFileName;
+      SD.remove(filePath.c_str());
+    }
+    uploadError = "Upload aborted";
+    Serial.printf("[%lu] [WEB] Upload aborted\n", millis());
+  }
+}
+
+void CrossPointWebServer::handleUploadPost() {
+  if (uploadSuccess) {
+    server->send(200, "text/plain", "File uploaded successfully: " + uploadFileName);
+  } else {
+    String error = uploadError.isEmpty() ? "Unknown error during upload" : uploadError;
+    server->send(400, "text/plain", error);
+  }
 }

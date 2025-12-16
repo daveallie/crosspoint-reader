@@ -41,10 +41,12 @@ void WifiScreen::onExit() {
   // Stop any ongoing WiFi scan
   WiFi.scanDelete();
   
-  // Don't turn off WiFi if connected
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.mode(WIFI_OFF);
-  }
+  // Stop the web server to free memory
+  crossPointWebServer.stop();
+  
+  // Disconnect WiFi to free memory
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
 
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);

@@ -3,6 +3,14 @@
 #include <WebServer.h>
 #include <functional>
 #include <string>
+#include <vector>
+
+// Structure to hold file information
+struct FileInfo {
+  String name;
+  size_t size;
+  bool isEpub;
+};
 
 class CrossPointWebServer {
  public:
@@ -29,10 +37,18 @@ class CrossPointWebServer {
   bool running = false;
   uint16_t port = 80;
 
+  // File scanning
+  std::vector<FileInfo> scanFiles(const char* path = "/");
+  String formatFileSize(size_t bytes);
+  bool isEpubFile(const String& filename);
+
   // Request handlers
   void handleRoot();
   void handleNotFound();
   void handleStatus();
+  void handleFileList();
+  void handleUpload();
+  void handleUploadPost();
 };
 
 // Global instance
