@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrossPoint File Upload</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f2f5;
+      color: #333;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 40px auto;
+      padding: 30px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #1a73e8;
+      font-size: 1.5em;
+      margin-bottom: 20px;
+    }
+
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .upload-button {
+      background-color: #1a73e8;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+      width: 100%;
+      transition: background-color 0.3s, opacity 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-button:hover:not(:disabled) {
+      background-color: #145cb3;
+    }
+
+    .note {
+      margin-top: 20px;
+      font-size: 0.85em;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>CrossPoint Upload</h1>
+
+  <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+
+    <label for="file-input" style="display: none;">Choose File:</label>
+    <input type="file" id="file-input" name="file" required>
+
+    <button type="submit" id="uploadButton" class="upload-button">
+      <span id="buttonText" class="button-text">Upload File</span>
+    </button>
+  </form>
+
+  <p class="note">Check your device for upload progress.</p>
+</div>
+</body>
+</html>
