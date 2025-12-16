@@ -180,33 +180,105 @@ void GfxRenderer::copyGrayscaleMsbBuffers() const { einkDisplay.copyGrayscaleMsb
 
 void GfxRenderer::displayGrayBuffer() const { einkDisplay.displayGrayBuffer(); }
 
+void GfxRenderer::freeBwBufferChunks() {
+  for (auto& bwBufferChunk : bwBufferChunks) {
+    if (bwBufferChunk) {
+      free(bwBufferChunk);
+      bwBufferChunk = nullptr;
+    }
+  }
+}
+
 /**
  * This should be called before grayscale buffers are populated.
  * A `restoreBwBuffer` call should always follow the grayscale render if this method was called.
+ * Uses chunked allocation to avoid needing 48KB of contiguous memory.
  */
 void GfxRenderer::storeBwBuffer() {
-  if (bwBuffer) {
-    Serial.printf("[%lu] [GFX] !! BW buffer already stored - this is likely a bug, freeing it\n", millis());
-    free(bwBuffer);
+  const uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+
+  // Allocate and copy each chunk
+  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+    // Check if any chunks are already allocated
+    if (bwBufferChunks[i]) {
+      Serial.printf("[%lu] [GFX] !! BW buffer chunk %zu already stored - this is likely a bug, freeing chunk\n",
+                    millis(), i);
+      free(bwBufferChunks[i]);
+      bwBufferChunks[i] = nullptr;
+    }
+
+    const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+    bwBufferChunks[i] = static_cast<uint8_t*>(malloc(BW_BUFFER_CHUNK_SIZE));
+
+    if (!bwBufferChunks[i]) {
+      Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i,
+                    BW_BUFFER_CHUNK_SIZE);
+      // Free previously allocated chunks
+      freeBwBufferChunks();
+      return;
+    }
+
+    memcpy(bwBufferChunks[i], frameBuffer + offset, BW_BUFFER_CHUNK_SIZE);
   }
 
-  bwBuffer = static_cast<uint8_t*>(malloc(EInkDisplay::BUFFER_SIZE));
-  memcpy(bwBuffer, einkDisplay.getFrameBuffer(), EInkDisplay::BUFFER_SIZE);
+  Serial.printf("[%lu] [GFX] Stored BW buffer in %zu chunks (%zu bytes each)\n", millis(), BW_BUFFER_NUM_CHUNKS,
+                BW_BUFFER_CHUNK_SIZE);
 }
 
 /**
  * This can only be called if `storeBwBuffer` was called prior to the grayscale render.
  * It should be called to restore the BW buffer state after grayscale rendering is complete.
+ * Uses chunked restoration to match chunked storage.
  */
 void GfxRenderer::restoreBwBuffer() {
-  if (!bwBuffer) {
-    Serial.printf("[%lu] [GFX] !! BW buffer not stored - this is likely a bug\n", millis());
+  // Check if any all chunks are allocated
+  bool missingChunks = false;
+  for (const auto& bwBufferChunk : bwBufferChunks) {
+    if (!bwBufferChunk) {
+      missingChunks = true;
+      break;
+    }
+  }
+
+  if (missingChunks) {
+    freeBwBufferChunks();
     return;
   }
 
-  einkDisplay.cleanupGrayscaleBuffers(bwBuffer);
-  free(bwBuffer);
-  bwBuffer = nullptr;
+  uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+    // Check if chunk is missing
+    if (!bwBufferChunks[i]) {
+      Serial.printf("[%lu] [GFX] !! BW buffer chunks not stored - this is likely a bug\n", millis());
+      freeBwBufferChunks();
+      return;
+    }
+
+    const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
+    // bwBufferChunks[i] = static_cast<uint8_t*>(malloc(chunkSize));
+    //
+    // if (!bwBufferChunks[i]) {
+    //   Serial.printf("[%lu] [GFX] !! Failed to allocate BW buffer chunk %zu (%zu bytes)\n", millis(), i, chunkSize);
+    //   // Free previously allocated chunks
+    //   freeBwBufferChunks();
+    //   return;
+    // }
+
+    memcpy(frameBuffer + offset, bwBufferChunks[i], BW_BUFFER_CHUNK_SIZE);
+  }
+
+  // // Create array of chunk pointers for the SDK call
+  // const uint8_t* chunkPointers[BW_BUFFER_NUM_CHUNKS];
+  // for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
+  //   chunkPointers[i] = bwBufferChunks[i];
+  // }
+
+  // einkDisplay.cleanupGrayscaleBuffersChunked(chunkPointers, BW_BUFFER_CHUNK_SIZE, BW_BUFFER_NUM_CHUNKS);
+
+  einkDisplay.cleanupGrayscaleBuffers(frameBuffer);
+
+  freeBwBufferChunks();
+  Serial.printf("[%lu] [GFX] Restored and freed BW buffer chunks\n", millis());
 }
 
 void GfxRenderer::renderChar(const EpdFontFamily& fontFamily, const uint32_t cp, int* x, const int* y,
