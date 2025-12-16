@@ -28,6 +28,8 @@ class GfxRenderer {
   static int getScreenWidth();
   static int getScreenHeight();
   void displayBuffer(EInkDisplay::RefreshMode refreshMode = EInkDisplay::FAST_REFRESH) const;
+  // EXPERIMENTAL: Windowed update - display only a rectangular region (portrait coordinates)
+  void displayWindow(int x, int y, int width, int height) const;
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;
 

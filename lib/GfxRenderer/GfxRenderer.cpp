@@ -132,13 +132,19 @@ void GfxRenderer::displayBuffer(const EInkDisplay::RefreshMode refreshMode) cons
   einkDisplay.displayBuffer(refreshMode);
 }
 
-// TODO: Support partial window update
-// void GfxRenderer::flushArea(const int x, const int y, const int width, const int height) const {
-//   const int rotatedX = y;
-//   const int rotatedY = EInkDisplay::DISPLAY_HEIGHT - 1 - x;
-//
-//   einkDisplay.displayBuffer(EInkDisplay::FAST_REFRESH, rotatedX, rotatedY, height, width);
-// }
+void GfxRenderer::displayWindow(const int x, const int y, const int width, const int height) const {
+  // Rotate coordinates from portrait (480x800) to landscape (800x480)
+  // Rotation: 90 degrees clockwise
+  // Portrait coordinates: (x, y) with dimensions (width, height)
+  // Landscape coordinates: (rotatedX, rotatedY) with dimensions (rotatedWidth, rotatedHeight)
+
+  const int rotatedX = y;
+  const int rotatedY = EInkDisplay::DISPLAY_HEIGHT - 1 - x - width + 1;
+  const int rotatedWidth = height;
+  const int rotatedHeight = width;
+
+  einkDisplay.displayWindow(rotatedX, rotatedY, rotatedWidth, rotatedHeight);
+}
 
 // Note: Internal driver treats screen in command orientation, this library treats in portrait orientation
 int GfxRenderer::getScreenWidth() { return EInkDisplay::DISPLAY_HEIGHT; }
