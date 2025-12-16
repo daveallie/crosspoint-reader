@@ -129,7 +129,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       if (self->tocNcxPath.empty()) {
         self->tocNcxPath = href;
       } else {
-        Serial.printf("[%lu] [COF] Warning: Multiple NCX files found in manifest. Ignoring duplicate: %s\n", millis(), href.c_str());
+        Serial.printf("[%lu] [COF] Warning: Multiple NCX files found in manifest. Ignoring duplicate: %s\n", millis(),
+                      href.c_str());
       }
     }
     return;
