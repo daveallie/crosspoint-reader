@@ -34,16 +34,16 @@ struct BMPHeader {
 uint8_t* loadBMP(const char* filename, int& width, int& height) {
   // Using rotation type 1: 90 degrees clockwise
   const int rotationType = 1;
-  Serial.printf("[SleepScreen] Trying to load BMP: %s\n", filename);
+  Serial.printf("[%lu] [SleepScreen] Trying to load BMP: %s\n", millis(), filename);
 
   if (!SD.exists(filename)) {
-    Serial.printf("[SleepScreen] File not found: %s\n", filename);
+    Serial.printf("[%lu] [SleepScreen] File not found: %s\n", millis(), filename);
     return nullptr;
   }
 
   File bmpFile = SD.open(filename);
   if (!bmpFile) {
-    Serial.printf("[SleepScreen] Failed to open file: %s\n", filename);
+    Serial.printf("[%lu] [SleepScreen] Failed to open file: %s\n", millis(), filename);
     return nullptr;
   }
 
@@ -53,14 +53,14 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
 
   // Check if this is a valid BMP file
   if (header.signature != 0x4D42) { // "BM" in little-endian
-    Serial.println("[SleepScreen] Invalid BMP signature");
+    Serial.printf("[%lu] [SleepScreen] Invalid BMP signature\n", millis());
     bmpFile.close();
     return nullptr;
   }
 
   // Check for supported bit depths
   if (header.bitsPerPixel != 1 && header.bitsPerPixel != 24) {
-    Serial.printf("[SleepScreen] Unsupported bit depth: %d\n", header.bitsPerPixel);
+    Serial.printf("[%lu] [SleepScreen] Unsupported bit depth: %d\n", millis(), header.bitsPerPixel);
     bmpFile.close();
     return nullptr;
   }
@@ -70,36 +70,23 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
   height = (header.height < 0) ? -header.height : header.height; // Handle top-down BMPs
   bool topDown = (header.height < 0);
 
-  Serial.printf("[SleepScreen] BMP dimensions: %dx%d, %d bits/pixel\n", width, height, header.bitsPerPixel);
+  Serial.printf("[%lu] [SleepScreen] BMP dimensions: %dx%d, %d bits/pixel\n", millis(), width, height, header.bitsPerPixel);
 
   // Calculate destination dimensions based on rotation type
   int destWidth, destHeight;
 
-  if (rotationType == 0 || rotationType == 2) {
-    // No rotation or 180 degree rotation: keep same dimensions
-    destWidth = width;
-    destHeight = height;
-  } else {
-    // 90 degree rotations (clockwise or counterclockwise): swap width and height
-    destWidth = height;
-    destHeight = width;
-  }
-
-  Serial.printf("[SleepScreen] Output dimensions: %dx%d (rotation type: %d)\n",
-                destWidth, destHeight, rotationType);
+  // 90 degree rotation to match display orientation
+  destWidth = height;
+  destHeight = width;
 
   // E-ink display: 1 bit per pixel (8 pixels per byte), MSB first format
   int bytesPerRow = (destWidth + 7) / 8;  // Round up to nearest byte
   int bufferSize = bytesPerRow * destHeight;
 
-  Serial.printf("[SleepScreen] Buffer dimensions: %d bytes per row, %d total bytes\n", bytesPerRow, bufferSize);
-
-  Serial.printf("[SleepScreen] Buffer size: %d bytes (%d bytes per row)\n", bufferSize, bytesPerRow);
-
   // Allocate memory for the display image
   uint8_t* displayImage = (uint8_t*)malloc(bufferSize);
   if (!displayImage) {
-    Serial.println("[SleepScreen] Failed to allocate memory for display image");
+    Serial.printf("[%lu] [SleepScreen] Failed to allocate memory for display image\n", millis());
     bmpFile.close();
     return nullptr;
   }
@@ -118,7 +105,7 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
   // Allocate buffer for reading BMP rows
   uint8_t* rowBuffer = (uint8_t*)malloc(bmpRowSize);
   if (!rowBuffer) {
-    Serial.println("[SleepScreen] Failed to allocate row buffer");
+    Serial.printf("[%lu] [SleepScreen] Failed to allocate row buffer\n", millis());
     free(displayImage);
     bmpFile.close();
     return nullptr;
@@ -183,15 +170,13 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
   free(rowBuffer);
   bmpFile.close();
 
-  Serial.printf("[SleepScreen] Successfully loaded BMP: %dx%d\n", width, height);
+  Serial.printf("[%lu] [SleepScreen] Successfully loaded BMP: %dx%d\n", millis(), width, height);
   return displayImage;
 }
 
 void SleepScreen::onEnter() {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
-
-  Serial.printf("[SleepScreen] Screen dimensions: %dx%d\n", pageWidth, pageHeight);
 
   renderer.clearScreen();
 
@@ -207,22 +192,14 @@ void SleepScreen::onEnter() {
   for (const char* path : bmpPaths) {
     imageData = loadBMP(path, imageWidth, imageHeight);
     if (imageData) {
-        Serial.printf("[SleepScreen] Successfully loaded: %s\n", path);
+        Serial.printf("[%lu] [SleepScreen] Successfully loaded: %s\n", millis(), path);
         break;
     }
   }
 
   if (imageData) {
     // Image loaded successfully
-    Serial.printf("[SleepScreen] Drawing image: %dx%d\n", imageWidth, imageHeight);
-    Serial.printf("[SleepScreen] Screen dimensions: %dx%d\n", pageWidth, pageHeight);
-
-    // Print the first 16 bytes of image data (for debugging)
-    Serial.print("[SleepScreen] Image data sample: ");
-    for (int i = 0; i < 16 && i < (imageWidth+7)/8 * imageHeight; i++) {
-      Serial.printf("%02X ", imageData[i]);
-    }
-    Serial.println();
+    Serial.printf("[%lu] [SleepScreen] Drawing image: %dx%d\n", millis(), imageWidth, imageHeight);
 
     // Calculate position to center the image
     int xPos = (pageWidth - imageWidth) / 2;
@@ -234,7 +211,7 @@ void SleepScreen::onEnter() {
     // Note: We've applied 90-degree clockwise rotation to compensate for
     // the renderer's behavior and ensure the image appears correctly
     // on the e-ink display.
-    Serial.printf("[SleepScreen] Drawing at position: %d,%d (dimensions: %dx%d)\n",
+    Serial.printf("[%lu] [SleepScreen] Drawing at position: %d,%d (dimensions: %dx%d)\n", millis(),
                  xPos, yPos, imageWidth, imageHeight);
     renderer.drawImage(imageData, xPos, yPos, imageWidth, imageHeight);
 
@@ -242,7 +219,7 @@ void SleepScreen::onEnter() {
     free(imageData);
   } else {
     // Fall back to default image
-    Serial.println("[SleepScreen] Failed to load sleep.bmp - using default image");
+    Serial.printf("[%lu] [SleepScreen] Failed to load sleep.bmp - using default image\n", millis());
     renderer.drawImage(CrossLarge, (pageWidth - 128) / 2, (pageHeight - 128) / 2, 128, 128);
     renderer.drawCenteredText(UI_FONT_ID, pageHeight / 2 + 70, "CrossPoint", true, BOLD);
     renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
