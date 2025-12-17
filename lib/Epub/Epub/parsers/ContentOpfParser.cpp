@@ -3,6 +3,10 @@
 #include <HardwareSerial.h>
 #include <ZipFile.h>
 
+namespace {
+constexpr const char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
+}
+
 bool ContentOpfParser::setup() {
   parser = XML_ParserCreate(nullptr);
   if (!parser) {
@@ -111,16 +115,28 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
   if (self->state == IN_MANIFEST && (strcmp(name, "item") == 0 || strcmp(name, "opf:item") == 0)) {
     std::string itemId;
     std::string href;
+    std::string mediaType;
 
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "id") == 0) {
         itemId = atts[i + 1];
       } else if (strcmp(atts[i], "href") == 0) {
         href = self->baseContentPath + atts[i + 1];
+      } else if (strcmp(atts[i], "media-type") == 0) {
+        mediaType = atts[i + 1];
       }
     }
 
     self->items[itemId] = href;
+
+    if (mediaType == MEDIA_TYPE_NCX) {
+      if (self->tocNcxPath.empty()) {
+        self->tocNcxPath = href;
+      } else {
+        Serial.printf("[%lu] [COF] Warning: Multiple NCX files found in manifest. Ignoring duplicate: %s\n", millis(),
+                      href.c_str());
+      }
+    }
     return;
   }
 

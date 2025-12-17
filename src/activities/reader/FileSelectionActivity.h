@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "Screen.h"
+#include "../Activity.h"
 
-class FileSelectionScreen final : public Screen {
+class FileSelectionActivity final : public Activity {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   std::string basepath = "/";
@@ -17,7 +17,7 @@ class FileSelectionScreen final : public Screen {
   int selectorIndex = 0;
   bool updateRequired = false;
   const std::function<void(const std::string&)> onSelect;
-  const std::function<void()> onSettingsOpen;
+  const std::function<void()> onGoHome;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -25,11 +25,11 @@ class FileSelectionScreen final : public Screen {
   void loadFiles();
 
  public:
-  explicit FileSelectionScreen(GfxRenderer& renderer, InputManager& inputManager,
-                               const std::function<void(const std::string&)>& onSelect,
-                               const std::function<void()>& onSettingsOpen)
-      : Screen(renderer, inputManager), onSelect(onSelect), onSettingsOpen(onSettingsOpen) {}
+  explicit FileSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
+                                 const std::function<void(const std::string&)>& onSelect,
+                                 const std::function<void()>& onGoHome)
+      : Activity(renderer, inputManager), onSelect(onSelect), onGoHome(onGoHome) {}
   void onEnter() override;
   void onExit() override;
-  void handleInput() override;
+  void loop() override;
 };

@@ -6,8 +6,12 @@
 
 #include <fstream>
 
+namespace {
 constexpr uint8_t STATE_FILE_VERSION = 1;
 constexpr char STATE_FILE[] = "/sd/.crosspoint/state.bin";
+}  // namespace
+
+CrossPointState CrossPointState::instance;
 
 bool CrossPointState::saveToFile() const {
   std::ofstream outputFile(STATE_FILE);

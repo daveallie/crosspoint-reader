@@ -9,7 +9,9 @@
 #include "Page.h"
 #include "parsers/ChapterHtmlSlimParser.h"
 
+namespace {
 constexpr uint8_t SECTION_FILE_VERSION = 5;
+}
 
 void Section::onPageComplete(std::unique_ptr<Page> page) {
   const auto filePath = cachePath + "/page_" + std::to_string(pageCount) + ".bin";

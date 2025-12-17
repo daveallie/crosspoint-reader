@@ -1,4 +1,4 @@
-#include "SettingsScreen.h"
+#include "SettingsActivity.h"
 
 #include <GfxRenderer.h>
 
@@ -7,17 +7,16 @@
 
 // Define the static settings list
 
-const SettingInfo SettingsScreen::settingsList[SettingsScreen::settingsCount] = {
-    {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
-    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
-    {"WiFi", SettingType::ACTION, nullptr}};
+const SettingInfo SettingsActivity::settingsList[settingsCount] = {
+    {"White Sleep Screen", &CrossPointSettings::whiteSleepScreen},
+    {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing}};
 
-void SettingsScreen::taskTrampoline(void* param) {
-  auto* self = static_cast<SettingsScreen*>(param);
+void SettingsActivity::taskTrampoline(void* param) {
+  auto* self = static_cast<SettingsActivity*>(param);
   self->displayTaskLoop();
 }
 
-void SettingsScreen::onEnter() {
+void SettingsActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   // Reset selection to first item
@@ -26,7 +25,7 @@ void SettingsScreen::onEnter() {
   // Trigger first update
   updateRequired = true;
 
-  xTaskCreate(&SettingsScreen::taskTrampoline, "SettingsScreenTask",
+  xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask",
               2048,               // Stack size
               this,               // Parameters
               1,                  // Priority
@@ -34,7 +33,7 @@ void SettingsScreen::onEnter() {
   );
 }
 
-void SettingsScreen::onExit() {
+void SettingsActivity::onExit() {
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -45,10 +44,10 @@ void SettingsScreen::onExit() {
   renderingMutex = nullptr;
 }
 
-void SettingsScreen::handleInput() {
+void SettingsActivity::loop() {
   // Handle actions with early return
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-    activateCurrentSetting();
+    toggleCurrentSetting();
     updateRequired = true;
     return;
   }
@@ -73,38 +72,13 @@ void SettingsScreen::handleInput() {
   }
 }
 
-void SettingsScreen::activateCurrentSetting() {
+void SettingsActivity::toggleCurrentSetting() {
   // Validate index
   if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
     return;
   }
 
   const auto& setting = settingsList[selectedSettingIndex];
-
-  if (setting.type == SettingType::TOGGLE) {
-    toggleCurrentSetting();
-    // Trigger a redraw of the entire screen
-    updateRequired = true;
-  } else if (setting.type == SettingType::ACTION) {
-    // Handle action settings
-    if (std::string(setting.name) == "WiFi") {
-      onGoWifi();
-    }
-  }
-}
-
-void SettingsScreen::toggleCurrentSetting() {
-  // Validate index
-  if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
-    return;
-  }
-
-  const auto& setting = settingsList[selectedSettingIndex];
-
-  // Only toggle if it's a toggle type and has a value pointer
-  if (setting.type != SettingType::TOGGLE || setting.valuePtr == nullptr) {
-    return;
-  }
 
   // Toggle the boolean value using the member pointer
   bool currentValue = SETTINGS.*(setting.valuePtr);
@@ -114,7 +88,7 @@ void SettingsScreen::toggleCurrentSetting() {
   SETTINGS.saveToFile();
 }
 
-void SettingsScreen::displayTaskLoop() {
+void SettingsActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
       updateRequired = false;
@@ -126,7 +100,7 @@ void SettingsScreen::displayTaskLoop() {
   }
 }
 
-void SettingsScreen::render() const {
+void SettingsActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = GfxRenderer::getScreenWidth();
@@ -149,12 +123,10 @@ void SettingsScreen::render() const {
     // Draw setting name
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
 
-    // Draw value based on setting type
-    if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
+    // Draw value (all settings are toggles now)
+    if (settingsList[i].valuePtr != nullptr) {
       bool value = SETTINGS.*(settingsList[i].valuePtr);
       renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
-    } else if (settingsList[i].type == SettingType::ACTION) {
-      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, ">");
     }
   }
 

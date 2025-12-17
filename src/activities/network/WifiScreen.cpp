@@ -227,7 +227,7 @@ void WifiScreen::checkConnectionStatus() {
   }
 }
 
-void WifiScreen::handleInput() {
+void WifiScreen::loop() {
   // Check scan progress
   if (state == WifiScreenState::SCANNING) {
     processWifiScanResults();

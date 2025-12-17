@@ -17,15 +17,13 @@
 #include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "CrossPointWebServer.h"
+#include "activities/boot_sleep/BootActivity.h"
+#include "activities/boot_sleep/SleepActivity.h"
+#include "activities/home/HomeActivity.h"
+#include "activities/reader/ReaderActivity.h"
+#include "activities/settings/SettingsActivity.h"
+#include "activities/util/FullScreenMessageActivity.h"
 #include "config.h"
-#include "screens/BootLogoScreen.h"
-#include "screens/EpubReaderScreen.h"
-#include "screens/FileSelectionScreen.h"
-#include "screens/FullScreenMessageScreen.h"
-#include "screens/SettingsScreen.h"
-#include "screens/SleepScreen.h"
-#include "screens/WifiScreen.h"
 
 #define SPI_FQ 40000000
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
@@ -44,8 +42,7 @@
 EInkDisplay einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
 InputManager inputManager;
 GfxRenderer renderer(einkDisplay);
-Screen* currentScreen;
-CrossPointState appState;
+Activity* currentActivity;
 
 // Fonts
 EpdFont bookerlyFont(&bookerly_2b);
@@ -69,31 +66,16 @@ constexpr unsigned long POWER_BUTTON_SLEEP_MS = 500;
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
 
-std::unique_ptr<Epub> loadEpub(const std::string& path) {
-  if (!SD.exists(path.c_str())) {
-    Serial.printf("[%lu] [   ] File does not exist: %s\n", millis(), path.c_str());
-    return nullptr;
-  }
-
-  auto epub = std::unique_ptr<Epub>(new Epub(path, "/.crosspoint"));
-  if (epub->load()) {
-    return epub;
-  }
-
-  Serial.printf("[%lu] [   ] Failed to load epub\n", millis());
-  return nullptr;
-}
-
-void exitScreen() {
-  if (currentScreen) {
-    currentScreen->onExit();
-    delete currentScreen;
+void exitActivity() {
+  if (currentActivity) {
+    currentActivity->onExit();
+    delete currentActivity;
   }
 }
 
-void enterNewScreen(Screen* screen) {
-  currentScreen = screen;
-  currentScreen->onEnter();
+void enterNewActivity(Activity* activity) {
+  currentActivity = activity;
+  currentActivity->onEnter();
 }
 
 // Verify long press on wake-up from deep sleep
@@ -137,8 +119,8 @@ void waitForPowerRelease() {
 
 // Enter deep sleep mode
 void enterDeepSleep() {
-  exitScreen();
-  enterNewScreen(new SleepScreen(renderer, inputManager));
+  exitActivity();
+  enterNewActivity(new SleepActivity(renderer, inputManager));
 
   Serial.printf("[%lu] [   ] Power button released after a long press. Entering deep sleep.\n", millis());
   delay(1000);  // Allow Serial buffer to empty and display to update
@@ -153,40 +135,20 @@ void enterDeepSleep() {
 }
 
 void onGoHome();
-void onSelectEpubFile(const std::string& path) {
-  exitScreen();
-  enterNewScreen(new FullScreenMessageScreen(renderer, inputManager, "Loading..."));
-
-  auto epub = loadEpub(path);
-  if (epub) {
-    appState.openEpubPath = path;
-    appState.saveToFile();
-    exitScreen();
-    enterNewScreen(new EpubReaderScreen(renderer, inputManager, std::move(epub), onGoHome));
-  } else {
-    exitScreen();
-    enterNewScreen(
-        new FullScreenMessageScreen(renderer, inputManager, "Failed to load epub", REGULAR, EInkDisplay::HALF_REFRESH));
-    delay(2000);
-    onGoHome();
-  }
+void onGoToReader(const std::string& initialEpubPath) {
+  exitActivity();
+  enterNewActivity(new ReaderActivity(renderer, inputManager, initialEpubPath, onGoHome));
 }
-
-void onGoToSettings();
-
-void onGoToWifi() {
-  exitScreen();
-  enterNewScreen(new WifiScreen(renderer, inputManager, onGoToSettings));
-}
+void onGoToReaderHome() { onGoToReader(std::string()); }
 
 void onGoToSettings() {
-  exitScreen();
-  enterNewScreen(new SettingsScreen(renderer, inputManager, onGoHome, onGoToWifi));
+  exitActivity();
+  enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome));
 }
 
 void onGoHome() {
-  exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
+  exitActivity();
+  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings));
 }
 
 void setup() {
@@ -212,27 +174,19 @@ void setup() {
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
   Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 
-  exitScreen();
-  enterNewScreen(new BootLogoScreen(renderer, inputManager));
+  exitActivity();
+  enterNewActivity(new BootActivity(renderer, inputManager));
 
   // SD Card Initialization
   SD.begin(SD_SPI_CS, SPI, SPI_FQ);
 
   SETTINGS.loadFromFile();
-  appState.loadFromFile();
-  if (!appState.openEpubPath.empty()) {
-    auto epub = loadEpub(appState.openEpubPath);
-    if (epub) {
-      exitScreen();
-      enterNewScreen(new EpubReaderScreen(renderer, inputManager, std::move(epub), onGoHome));
-      // Ensure we're not still holding the power button before leaving setup
-      waitForPowerRelease();
-      return;
-    }
+  APP_STATE.loadFromFile();
+  if (APP_STATE.openEpubPath.empty()) {
+    onGoHome();
+  } else {
+    onGoToReader(APP_STATE.openEpubPath);
   }
-
-  exitScreen();
-  enterNewScreen(new FileSelectionScreen(renderer, inputManager, onSelectEpubFile, onGoToSettings));
 
   // Ensure we're not still holding the power button before leaving setup
   waitForPowerRelease();
@@ -246,11 +200,6 @@ void loop() {
     Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes\n", millis(), ESP.getFreeHeap(),
                   ESP.getHeapSize(), ESP.getMinFreeHeap());
     lastMemPrint = millis();
-  }
-
-  // Handle web server clients if WiFi is connected
-  if (WiFi.status() == WL_CONNECTED) {
-    crossPointWebServer.handleClient();
   }
 
   inputManager.update();
@@ -274,7 +223,7 @@ void loop() {
     return;
   }
 
-  if (currentScreen) {
-    currentScreen->handleInput();
+  if (currentActivity) {
+    currentActivity->loop();
   }
 }

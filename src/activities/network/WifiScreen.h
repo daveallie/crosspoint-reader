@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "OnScreenKeyboard.h"
-#include "Screen.h"
+#include "../Activity.h"
 
 // Structure to hold WiFi network information
 struct WifiNetworkInfo {
@@ -32,7 +32,7 @@ enum class WifiScreenState {
   FORGET_PROMPT       // Asking user if they want to forget the network
 };
 
-class WifiScreen final : public Screen {
+class WifiScreen final : public Activity {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
@@ -86,8 +86,8 @@ class WifiScreen final : public Screen {
 
  public:
   explicit WifiScreen(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoBack)
-      : Screen(renderer, inputManager), onGoBack(onGoBack) {}
+      : Activity(renderer, inputManager), onGoBack(onGoBack) {}
   void onEnter() override;
   void onExit() override;
-  void handleInput() override;
+  void loop() override;
 };
