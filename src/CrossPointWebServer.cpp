@@ -721,7 +721,6 @@ static const char* FILES_PAGE_FOOTER = R"rawliteral(
       
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('path', currentPath);
       
       const progressContainer = document.getElementById('progress-container');
       const progressFill = document.getElementById('progress-fill');
@@ -732,7 +731,9 @@ static const char* FILES_PAGE_FOOTER = R"rawliteral(
       uploadBtn.disabled = true;
       
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/upload', true);
+      // Include path as query parameter since multipart form data doesn't make
+      // form fields available until after file upload completes
+      xhr.open('POST', '/upload?path=' + encodeURIComponent(currentPath), true);
       
       xhr.upload.onprogress = function(e) {
         if (e.lengthComputable) {
@@ -1241,7 +1242,9 @@ void CrossPointWebServer::handleUpload() {
     uploadSuccess = false;
     uploadError = "";
     
-    // Get upload path from form data (defaults to root if not specified)
+    // Get upload path from query parameter (defaults to root if not specified)
+    // Note: We use query parameter instead of form data because multipart form
+    // fields aren't available until after file upload completes
     if (server->hasArg("path")) {
       uploadPath = server->arg("path");
       // Ensure path starts with /

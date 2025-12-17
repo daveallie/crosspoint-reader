@@ -581,7 +581,7 @@ void WifiScreen::renderConnected() const {
   std::string webInfo = "Web: http://" + connectedIP + "/";
   renderer.drawCenteredText(UI_FONT_ID, top + 70, webInfo.c_str(), true, REGULAR);
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to exit", true, REGULAR);
 }
 
 void WifiScreen::renderSavePrompt() const {
