@@ -17,6 +17,7 @@
 #include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "CrossPointWebServer.h"
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
@@ -233,5 +234,10 @@ void loop() {
 
   if (currentActivity) {
     currentActivity->loop();
+  }
+
+  // Handle web server requests if running
+  if (crossPointWebServer.isRunning()) {
+    crossPointWebServer.handleClient();
   }
 }
