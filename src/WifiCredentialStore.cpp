@@ -17,8 +17,7 @@ constexpr char WIFI_FILE[] = "/sd/.crosspoint/wifi.bin";
 
 // Obfuscation key - "CrossPoint" in ASCII
 // This is NOT cryptographic security, just prevents casual file reading
-constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73,
-                                       0x50, 0x6F, 0x69, 0x6E, 0x74};
+constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73, 0x50, 0x6F, 0x69, 0x6E, 0x74};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
 
 void WifiCredentialStore::obfuscate(std::string& data) const {
@@ -46,7 +45,8 @@ bool WifiCredentialStore::saveToFile() const {
   for (const auto& cred : credentials) {
     // Write SSID (plaintext - not sensitive)
     serialization::writeString(file, cred.ssid);
-    Serial.printf("[%lu] [WCS] Saving SSID: %s, password length: %zu\n", millis(), cred.ssid.c_str(), cred.password.size());
+    Serial.printf("[%lu] [WCS] Saving SSID: %s, password length: %zu\n", millis(), cred.ssid.c_str(),
+                  cred.password.size());
 
     // Write password (obfuscated)
     std::string obfuscatedPwd = cred.password;
@@ -94,7 +94,8 @@ bool WifiCredentialStore::loadFromFile() {
 
     // Read and deobfuscate password
     serialization::readString(file, cred.password);
-    Serial.printf("[%lu] [WCS] Loaded SSID: %s, obfuscated password length: %zu\n", millis(), cred.ssid.c_str(), cred.password.size());
+    Serial.printf("[%lu] [WCS] Loaded SSID: %s, obfuscated password length: %zu\n", millis(), cred.ssid.c_str(),
+                  cred.password.size());
     obfuscate(cred.password);  // XOR is symmetric, so same function deobfuscates
     Serial.printf("[%lu] [WCS] After deobfuscation, password length: %zu\n", millis(), cred.password.size());
 
@@ -148,9 +149,7 @@ const WifiCredential* WifiCredentialStore::findCredential(const std::string& ssi
   return nullptr;
 }
 
-bool WifiCredentialStore::hasSavedCredential(const std::string& ssid) const {
-  return findCredential(ssid) != nullptr;
-}
+bool WifiCredentialStore::hasSavedCredential(const std::string& ssid) const { return findCredential(ssid) != nullptr; }
 
 void WifiCredentialStore::clearAll() {
   credentials.clear();

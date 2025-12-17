@@ -100,7 +100,7 @@ void SettingsScreen::toggleCurrentSetting() {
   }
 
   const auto& setting = settingsList[selectedSettingIndex];
-  
+
   // Only toggle if it's a toggle type and has a value pointer
   if (setting.type != SettingType::TOGGLE || setting.valuePtr == nullptr) {
     return;

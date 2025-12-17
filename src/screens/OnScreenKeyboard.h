@@ -8,7 +8,7 @@
 /**
  * Reusable on-screen keyboard component for text input.
  * Can be embedded in any screen that needs text entry.
- * 
+ *
  * Usage:
  *   1. Create an OnScreenKeyboard instance
  *   2. Call render() to draw the keyboard
@@ -31,11 +31,8 @@ class OnScreenKeyboard {
    * @param maxLength Maximum length of input text (0 for unlimited)
    * @param isPassword If true, display asterisks instead of actual characters
    */
-  OnScreenKeyboard(GfxRenderer& renderer, InputManager& inputManager, 
-                   const std::string& title = "Enter Text",
-                   const std::string& initialText = "",
-                   size_t maxLength = 0,
-                   bool isPassword = false);
+  OnScreenKeyboard(GfxRenderer& renderer, InputManager& inputManager, const std::string& title = "Enter Text",
+                   const std::string& initialText = "", size_t maxLength = 0, bool isPassword = false);
 
   /**
    * Handle button input. Call this in your screen's handleInput().
@@ -87,19 +84,19 @@ class OnScreenKeyboard {
  private:
   GfxRenderer& renderer;
   InputManager& inputManager;
-  
+
   std::string title;
   std::string text;
   size_t maxLength;
   bool isPassword;
-  
+
   // Keyboard state
   int selectedRow = 0;
   int selectedCol = 0;
   bool shiftActive = false;
   bool complete = false;
   bool cancelled = false;
-  
+
   // Callbacks
   OnCompleteCallback onComplete;
   OnCancelCallback onCancel;
@@ -109,7 +106,7 @@ class OnScreenKeyboard {
   static constexpr int KEYS_PER_ROW = 13;  // Max keys per row (rows 0 and 1 have 13 keys)
   static const char* const keyboard[NUM_ROWS];
   static const char* const keyboardShift[NUM_ROWS];
-  
+
   // Special key positions (bottom row)
   static constexpr int SHIFT_ROW = 4;
   static constexpr int SHIFT_COL = 0;

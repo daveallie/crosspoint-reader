@@ -17,9 +17,9 @@ enum class SettingType { TOGGLE, ACTION };
 
 // Structure to hold setting information
 struct SettingInfo {
-  const char* name;                         // Display name of the setting
-  SettingType type;                         // Type of setting
-  uint8_t CrossPointSettings::* valuePtr;   // Pointer to member in CrossPointSettings (for TOGGLE)
+  const char* name;                        // Display name of the setting
+  SettingType type;                        // Type of setting
+  uint8_t CrossPointSettings::* valuePtr;  // Pointer to member in CrossPointSettings (for TOGGLE)
 };
 
 class SettingsScreen final : public Screen {
@@ -41,9 +41,8 @@ class SettingsScreen final : public Screen {
   void activateCurrentSetting();
 
  public:
-  explicit SettingsScreen(GfxRenderer& renderer, InputManager& inputManager, 
-                         const std::function<void()>& onGoHome, 
-                         const std::function<void()>& onGoWifi)
+  explicit SettingsScreen(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoHome,
+                          const std::function<void()>& onGoWifi)
       : Screen(renderer, inputManager), onGoHome(onGoHome), onGoWifi(onGoWifi) {}
   void onEnter() override;
   void onExit() override;

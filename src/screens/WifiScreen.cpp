@@ -48,10 +48,10 @@ void WifiScreen::onEnter() {
 void WifiScreen::onExit() {
   // Stop any ongoing WiFi scan
   WiFi.scanDelete();
-  
+
   // Stop the web server to free memory
   crossPointWebServer.stop();
-  
+
   // Disconnect WiFi to free memory
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
@@ -136,7 +136,8 @@ void WifiScreen::selectNetwork(int index) {
     // Use saved password - connect directly
     enteredPassword = savedCred->password;
     usedSavedPassword = true;
-    Serial.printf("[%lu] [WiFi] Using saved password for %s, length: %zu\n", millis(), selectedSSID.c_str(), enteredPassword.size());
+    Serial.printf("[%lu] [WiFi] Using saved password for %s, length: %zu\n", millis(), selectedSSID.c_str(),
+                  enteredPassword.size());
     attemptConnection();
     return;
   }
@@ -144,13 +145,11 @@ void WifiScreen::selectNetwork(int index) {
   if (selectedRequiresPassword) {
     // Show password entry
     state = WifiScreenState::PASSWORD_ENTRY;
-    keyboard.reset(new OnScreenKeyboard(
-        renderer, inputManager,
-        "Enter WiFi Password",
-        "",    // No initial text
-        64,    // Max password length
-        false  // Show password by default (hard keyboard to use)
-    ));
+    keyboard.reset(new OnScreenKeyboard(renderer, inputManager, "Enter WiFi Password",
+                                        "",    // No initial text
+                                        64,    // Max password length
+                                        false  // Show password by default (hard keyboard to use)
+                                        ));
     updateRequired = true;
   } else {
     // Connect directly for open networks
@@ -166,12 +165,12 @@ void WifiScreen::attemptConnection() {
   updateRequired = true;
 
   WiFi.mode(WIFI_STA);
-  
+
   // Get password from keyboard if we just entered it
   if (keyboard && !usedSavedPassword) {
     enteredPassword = keyboard->getText();
   }
-  
+
   if (selectedRequiresPassword && !enteredPassword.empty()) {
     WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str());
   } else {
@@ -185,17 +184,17 @@ void WifiScreen::checkConnectionStatus() {
   }
 
   wl_status_t status = WiFi.status();
-  
+
   if (status == WL_CONNECTED) {
     // Successfully connected
     IPAddress ip = WiFi.localIP();
     char ipStr[16];
     snprintf(ipStr, sizeof(ipStr), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     connectedIP = ipStr;
-    
+
     // Start the web server
     crossPointWebServer.begin();
-    
+
     // If we used a saved password, go directly to connected screen
     // If we entered a new password, ask if user wants to save it
     if (usedSavedPassword || enteredPassword.empty()) {
@@ -244,33 +243,31 @@ void WifiScreen::handleInput() {
   // Handle password entry state
   if (state == WifiScreenState::PASSWORD_ENTRY && keyboard) {
     keyboard->handleInput();
-    
+
     if (keyboard->isComplete()) {
       attemptConnection();
       return;
     }
-    
+
     if (keyboard->isCancelled()) {
       state = WifiScreenState::NETWORK_LIST;
       keyboard.reset();
       updateRequired = true;
       return;
     }
-    
+
     updateRequired = true;
     return;
   }
 
   // Handle save prompt state
   if (state == WifiScreenState::SAVE_PROMPT) {
-    if (inputManager.wasPressed(InputManager::BTN_LEFT) || 
-        inputManager.wasPressed(InputManager::BTN_UP)) {
+    if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
       if (savePromptSelection > 0) {
         savePromptSelection--;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) || 
-               inputManager.wasPressed(InputManager::BTN_DOWN)) {
+    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) || inputManager.wasPressed(InputManager::BTN_DOWN)) {
       if (savePromptSelection < 1) {
         savePromptSelection++;
         updateRequired = true;
@@ -293,14 +290,12 @@ void WifiScreen::handleInput() {
 
   // Handle forget prompt state (connection failed with saved credentials)
   if (state == WifiScreenState::FORGET_PROMPT) {
-    if (inputManager.wasPressed(InputManager::BTN_LEFT) ||
-        inputManager.wasPressed(InputManager::BTN_UP)) {
+    if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
       if (forgetPromptSelection > 0) {
         forgetPromptSelection--;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) ||
-               inputManager.wasPressed(InputManager::BTN_DOWN)) {
+    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) || inputManager.wasPressed(InputManager::BTN_DOWN)) {
       if (forgetPromptSelection < 1) {
         forgetPromptSelection++;
         updateRequired = true;
@@ -330,8 +325,7 @@ void WifiScreen::handleInput() {
 
   // Handle connected state
   if (state == WifiScreenState::CONNECTED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK) ||
-        inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (inputManager.wasPressed(InputManager::BTN_BACK) || inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
       // Exit screen on success
       onGoBack();
       return;
@@ -340,8 +334,7 @@ void WifiScreen::handleInput() {
 
   // Handle connection failed state
   if (state == WifiScreenState::CONNECTION_FAILED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK) ||
-        inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (inputManager.wasPressed(InputManager::BTN_BACK) || inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
       // If we used saved credentials, offer to forget the network
       if (usedSavedPassword) {
         state = WifiScreenState::FORGET_PROMPT;
@@ -551,7 +544,7 @@ void WifiScreen::renderConnecting() const {
     renderer.drawCenteredText(UI_FONT_ID, top, "Scanning...", true, REGULAR);
   } else {
     renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connecting...", true, BOLD);
-    
+
     std::string ssidInfo = "to " + selectedSSID;
     if (ssidInfo.length() > 25) {
       ssidInfo = ssidInfo.substr(0, 22) + "...";

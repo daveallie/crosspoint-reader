@@ -54,10 +54,10 @@ class WifiScreen final : public Screen {
 
   // Password to potentially save (from keyboard or saved credentials)
   std::string enteredPassword;
-  
+
   // Whether network was connected using a saved password (skip save prompt)
   bool usedSavedPassword = false;
-  
+
   // Save/forget prompt selection (0 = Yes, 1 = No)
   int savePromptSelection = 0;
   int forgetPromptSelection = 0;
