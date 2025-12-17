@@ -130,9 +130,7 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
         int byteIndex = x / 8;
         int bitIndex = 7 - (x % 8); // MSB first in BMP file format
 
-        // In 1-bit BMPs, bit value 1 typically means black and 0 means white
-        // Check if the bit is set (1) at the specified position
-        isBlack = (rowBuffer[byteIndex] & (1 << bitIndex)) != 0;
+        isBlack = (rowBuffer[byteIndex] & (1 << bitIndex)) == 0;
       } else { // 24-bit
         // For 24-bit BMPs, convert RGB to grayscale
         // BMP stores colors as BGR (Blue, Green, Red)
