@@ -32,8 +32,7 @@ struct BMPHeader {
 // Load BMP file from SD card and rotate 90 degrees clockwise
 // This rotation matches what we need for the e-ink display
 uint8_t* loadBMP(const char* filename, int& width, int& height) {
-  // Using rotation type 1: 90 degrees clockwise
-  const int rotationType = 1;
+  const unsigned long startTime = millis();
   Serial.printf("[%lu] [SleepScreen] Trying to load BMP: %s\n", millis(), filename);
 
   if (!SD.exists(filename)) {
@@ -168,7 +167,8 @@ uint8_t* loadBMP(const char* filename, int& width, int& height) {
   free(rowBuffer);
   bmpFile.close();
 
-  Serial.printf("[%lu] [SleepScreen] Successfully loaded BMP: %dx%d\n", millis(), width, height);
+  Serial.printf("[%lu] [SleepScreen] Successfully loaded BMP: %dx%d in %lu ms\n",
+      millis() - startTime, width, height, millis() - startTime);
   return displayImage;
 }
 
