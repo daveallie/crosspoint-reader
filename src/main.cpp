@@ -20,6 +20,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
+#include "activities/network/WifiScreen.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
@@ -141,9 +142,16 @@ void onGoToReader(const std::string& initialEpubPath) {
 }
 void onGoToReaderHome() { onGoToReader(std::string()); }
 
+void onGoToSettings();
+
+void onGoToWifi() {
+  exitActivity();
+  enterNewActivity(new WifiScreen(renderer, inputManager, onGoToSettings));
+}
+
 void onGoToSettings() {
   exitActivity();
-  enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome));
+  enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome, onGoToWifi));
 }
 
 void onGoHome() {

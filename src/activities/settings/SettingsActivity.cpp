@@ -8,8 +8,9 @@
 // Define the static settings list
 
 const SettingInfo SettingsActivity::settingsList[settingsCount] = {
-    {"White Sleep Screen", &CrossPointSettings::whiteSleepScreen},
-    {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing}};
+    {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
+    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
+    {"WiFi", SettingType::ACTION, nullptr}};
 
 void SettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<SettingsActivity*>(param);
@@ -47,7 +48,7 @@ void SettingsActivity::onExit() {
 void SettingsActivity::loop() {
   // Handle actions with early return
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-    toggleCurrentSetting();
+    activateCurrentSetting();
     updateRequired = true;
     return;
   }
@@ -72,6 +73,26 @@ void SettingsActivity::loop() {
   }
 }
 
+void SettingsActivity::activateCurrentSetting() {
+  // Validate index
+  if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
+    return;
+  }
+
+  const auto& setting = settingsList[selectedSettingIndex];
+
+  if (setting.type == SettingType::TOGGLE) {
+    toggleCurrentSetting();
+    // Trigger a redraw of the entire screen
+    updateRequired = true;
+  } else if (setting.type == SettingType::ACTION) {
+    // Handle action settings
+    if (std::string(setting.name) == "WiFi") {
+      onGoWifi();
+    }
+  }
+}
+
 void SettingsActivity::toggleCurrentSetting() {
   // Validate index
   if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
@@ -79,6 +100,11 @@ void SettingsActivity::toggleCurrentSetting() {
   }
 
   const auto& setting = settingsList[selectedSettingIndex];
+
+  // Only toggle if it's a toggle type and has a value pointer
+  if (setting.type != SettingType::TOGGLE || setting.valuePtr == nullptr) {
+    return;
+  }
 
   // Toggle the boolean value using the member pointer
   bool currentValue = SETTINGS.*(setting.valuePtr);
@@ -123,10 +149,12 @@ void SettingsActivity::render() const {
     // Draw setting name
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
 
-    // Draw value (all settings are toggles now)
-    if (settingsList[i].valuePtr != nullptr) {
+    // Draw value based on setting type
+    if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
       bool value = SETTINGS.*(settingsList[i].valuePtr);
       renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+    } else if (settingsList[i].type == SettingType::ACTION) {
+      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, ">");
     }
   }
 
