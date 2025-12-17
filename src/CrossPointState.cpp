@@ -6,8 +6,10 @@
 
 #include <fstream>
 
+namespace {
 constexpr uint8_t STATE_FILE_VERSION = 1;
 constexpr char STATE_FILE[] = "/sd/.crosspoint/state.bin";
+}  // namespace
 
 CrossPointState CrossPointState::instance;
 

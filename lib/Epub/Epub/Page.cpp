@@ -3,7 +3,9 @@
 #include <HardwareSerial.h>
 #include <Serialization.h>
 
+namespace {
 constexpr uint8_t PAGE_FILE_VERSION = 3;
+}
 
 void PageLine::render(GfxRenderer& renderer, const int fontId) { block->render(renderer, fontId, xPos, yPos); }
 

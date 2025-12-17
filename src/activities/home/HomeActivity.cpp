@@ -5,6 +5,10 @@
 
 #include "config.h"
 
+namespace {
+constexpr int menuItemCount = 2;
+}
+
 void HomeActivity::taskTrampoline(void* param) {
   auto* self = static_cast<HomeActivity*>(param);
   self->displayTaskLoop();

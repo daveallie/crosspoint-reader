@@ -10,9 +10,11 @@
 // Initialize the static instance
 CrossPointSettings CrossPointSettings::instance;
 
+namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
 constexpr uint8_t SETTINGS_COUNT = 2;
 constexpr char SETTINGS_FILE[] = "/sd/.crosspoint/settings.bin";
+}  // namespace
 
 bool CrossPointSettings::saveToFile() const {
   // Make sure the directory exists

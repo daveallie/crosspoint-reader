@@ -15,8 +15,6 @@ class HomeActivity final : public Activity {
   const std::function<void()> onReaderOpen;
   const std::function<void()> onSettingsOpen;
 
-  static constexpr int menuItemCount = 2;
-
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render() const;
