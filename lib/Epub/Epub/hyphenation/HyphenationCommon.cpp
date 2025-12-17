@@ -25,9 +25,7 @@ uint32_t toLowerLatin(const uint32_t cp) { return toLowerLatinImpl(cp); }
 
 uint32_t toLowerCyrillic(const uint32_t cp) { return toLowerCyrillicImpl(cp); }
 
-bool isLatinLetter(const uint32_t cp) {
-  return (cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z');
-}
+bool isLatinLetter(const uint32_t cp) { return (cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z'); }
 
 bool isLatinVowel(uint32_t cp) {
   cp = toLowerLatinImpl(cp);

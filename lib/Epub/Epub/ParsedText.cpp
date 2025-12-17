@@ -36,9 +36,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   const bool allowIndent = !extraParagraphSpacing && (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN);
   const int indentWidth = allowIndent ? renderer.getTextWidth(fontId, "m", REGULAR) : 0;
   const int firstLinePageWidth = allowIndent ? std::max(pageWidth - indentWidth, 0) : pageWidth;
-  auto pageWidthForLine = [&](const bool isFirstLine) -> int {
-    return isFirstLine ? firstLinePageWidth : pageWidth;
-  };
+  auto pageWidthForLine = [&](const bool isFirstLine) -> int { return isFirstLine ? firstLinePageWidth : pageWidth; };
 
   auto wordIt = words.begin();
   auto styleIt = wordStyles.begin();
@@ -110,8 +108,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
       }
     }
 
-    processLine(
-        std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineStyles), style));
+    processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineStyles), style));
 
     producedLines++;
     lineWordWidths.clear();

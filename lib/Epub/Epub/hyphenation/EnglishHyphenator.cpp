@@ -88,8 +88,18 @@ bool isValidEnglishOnsetBigram(const uint32_t firstCp, const uint32_t secondCp) 
   }
 
   if (matchesDigraph(first, second,
-                     {{'c', 'h'}, {'s', 'h'}, {'t', 'h'}, {'p', 'h'}, {'w', 'h'}, {'w', 'r'}, {'k', 'n'},
-                      {'g', 'n'}, {'p', 's'}, {'p', 't'}, {'p', 'n'}, {'r', 'h'}})) {
+                     {{'c', 'h'},
+                      {'s', 'h'},
+                      {'t', 'h'},
+                      {'p', 'h'},
+                      {'w', 'h'},
+                      {'w', 'r'},
+                      {'k', 'n'},
+                      {'g', 'n'},
+                      {'p', 's'},
+                      {'p', 't'},
+                      {'p', 'n'},
+                      {'r', 'h'}})) {
     return true;
   }
 
@@ -228,9 +238,8 @@ std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t rightVowel = vowelPositions[v + 1];
 
     if (rightVowel - leftVowel == 1) {
-      if (!isEnglishDiphthong(cps[leftVowel].value, cps[rightVowel].value) &&
-          rightVowel >= MIN_PREFIX_CP && cps.size() - rightVowel >= MIN_SUFFIX_CP &&
-          !nextToApostrophe(cps, rightVowel)) {
+      if (!isEnglishDiphthong(cps[leftVowel].value, cps[rightVowel].value) && rightVowel >= MIN_PREFIX_CP &&
+          cps.size() - rightVowel >= MIN_SUFFIX_CP && !nextToApostrophe(cps, rightVowel)) {
         indexes.push_back(rightVowel);
       }
       continue;

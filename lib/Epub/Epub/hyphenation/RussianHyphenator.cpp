@@ -5,9 +5,7 @@
 
 namespace {
 
-bool isSoftOrHardSign(const uint32_t cp) {
-  return cp == 0x044C || cp == 0x042C || cp == 0x044A || cp == 0x042A;
-}
+bool isSoftOrHardSign(const uint32_t cp) { return cp == 0x044C || cp == 0x042C || cp == 0x044A || cp == 0x042A; }
 
 bool isRussianPrefixConsonant(uint32_t cp) {
   cp = toLowerCyrillic(cp);
@@ -162,8 +160,7 @@ std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t rightVowel = vowelPositions[v + 1];
 
     if (rightVowel - leftVowel == 1) {
-      if (rightVowel >= MIN_PREFIX_CP && cps.size() - rightVowel >= MIN_SUFFIX_CP &&
-          !nextToSoftSign(cps, rightVowel)) {
+      if (rightVowel >= MIN_PREFIX_CP && cps.size() - rightVowel >= MIN_SUFFIX_CP && !nextToSoftSign(cps, rightVowel)) {
         indexes.push_back(rightVowel);
       }
       continue;

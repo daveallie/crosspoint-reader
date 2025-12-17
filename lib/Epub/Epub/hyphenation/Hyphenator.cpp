@@ -1,13 +1,12 @@
 #include "Hyphenator.h"
 
 #include <GfxRenderer.h>
+#include <Utf8.h>
 
 #include <algorithm>
 #include <array>
 #include <limits>
 #include <vector>
-
-#include <Utf8.h>
 
 #include "EnglishHyphenator.h"
 #include "HyphenationCommon.h"
@@ -80,8 +79,8 @@ std::vector<size_t> fallbackBreakIndexes(const std::vector<CodepointInfo>& cps) 
     const bool prevConsonant = !prevVowel;
     const bool currConsonant = !currVowel;
 
-    const bool breakable = (prevVowel && currConsonant) || (prevConsonant && currConsonant) ||
-                           (prevConsonant && currVowel);
+    const bool breakable =
+        (prevVowel && currConsonant) || (prevConsonant && currConsonant) || (prevConsonant && currVowel);
 
     if (breakable) {
       indexes.push_back(i);
