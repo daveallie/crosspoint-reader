@@ -7,11 +7,11 @@
 #include "../Activity.h"
 
 class FootnotesData {
-private:
+ private:
   FootnoteEntry entries[16];
   int count;
 
-public:
+ public:
   FootnotesData() : count(0) {
     for (int i = 0; i < 16; i++) {
       entries[i].number[0] = '\0';
@@ -53,7 +53,7 @@ class EpubReaderFootnotesActivity final : public Activity {
   const std::function<void(const char*)> onSelectFootnote;
   int selectedIndex;
 
-public:
+ public:
   EpubReaderFootnotesActivity(GfxRenderer& renderer, InputManager& inputManager, const FootnotesData& footnotes,
                               const std::function<void()>& onGoBack,
                               const std::function<void(const char*)>& onSelectFootnote)
@@ -67,6 +67,6 @@ public:
   void onExit() override;
   void loop() override;
 
-private:
+ private:
   void render();
 };

@@ -52,7 +52,7 @@ void EpubReaderActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&EpubReaderActivity::taskTrampoline, "EpubReaderActivityTask",
-              24576,               // Stack size
+              24576,              // Stack size
               this,               // Parameters
               1,                  // Priority
               &displayTaskHandle  // Task handle
@@ -321,8 +321,7 @@ void EpubReaderActivity::renderScreen() {
     return renderScreen();
   }
 
-  Serial.printf("[%lu] [ERS] Page loaded: %d elements, %d footnotes\n",
-                millis(), p->elementCount, p->footnoteCount);
+  Serial.printf("[%lu] [ERS] Page loaded: %d elements, %d footnotes\n", millis(), p->elementCount, p->footnoteCount);
 
   // Copy footnotes from page to currentPageFootnotes
   currentPageFootnotes.clear();
