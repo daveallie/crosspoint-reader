@@ -58,4 +58,7 @@ class Epub {
   int getTocItemsCount() const;
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
+
+  size_t getBookSize() const;
+  uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead);
 };
