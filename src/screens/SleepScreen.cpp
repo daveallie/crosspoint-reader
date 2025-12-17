@@ -1,24 +1,215 @@
 #include "SleepScreen.h"
 
 #include <GfxRenderer.h>
+#include <SD.h>
+#include <Arduino.h>
 
 #include "CrossPointSettings.h"
 #include "config.h"
 #include "images/CrossLarge.h"
 
+// BMP file header structure
+#pragma pack(push, 1)
+struct BMPHeader {
+  uint16_t signature;      // 'BM'
+  uint32_t fileSize;       // Size of the BMP file in bytes
+  uint32_t reserved;       // Reserved
+  uint32_t dataOffset;     // Offset to bitmap data
+  uint32_t headerSize;     // Size of the header
+  int32_t width;           // Width of the image
+  int32_t height;          // Height of the image
+  uint16_t planes;         // Number of color planes
+  uint16_t bitsPerPixel;   // Bits per pixel
+  uint32_t compression;    // Compression method
+  uint32_t imageSize;      // Size of the image data
+  int32_t xPixelsPerMeter; // Horizontal resolution
+  int32_t yPixelsPerMeter; // Vertical resolution
+  uint32_t totalColors;    // Number of colors in palette
+  uint32_t importantColors;// Number of important colors
+};
+#pragma pack(pop)
+
+// Load BMP file from SD card
+uint8_t* loadBMP(const char* filename, int& width, int& height) {
+  Serial.printf("[SleepScreen] Trying to load BMP: %s\n", filename);
+  
+  if (!SD.exists(filename)) {
+    Serial.printf("[SleepScreen] File not found: %s\n", filename);
+    return nullptr;
+  }
+  
+  File bmpFile = SD.open(filename);
+  if (!bmpFile) {
+    Serial.printf("[SleepScreen] Failed to open file: %s\n", filename);
+    return nullptr;
+  }
+  
+  // Read BMP header
+  BMPHeader header;
+  bmpFile.read((uint8_t*)&header, sizeof(BMPHeader));
+  
+  // Check if this is a valid BMP file
+  if (header.signature != 0x4D42) { // "BM" in little-endian
+    Serial.println("[SleepScreen] Invalid BMP signature");
+    bmpFile.close();
+    return nullptr;
+  }
+  
+  // Check for supported bit depths
+  if (header.bitsPerPixel != 1 && header.bitsPerPixel != 24) {
+    Serial.printf("[SleepScreen] Unsupported bit depth: %d\n", header.bitsPerPixel);
+    bmpFile.close();
+    return nullptr;
+  }
+  
+  // Get image dimensions
+  width = header.width;
+  height = (header.height < 0) ? -header.height : header.height; // Handle top-down BMPs
+  bool topDown = (header.height < 0);
+  
+  Serial.printf("[SleepScreen] BMP dimensions: %dx%d, %d bits/pixel\n", width, height, header.bitsPerPixel);
+  
+  // E-ink display uses 1 bit per pixel (8 pixels per byte)
+  int bytesPerRow = (width + 7) / 8;  // Calculate bytes needed, rounding up
+  int bufferSize = bytesPerRow * height;
+  
+  Serial.printf("[SleepScreen] Buffer size: %d bytes (%d bytes per row)\n", bufferSize, bytesPerRow);
+  
+  // Allocate memory for the display image
+  uint8_t* displayImage = (uint8_t*)malloc(bufferSize);
+  if (!displayImage) {
+    Serial.println("[SleepScreen] Failed to allocate memory for display image");
+    bmpFile.close();
+    return nullptr;
+  }
+  
+  // Initialize to all white (0xFF = all bits set to 1)
+  memset(displayImage, 0xFF, bufferSize);
+  
+  // Calculate BMP file row size (padded to 4-byte boundaries)
+  int bmpRowSize;
+  if (header.bitsPerPixel == 1) {
+    bmpRowSize = ((width + 31) / 32) * 4; // 1 bit per pixel, 4-byte alignment
+  } else { // 24-bit
+    bmpRowSize = ((width * 3 + 3) / 4) * 4; // 3 bytes per pixel (RGB), 4-byte alignment
+  }
+  
+  // Allocate buffer for reading BMP rows
+  uint8_t* rowBuffer = (uint8_t*)malloc(bmpRowSize);
+  if (!rowBuffer) {
+    Serial.println("[SleepScreen] Failed to allocate row buffer");
+    free(displayImage);
+    bmpFile.close();
+    return nullptr;
+  }
+  
+  // Process each row
+  for (int y = 0; y < height; y++) {
+    // Calculate source row (BMPs are normally stored bottom-to-top)
+    int bmpRow = topDown ? y : (height - 1 - y);
+    
+    // Read one row from the BMP file
+    bmpFile.seek(header.dataOffset + (bmpRow * bmpRowSize));
+    bmpFile.read(rowBuffer, bmpRowSize);
+    
+    // Process each pixel in the row
+    for (int x = 0; x < width; x++) {
+      // Determine if this pixel should be black based on bit depth
+      bool isBlack;
+      
+      if (header.bitsPerPixel == 1) {
+        // For 1-bit BMPs, read the bit directly
+        int byteIndex = x / 8;
+        int bitIndex = 7 - (x % 8); // MSB first
+        
+        // In BMPs, 1 typically means black and 0 means white
+        isBlack = (rowBuffer[byteIndex] & (1 << bitIndex)) != 0;
+      } else { // 24-bit
+        // For 24-bit BMPs, convert RGB to grayscale
+        int byteIndex = x * 3;
+        uint8_t blue = rowBuffer[byteIndex];
+        uint8_t green = rowBuffer[byteIndex + 1];
+        uint8_t red = rowBuffer[byteIndex + 2];
+        
+        // Convert to grayscale using standard weights
+        uint8_t gray = (red * 30 + green * 59 + blue * 11) / 100;
+        
+        // If below threshold, consider it black
+        isBlack = (gray < 128);
+      }
+      
+      // Calculate destination position in our display buffer (8 pixels per byte)
+      int destByteIndex = y * bytesPerRow + (x / 8);
+      int destBitIndex = 7 - (x % 8);  // MSB first (leftmost pixel is highest bit)
+      
+      // Set pixel in the display buffer (for e-ink: 0=black, 1=white)
+      if (isBlack) {
+        // Set to black (0) - clear bit
+        displayImage[destByteIndex] &= ~(1 << destBitIndex);
+      }
+      // White pixels (1) are already set by the memset(0xFF) above
+    }
+  }
+  
+  // Clean up
+  free(rowBuffer);
+  bmpFile.close();
+  
+  Serial.printf("[SleepScreen] Successfully loaded BMP: %dx%d\n", width, height);
+  return displayImage;
+}
+
 void SleepScreen::onEnter() {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
-
+  
+  Serial.printf("[SleepScreen] Screen dimensions: %dx%d\n", pageWidth, pageHeight);
+  
   renderer.clearScreen();
-  renderer.drawImage(CrossLarge, (pageWidth - 128) / 2, (pageHeight - 128) / 2, 128, 128);
-  renderer.drawCenteredText(UI_FONT_ID, pageHeight / 2 + 70, "CrossPoint", true, BOLD);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
-
+  
+  // Try to load custom sleep image
+  int imageWidth = 0;
+  int imageHeight = 0;
+  uint8_t* imageData = nullptr;
+  
+  // Try different possible paths
+  const char* bmpPaths[] = {"sleep.bmp", "/sleep.bmp"};
+  for (const char* path : bmpPaths) {
+    imageData = loadBMP(path, imageWidth, imageHeight);
+    if (imageData) {
+      Serial.printf("[SleepScreen] Successfully loaded: %s\n", path);
+      break;
+    }
+  }
+  
+  if (imageData) {
+    // Image loaded successfully
+    Serial.printf("[SleepScreen] Drawing image: %dx%d\n", imageWidth, imageHeight);
+    
+    // Calculate position to center the image
+    int xPos = (pageWidth - imageWidth) / 2;
+    int yPos = (pageHeight - imageHeight) / 2;
+    if (xPos < 0) xPos = 0;
+    if (yPos < 0) yPos = 0;
+    
+    // Draw the image - this sends the 1-bit bitmap data to the e-ink display
+    Serial.printf("[SleepScreen] Drawing image at position: %d, %d\n", xPos, yPos);
+    renderer.drawImage(imageData, xPos, yPos, imageWidth, imageHeight);
+    
+    // Free the image data
+    free(imageData);
+  } else {
+    // Fall back to default image
+    Serial.println("[SleepScreen] Failed to load sleep.bmp - using default image");
+    renderer.drawImage(CrossLarge, (pageWidth - 128) / 2, (pageHeight - 128) / 2, 128, 128);
+    renderer.drawCenteredText(UI_FONT_ID, pageHeight / 2 + 70, "CrossPoint", true, BOLD);
+    renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
+  }
+  
   // Apply white screen if enabled in settings
   if (!SETTINGS.whiteSleepScreen) {
     renderer.invertScreen();
   }
-
+  
   renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
 }
