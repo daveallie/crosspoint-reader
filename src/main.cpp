@@ -19,8 +19,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
-#include "activities/reader/EpubReaderActivity.h"
-#include "activities/reader/FileSelectionActivity.h"
+#include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 #include "config.h"
@@ -43,7 +42,6 @@ EInkDisplay einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
 InputManager inputManager;
 GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
-CrossPointState appState;
 
 // Fonts
 EpdFont bookerlyFont(&bookerly_2b);
@@ -66,21 +64,6 @@ constexpr unsigned long POWER_BUTTON_WAKEUP_MS = 500;
 constexpr unsigned long POWER_BUTTON_SLEEP_MS = 500;
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
-
-std::unique_ptr<Epub> loadEpub(const std::string& path) {
-  if (!SD.exists(path.c_str())) {
-    Serial.printf("[%lu] [   ] File does not exist: %s\n", millis(), path.c_str());
-    return nullptr;
-  }
-
-  auto epub = std::unique_ptr<Epub>(new Epub(path, "/.crosspoint"));
-  if (epub->load()) {
-    return epub;
-  }
-
-  Serial.printf("[%lu] [   ] Failed to load epub\n", millis());
-  return nullptr;
-}
 
 void exitActivity() {
   if (currentActivity) {
@@ -151,30 +134,11 @@ void enterDeepSleep() {
 }
 
 void onGoHome();
-void onGoToFileSelection();
-void onSelectEpubFile(const std::string& path) {
+void onGoToReader(const std::string& initialEpubPath) {
   exitActivity();
-  enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "Loading..."));
-
-  auto epub = loadEpub(path);
-  if (epub) {
-    appState.openEpubPath = path;
-    appState.saveToFile();
-    exitActivity();
-    enterNewActivity(new EpubReaderActivity(renderer, inputManager, std::move(epub), onGoToFileSelection));
-  } else {
-    exitActivity();
-    enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "Failed to load epub", REGULAR,
-                                                   EInkDisplay::HALF_REFRESH));
-    delay(2000);
-    onGoToFileSelection();
-  }
+  enterNewActivity(new ReaderActivity(renderer, inputManager, initialEpubPath, onGoHome));
 }
-
-void onGoToFileSelection() {
-  exitActivity();
-  enterNewActivity(new FileSelectionActivity(renderer, inputManager, onSelectEpubFile, onGoHome));
-}
+void onGoToReaderHome() { onGoToReader(std::string()); }
 
 void onGoToSettings() {
   exitActivity();
@@ -183,7 +147,7 @@ void onGoToSettings() {
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToFileSelection, onGoToSettings));
+  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings));
 }
 
 void setup() {
@@ -216,19 +180,12 @@ void setup() {
   SD.begin(SD_SPI_CS, SPI, SPI_FQ);
 
   SETTINGS.loadFromFile();
-  appState.loadFromFile();
-  if (!appState.openEpubPath.empty()) {
-    auto epub = loadEpub(appState.openEpubPath);
-    if (epub) {
-      exitActivity();
-      enterNewActivity(new EpubReaderActivity(renderer, inputManager, std::move(epub), onGoHome));
-      // Ensure we're not still holding the power button before leaving setup
-      waitForPowerRelease();
-      return;
-    }
+  APP_STATE.loadFromFile();
+  if (APP_STATE.openEpubPath.empty()) {
+    onGoHome();
+  } else {
+    onGoToReader(APP_STATE.openEpubPath);
   }
-
-  onGoHome();
 
   // Ensure we're not still holding the power button before leaving setup
   waitForPowerRelease();

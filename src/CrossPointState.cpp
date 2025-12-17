@@ -9,6 +9,8 @@
 constexpr uint8_t STATE_FILE_VERSION = 1;
 constexpr char STATE_FILE[] = "/sd/.crosspoint/state.bin";
 
+CrossPointState CrossPointState::instance;
+
 bool CrossPointState::saveToFile() const {
   std::ofstream outputFile(STATE_FILE);
   serialization::writePod(outputFile, STATE_FILE_VERSION);

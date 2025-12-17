@@ -12,7 +12,7 @@ class HomeActivity final : public Activity {
   SemaphoreHandle_t renderingMutex = nullptr;
   int selectorIndex = 0;
   bool updateRequired = false;
-  const std::function<void()> onFileSelectionOpen;
+  const std::function<void()> onReaderOpen;
   const std::function<void()> onSettingsOpen;
 
   static constexpr int menuItemCount = 2;
@@ -22,9 +22,9 @@ class HomeActivity final : public Activity {
   void render() const;
 
  public:
-  explicit HomeActivity(GfxRenderer& renderer, InputManager& inputManager,
-                        const std::function<void()>& onFileSelectionOpen, const std::function<void()>& onSettingsOpen)
-      : Activity(renderer, inputManager), onFileSelectionOpen(onFileSelectionOpen), onSettingsOpen(onSettingsOpen) {}
+  explicit HomeActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onReaderOpen,
+                        const std::function<void()>& onSettingsOpen)
+      : Activity(renderer, inputManager), onReaderOpen(onReaderOpen), onSettingsOpen(onSettingsOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

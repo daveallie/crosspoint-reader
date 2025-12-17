@@ -45,7 +45,7 @@ void HomeActivity::loop() {
 
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     if (selectorIndex == 0) {
-      onFileSelectionOpen();
+      onReaderOpen();
     } else if (selectorIndex == 1) {
       onSettingsOpen();
     }
