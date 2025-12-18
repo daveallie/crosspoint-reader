@@ -69,7 +69,7 @@ void CrossPointWebServer::begin() {
   }
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap before begin: %d bytes\n", millis(), ESP.getFreeHeap());
-  
+
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server = new WebServer(port);
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -111,17 +111,17 @@ void CrossPointWebServer::stop() {
   }
 
   Serial.printf("[%lu] [WEB] [MEM] Free heap before stop: %d bytes\n", millis(), ESP.getFreeHeap());
-  
+
   server->stop();
   Serial.printf("[%lu] [WEB] [MEM] Free heap after server->stop(): %d bytes\n", millis(), ESP.getFreeHeap());
-  
+
   delete server;
   server = nullptr;
   running = false;
 
   Serial.printf("[%lu] [WEB] Web server stopped\n", millis());
   Serial.printf("[%lu] [WEB] [MEM] Free heap after delete server: %d bytes\n", millis(), ESP.getFreeHeap());
-  
+
   // Note: Static upload variables (uploadFileName, uploadPath, uploadError) are declared
   // later in the file and will be cleared when they go out of scope or on next upload
   Serial.printf("[%lu] [WEB] [MEM] Free heap final: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -452,7 +452,7 @@ void CrossPointWebServer::handleUpload() {
   static unsigned long lastWriteTime = 0;
   static unsigned long uploadStartTime = 0;
   static size_t lastLoggedSize = 0;
-  
+
   HTTPUpload& upload = server->upload();
 
   if (upload.status == UPLOAD_FILE_START) {
@@ -517,22 +517,25 @@ void CrossPointWebServer::handleUpload() {
       size_t written = uploadFile.write(upload.buf, upload.currentSize);
       unsigned long writeEndTime = millis();
       unsigned long writeDuration = writeEndTime - writeStartTime;
-      
+
       if (written != upload.currentSize) {
         uploadError = "Failed to write to SD card - disk may be full";
         uploadFile.close();
-        Serial.printf("[%lu] [WEB] [UPLOAD] WRITE ERROR - expected %d, wrote %d\n", millis(), upload.currentSize, written);
+        Serial.printf("[%lu] [WEB] [UPLOAD] WRITE ERROR - expected %d, wrote %d\n", millis(), upload.currentSize,
+                      written);
       } else {
         uploadSize += written;
-        
+
         // Log progress every 50KB or if write took >100ms
         if (uploadSize - lastLoggedSize >= 51200 || writeDuration > 100) {
           unsigned long timeSinceStart = millis() - uploadStartTime;
           unsigned long timeSinceLastWrite = millis() - lastWriteTime;
           float kbps = (uploadSize / 1024.0) / (timeSinceStart / 1000.0);
-          
-          Serial.printf("[%lu] [WEB] [UPLOAD] Progress: %d bytes (%.1f KB), %.1f KB/s, write took %lu ms, gap since last: %lu ms\n",
-                       millis(), uploadSize, uploadSize / 1024.0, kbps, writeDuration, timeSinceLastWrite);
+
+          Serial.printf(
+              "[%lu] [WEB] [UPLOAD] Progress: %d bytes (%.1f KB), %.1f KB/s, write took %lu ms, gap since last: %lu "
+              "ms\n",
+              millis(), uploadSize, uploadSize / 1024.0, kbps, writeDuration, timeSinceLastWrite);
           lastLoggedSize = uploadSize;
         }
         lastWriteTime = millis();

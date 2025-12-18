@@ -49,7 +49,7 @@ void WifiScreen::onEnter() {
 
 void WifiScreen::onExit() {
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit start: %d bytes\n", millis(), ESP.getFreeHeap());
-  
+
   // Stop any ongoing WiFi scan
   WiFi.scanDelete();
   Serial.printf("[%lu] [WIFI] [MEM] Free heap after scanDelete: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -68,16 +68,16 @@ void WifiScreen::onExit() {
     vTaskDelete(displayTaskHandle);
     displayTaskHandle = nullptr;
   }
-  
+
   // Small delay to ensure task is fully deleted before cleaning up mutex
   vTaskDelay(10 / portTICK_PERIOD_MS);
-  
+
   // Now safe to delete the mutex
   if (renderingMutex) {
     vSemaphoreDelete(renderingMutex);
     renderingMutex = nullptr;
   }
-  
+
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
