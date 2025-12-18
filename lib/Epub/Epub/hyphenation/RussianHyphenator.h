@@ -2,6 +2,7 @@
 
 #include "LanguageHyphenator.h"
 
+// Handles Cyrillic-specific hyphenation heuristics (Russian syllable rules).
 class RussianHyphenator final : public LanguageHyphenator {
  public:
   static const RussianHyphenator& instance();

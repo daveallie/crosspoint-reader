@@ -160,6 +160,7 @@ bool isValidEnglishOnsetTrigram(const uint32_t firstCp, const uint32_t secondCp,
   return false;
 }
 
+// Verifies that the consonant cluster could begin an English syllable.
 bool englishClusterIsValidOnset(const std::vector<CodepointInfo>& cps, const size_t start, const size_t end) {
   if (start >= end) {
     return false;
@@ -189,6 +190,7 @@ bool englishClusterIsValidOnset(const std::vector<CodepointInfo>& cps, const siz
   return false;
 }
 
+// Picks the longest legal onset inside the consonant cluster between vowels.
 size_t englishOnsetLength(const std::vector<CodepointInfo>& cps, const size_t clusterStart, const size_t clusterEnd) {
   const size_t clusterLen = clusterEnd - clusterStart;
   if (clusterLen == 0) {
@@ -206,6 +208,7 @@ size_t englishOnsetLength(const std::vector<CodepointInfo>& cps, const size_t cl
   return 1;
 }
 
+// Avoids creating hyphen positions adjacent to apostrophes (e.g., contractions).
 bool nextToApostrophe(const std::vector<CodepointInfo>& cps, const size_t index) {
   if (index == 0 || index >= cps.size()) {
     return false;
@@ -215,6 +218,7 @@ bool nextToApostrophe(const std::vector<CodepointInfo>& cps, const size_t index)
   return left == '\'' || right == '\'';
 }
 
+// Returns byte indexes where the word may break according to English syllable rules.
 std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
   std::vector<size_t> indexes;
   if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {

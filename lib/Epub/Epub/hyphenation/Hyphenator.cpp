@@ -15,6 +15,7 @@
 
 namespace {
 
+// Central registry for language-specific hyphenators supported on device.
 const std::array<const LanguageHyphenator*, 2>& registeredHyphenators() {
   static const std::array<const LanguageHyphenator*, 2> hyphenators = {
       &EnglishHyphenator::instance(),
@@ -23,6 +24,7 @@ const std::array<const LanguageHyphenator*, 2>& registeredHyphenators() {
   return hyphenators;
 }
 
+// Finds the hyphenator matching the detected script.
 const LanguageHyphenator* hyphenatorForScript(const Script script) {
   for (const auto* hyphenator : registeredHyphenators()) {
     if (hyphenator->script() == script) {
@@ -32,6 +34,7 @@ const LanguageHyphenator* hyphenatorForScript(const Script script) {
   return nullptr;
 }
 
+// Converts the UTF-8 word into codepoint metadata for downstream rules.
 std::vector<CodepointInfo> collectCodepoints(const std::string& word) {
   std::vector<CodepointInfo> cps;
   cps.reserve(word.size());
@@ -47,6 +50,7 @@ std::vector<CodepointInfo> collectCodepoints(const std::string& word) {
   return cps;
 }
 
+// Rejects words containing punctuation or digits unless forced.
 bool hasOnlyAlphabetic(const std::vector<CodepointInfo>& cps) {
   if (cps.empty()) {
     return false;
@@ -60,6 +64,7 @@ bool hasOnlyAlphabetic(const std::vector<CodepointInfo>& cps) {
   return true;
 }
 
+// Asks the language hyphenator for legal break positions inside the word.
 std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps) {
   if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
     return {};
@@ -74,6 +79,7 @@ std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps) {
   return {};
 }
 
+// Maps a codepoint index back to its byte offset inside the source word.
 size_t byteOffsetForIndex(const std::vector<CodepointInfo>& cps, const size_t index) {
   if (index >= cps.size()) {
     return cps.empty() ? 0 : cps.back().byteOffset;
@@ -81,6 +87,7 @@ size_t byteOffsetForIndex(const std::vector<CodepointInfo>& cps, const size_t in
   return cps[index].byteOffset;
 }
 
+// Safely slices a UTF-8 string without splitting multibyte sequences.
 std::string slice(const std::string& word, const size_t startByte, const size_t endByte) {
   if (startByte >= endByte || startByte >= word.size()) {
     return std::string();
@@ -127,6 +134,7 @@ bool Hyphenator::splitWord(const GfxRenderer& renderer, const int fontId, const 
   }
 
   if (chosenIndex == std::numeric_limits<size_t>::max() && force) {
+    // Emergency fallback: brute-force through codepoints to avoid overflow when no legal breaks fit.
     for (size_t idx = MIN_PREFIX_CP; idx + MIN_SUFFIX_CP <= cps.size(); ++idx) {
       const size_t byteOffset = byteOffsetForIndex(cps, idx);
       const std::string prefix = word.substr(0, byteOffset);

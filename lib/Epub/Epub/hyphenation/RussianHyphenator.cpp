@@ -77,6 +77,7 @@ int russianSonority(uint32_t cp) {
   }
 }
 
+// Applies Russian sonority sequencing to ensure the consonant cluster can start a syllable.
 bool russianClusterIsValidOnset(const std::vector<CodepointInfo>& cps, const size_t start, const size_t end) {
   if (start >= end) {
     return false;
@@ -111,6 +112,7 @@ bool russianClusterIsValidOnset(const std::vector<CodepointInfo>& cps, const siz
   return true;
 }
 
+// Chooses the longest valid onset contained within the inter-vowel cluster.
 size_t russianOnsetLength(const std::vector<CodepointInfo>& cps, const size_t clusterStart, const size_t clusterEnd) {
   const size_t clusterLen = clusterEnd - clusterStart;
   if (clusterLen == 0) {
@@ -128,6 +130,7 @@ size_t russianOnsetLength(const std::vector<CodepointInfo>& cps, const size_t cl
   return 1;
 }
 
+// Prevents hyphenation splits immediately beside ь/ъ characters.
 bool nextToSoftSign(const std::vector<CodepointInfo>& cps, const size_t index) {
   if (index == 0 || index >= cps.size()) {
     return false;
@@ -137,6 +140,7 @@ bool nextToSoftSign(const std::vector<CodepointInfo>& cps, const size_t index) {
   return isSoftOrHardSign(left) || isSoftOrHardSign(right);
 }
 
+// Produces syllable break indexes tailored to Russian phonotactics.
 std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
   std::vector<size_t> indexes;
   if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {

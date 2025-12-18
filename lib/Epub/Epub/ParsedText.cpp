@@ -33,6 +33,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   }
 
   const int spaceWidth = renderer.getSpaceWidth(fontId);
+  // Maintain classic prose indenting when extra paragraph spacing is disabled.
   const bool allowIndent = !extraParagraphSpacing && (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN);
   const int indentWidth = allowIndent ? renderer.getTextWidth(fontId, "m", REGULAR) : 0;
   const int firstLinePageWidth = allowIndent ? std::max(pageWidth - indentWidth, 0) : pageWidth;
@@ -52,6 +53,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   size_t producedLines = 0;
   constexpr size_t MAX_LINES = 1000;
 
+  // commitLine moves buffered words/styles into a TextBlock and delivers it upstream.
   auto commitLine = [&](const bool isLastLine) {
     if (lineWordCount == 0) {
       return;
@@ -75,6 +77,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     int spacing = spaceWidth;
     int spacingRemainder = 0;
     if (style == TextBlock::JUSTIFIED && !isLastLine && gaps > 0) {
+      // Spread the remaining width evenly across the gaps for justification.
       const int additional = std::max(0, spaceBudget - baseSpaceTotal);
       spacing = spaceWidth + (gaps > 0 ? additional / gaps : 0);
       spacingRemainder = (gaps > 0) ? additional % gaps : 0;
@@ -94,6 +97,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
       xpos = indentWidth;
     }
 
+    // Cache the x positions for each word so TextBlock can render without recomputing layout.
     std::list<uint16_t> lineXPos;
     for (size_t idx = 0; idx < lineWordWidths.size(); ++idx) {
       lineXPos.push_back(xpos);
@@ -148,6 +152,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     }
 
     if (lineWordCount > 0 && availableWidth > 0) {
+      // Try hyphenating the next word so the current line stays compact.
       HyphenationResult split;
       if (Hyphenator::splitWord(renderer, fontId, *wordIt, *styleIt, availableWidth, &split, false)) {
         *wordIt = std::move(split.head);
@@ -161,6 +166,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
     if (lineWordCount == 0) {
       HyphenationResult split;
+      // Single overlong words get force-split so they can be displayed within the margins.
       if (Hyphenator::splitWord(renderer, fontId, *wordIt, *styleIt, currentLinePageWidth, &split, true)) {
         *wordIt = std::move(split.head);
         auto nextWordIt = std::next(wordIt);
