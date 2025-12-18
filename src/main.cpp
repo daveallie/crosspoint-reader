@@ -75,19 +75,15 @@ void enterNewActivity(Activity* activity) {
 // Verify long press on wake-up from deep sleep
 void verifyWakeupLongPress() {
   // Give the user up to 1000ms to start holding the power button, and must hold for SETTINGS.getPowerButtonDuration()
-
   const auto start = millis();
   bool abort = false;
 
-  Serial.printf("[%lu] [   ] Verifying power button press\n", millis());
   inputManager.update();
+  // Verify the user has actually pressed
   while (!inputManager.isPressed(InputManager::BTN_POWER) && millis() - start < 1000) {
-    delay(50);
+    delay(10);  // only wait 10ms each iteration to not delay too much in case of short configured duration.
     inputManager.update();
   }
-
-  // Return immediately if power button duration is less than 100ms
-  if (SETTINGS.getPowerButtonDuration() < 100) return;
 
   if (inputManager.isPressed(InputManager::BTN_POWER)) {
     do {
@@ -156,13 +152,19 @@ void setup() {
   Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
 
   inputManager.begin();
-  // verifyWakeupLongPress();
-
   // Initialize pins
   pinMode(BAT_GPIO0, INPUT);
 
   // Initialize SPI with custom pins
   SPI.begin(EPD_SCLK, SD_SPI_MISO, EPD_MOSI, EPD_CS);
+
+  // SD Card Initialization
+  SD.begin(SD_SPI_CS, SPI, SPI_FQ);
+
+  SETTINGS.loadFromFile();
+
+  // verify power button press duration after we've read settings.
+  verifyWakeupLongPress();
 
   // Initialize display
   einkDisplay.begin();
@@ -176,10 +178,6 @@ void setup() {
   exitActivity();
   enterNewActivity(new BootActivity(renderer, inputManager));
 
-  // SD Card Initialization
-  SD.begin(SD_SPI_CS, SPI, SPI_FQ);
-
-  SETTINGS.loadFromFile();
   APP_STATE.loadFromFile();
   if (APP_STATE.openEpubPath.empty()) {
     onGoHome();
