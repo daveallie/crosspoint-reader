@@ -1,14 +1,16 @@
 #pragma once
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 #include <utility>
-#include <vector>
 
+#include "FootnoteEntry.h"
 #include "blocks/TextBlock.h"
 
 enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
 };
 
-// represents something that has been added to a page
 class PageElement {
  public:
   int16_t xPos;
@@ -19,7 +21,6 @@ class PageElement {
   virtual void serialize(std::ostream& os) = 0;
 };
 
-// a line from a block element
 class PageLine final : public PageElement {
   std::shared_ptr<TextBlock> block;
 
@@ -32,9 +33,67 @@ class PageLine final : public PageElement {
 };
 
 class Page {
+ private:
+  std::shared_ptr<PageElement>* elements;
+  int elementCapacity;
+
+  FootnoteEntry* footnotes;
+  int footnoteCapacity;
+
  public:
-  // the list of block index and line numbers on this page
-  std::vector<std::shared_ptr<PageElement>> elements;
+  int elementCount;
+  int footnoteCount;
+
+  Page() : elementCount(0), footnoteCount(0) {
+    elementCapacity = 24;
+    elements = new std::shared_ptr<PageElement>[elementCapacity];
+
+    footnoteCapacity = 16;
+    footnotes = new FootnoteEntry[footnoteCapacity];
+    for (int i = 0; i < footnoteCapacity; i++) {
+      footnotes[i].number[0] = '\0';
+      footnotes[i].href[0] = '\0';
+    }
+  }
+
+  ~Page() {
+    delete[] elements;
+    delete[] footnotes;
+  }
+
+  Page(const Page&) = delete;
+  Page& operator=(const Page&) = delete;
+
+  void addElement(std::shared_ptr<PageElement> element) {
+    if (elementCount < elementCapacity) {
+      elements[elementCount++] = element;
+    }
+  }
+
+  void addFootnote(const char* number, const char* href) {
+    if (footnoteCount < footnoteCapacity) {
+      strncpy(footnotes[footnoteCount].number, number, 2);
+      footnotes[footnoteCount].number[2] = '\0';
+      strncpy(footnotes[footnoteCount].href, href, 63);
+      footnotes[footnoteCount].href[63] = '\0';
+      footnoteCount++;
+    }
+  }
+
+  std::shared_ptr<PageElement> getElement(int index) const {
+    if (index >= 0 && index < elementCount) {
+      return elements[index];
+    }
+    return nullptr;
+  }
+
+  FootnoteEntry* getFootnote(int index) {
+    if (index >= 0 && index < footnoteCount) {
+      return &footnotes[index];
+    }
+    return nullptr;
+  }
+
   void render(GfxRenderer& renderer, int fontId) const;
   void serialize(std::ostream& os) const;
   static std::unique_ptr<Page> deserialize(std::istream& is);

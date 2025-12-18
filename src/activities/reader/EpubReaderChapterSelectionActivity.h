@@ -5,6 +5,7 @@
 #include <freertos/task.h>
 
 #include <memory>
+#include <vector>
 
 #include "../Activity.h"
 
@@ -18,9 +19,13 @@ class EpubReaderChapterSelectionActivity final : public Activity {
   const std::function<void()> onGoBack;
   const std::function<void(int newSpineIndex)> onSelectSpineIndex;
 
+  // Filtered list of spine indices (excluding footnote pages)
+  std::vector<int> filteredSpineIndices;
+
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void renderScreen();
+  void buildFilteredChapterList();
 
  public:
   explicit EpubReaderChapterSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,

@@ -128,6 +128,10 @@ bool Epub::load() {
   Serial.printf("[%lu] [EBP] Loading ePub: %s\n", millis(), filepath.c_str());
   ZipFile zip("/sd" + filepath);
 
+  if (!footnotePages) {
+    footnotePages = new std::unordered_set<std::string>();
+  }
+
   std::string contentOpfFilePath;
   if (!findContentOpfFile(&contentOpfFilePath)) {
     Serial.printf("[%lu] [EBP] Could not find content.opf in zip\n", millis());
@@ -296,17 +300,32 @@ bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
   return zip.getInflatedFileSize(path.c_str(), size);
 }
 
-int Epub::getSpineItemsCount() const { return spine.size(); }
+int Epub::getSpineItemsCount() const {
+  int virtualCount = virtualSpineItems ? virtualSpineItems->size() : 0;
+  return spine.size() + virtualCount;
+}
 
 size_t Epub::getCumulativeSpineItemSize(const int spineIndex) const { return cumulativeSpineItemSize.at(spineIndex); }
 
-std::string& Epub::getSpineItem(const int spineIndex) {
-  if (spineIndex < 0 || spineIndex >= spine.size()) {
-    Serial.printf("[%lu] [EBP] getSpineItem index:%d is out of range\n", millis(), spineIndex);
-    return spine.at(0).second;
+std::string Epub::getSpineItem(const int spineIndex) const {
+  // Normal spine item
+  if (spineIndex >= 0 && spineIndex < static_cast<int>(spine.size())) {
+    return contentBasePath + spine.at(spineIndex).second;
   }
 
-  return spine.at(spineIndex).second;
+  // Virtual spine item
+  if (virtualSpineItems) {
+    int virtualIndex = spineIndex - spine.size();
+    if (virtualIndex >= 0 && virtualIndex < static_cast<int>(virtualSpineItems->size())) {
+      return (*virtualSpineItems)[virtualIndex];
+    }
+  }
+
+  Serial.printf("[%lu] [EBP] getSpineItem index:%d is out of range\n", millis(), spineIndex);
+
+  // Return empty string instead of reference to avoid issues
+  static std::string emptyString = "";
+  return emptyString;
 }
 
 EpubTocEntry& Epub::getTocItem(const int tocTndex) {
@@ -336,6 +355,11 @@ int Epub::getSpineIndexForTocIndex(const int tocIndex) const {
 }
 
 int Epub::getTocIndexForSpineIndex(const int spineIndex) const {
+  // Skip virtual spine items
+  if (isVirtualSpineItem(spineIndex)) {
+    return -1;
+  }
+
   // the toc entry should have an href that matches the spine item
   // so we can find the toc index by looking for the href
   for (int i = 0; i < toc.size(); i++) {
@@ -345,6 +369,80 @@ int Epub::getTocIndexForSpineIndex(const int spineIndex) const {
   }
 
   Serial.printf("[%lu] [EBP] TOC item not found\n", millis());
+  return -1;
+}
+
+void Epub::markAsFootnotePage(const std::string& href) {
+  // Lazy initialization
+  if (!footnotePages) {
+    footnotePages = new std::unordered_set<std::string>();
+  }
+
+  // Extract filename from href (remove #anchor if present)
+  size_t hashPos = href.find('#');
+  std::string filename = (hashPos != std::string::npos) ? href.substr(0, hashPos) : href;
+
+  // Extract just the filename without path
+  size_t lastSlash = filename.find_last_of('/');
+  if (lastSlash != std::string::npos) {
+    filename = filename.substr(lastSlash + 1);
+  }
+
+  footnotePages->insert(filename);
+  Serial.printf("[%lu] [EPUB] Marked as footnote page: %s\n", millis(), filename.c_str());
+}
+
+bool Epub::isFootnotePage(const std::string& filename) const {
+  if (!footnotePages) return false;
+  return footnotePages->find(filename) != footnotePages->end();
+}
+
+bool Epub::shouldHideFromToc(int spineIndex) const {
+  // Always hide virtual spine items
+  if (isVirtualSpineItem(spineIndex)) {
+    return true;
+  }
+
+  if (spineIndex < 0 || spineIndex >= spine.size()) {
+    return true;
+  }
+
+  const std::string& spineItem = spine[spineIndex].second;
+
+  // Extract filename from spine item
+  size_t lastSlash = spineItem.find_last_of('/');
+  std::string filename = (lastSlash != std::string::npos) ? spineItem.substr(lastSlash + 1) : spineItem;
+
+  return isFootnotePage(filename);
+}
+
+// Virtual spine items
+int Epub::addVirtualSpineItem(const std::string& path) {
+  // Lazy initialization
+  if (!virtualSpineItems) {
+    virtualSpineItems = new std::vector<std::string>();
+  }
+
+  virtualSpineItems->push_back(path);
+  int newIndex = spine.size() + virtualSpineItems->size() - 1;
+  Serial.printf("[%lu] [EPUB] Added virtual spine item: %s (index %d)\n", millis(), path.c_str(), newIndex);
+  return newIndex;
+}
+
+bool Epub::isVirtualSpineItem(int spineIndex) const { return spineIndex >= static_cast<int>(spine.size()); }
+
+int Epub::findVirtualSpineIndex(const std::string& filename) const {
+  if (!virtualSpineItems) return -1;
+
+  for (size_t i = 0; i < virtualSpineItems->size(); i++) {
+    std::string virtualPath = (*virtualSpineItems)[i];
+    size_t lastSlash = virtualPath.find_last_of('/');
+    std::string virtualFilename = (lastSlash != std::string::npos) ? virtualPath.substr(lastSlash + 1) : virtualPath;
+
+    if (virtualFilename == filename) {
+      return spine.size() + i;
+    }
+  }
   return -1;
 }
 
