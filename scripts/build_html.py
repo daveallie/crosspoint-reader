@@ -5,7 +5,7 @@ SRC_DIR = "src"
 
 def minify_html(html: str) -> str:
     # Tags where whitespace should be preserved
-    preserve_tags = ['pre', 'code', 'textarea']
+    preserve_tags = ['pre', 'code', 'textarea', 'script', 'style']
     preserve_regex = '|'.join(preserve_tags)
 
     # Protect preserve blocks with placeholders

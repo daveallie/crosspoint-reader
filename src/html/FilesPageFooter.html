@@ -52,26 +52,11 @@
   </div>
   
   <script>
-    // Dropdown toggle
-    function toggleDropdown() {
-      const dropdown = document.getElementById('addDropdown');
-      dropdown.classList.toggle('open');
-    }
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-      const dropdown = document.getElementById('addDropdown');
-      if (dropdown && !dropdown.contains(e.target)) {
-        dropdown.classList.remove('open');
-      }
-    });
-    
     // Modal functions
     function openUploadModal() {
       const currentPath = document.getElementById('currentPath').value;
       document.getElementById('uploadPathDisplay').textContent = currentPath === '/' ? '/ 🏠' : currentPath;
       document.getElementById('uploadModal').classList.add('open');
-      document.getElementById('addDropdown').classList.remove('open');
     }
     
     function closeUploadModal() {
@@ -87,7 +72,6 @@
       const currentPath = document.getElementById('currentPath').value;
       document.getElementById('folderPathDisplay').textContent = currentPath === '/' ? '/ 🏠' : currentPath;
       document.getElementById('folderModal').classList.add('open');
-      document.getElementById('addDropdown').classList.remove('open');
       document.getElementById('folderName').value = '';
     }
     

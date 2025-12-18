@@ -79,74 +79,34 @@
       .nav-links a:hover {
         background-color: #2980b9;
       }
-      /* Add dropdown styles */
-      .add-dropdown {
-        position: relative;
-        display: inline-block;
+      /* Action buttons */
+      .action-buttons {
+        display: flex;
+        gap: 10px;
       }
-      .add-btn {
-        background-color: #e67e22;
+      .action-btn {
         color: white;
-        padding: 10px 20px;
+        padding: 10px 16px;
         border: none;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 1em;
+        font-size: 0.95em;
         font-weight: 600;
         display: flex;
         align-items: center;
         gap: 6px;
       }
-      .add-btn:hover {
-        background-color: #d35400;
+      .upload-action-btn {
+        background-color: #27ae60;
       }
-      .add-btn .arrow {
-        font-size: 0.8em;
-        transition: transform 0.2s;
+      .upload-action-btn:hover {
+        background-color: #219a52;
       }
-      .add-dropdown.open .add-btn .arrow {
-        transform: rotate(180deg);
+      .folder-action-btn {
+        background-color: #f39c12;
       }
-      .dropdown-menu {
-        display: none;
-        position: absolute;
-        right: 0;
-        top: 100%;
-        margin-top: 5px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        min-width: 200px;
-        z-index: 100;
-        overflow: hidden;
-      }
-      .add-dropdown.open .dropdown-menu {
-        display: block;
-      }
-      .dropdown-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 12px 16px;
-        cursor: pointer;
-        border: none;
-        background: none;
-        width: 100%;
-        text-align: left;
-        font-size: 1em;
-        color: #2c3e50;
-        transition: background-color 0.15s;
-      }
-      .dropdown-item:hover {
-        background-color: #f8f9fa;
-      }
-      .dropdown-item .icon {
-        font-size: 1.2em;
-      }
-      .dropdown-divider {
-        height: 1px;
-        background-color: #eee;
-        margin: 0;
+      .folder-action-btn:hover {
+        background-color: #d68910;
       }
       /* Upload modal */
       .modal-overlay {

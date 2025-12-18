@@ -273,7 +273,7 @@ void CrossPointWebServer::handleFileList() {
     }
   }
 
-  // Page header with inline breadcrumb and +Add dropdown
+  // Page header with inline breadcrumb and action buttons
   html += "<div class=\"page-header\">";
   html += "<div class=\"page-header-left\">";
   html += "<h1>📁 File Manager</h1>";
@@ -310,20 +310,14 @@ void CrossPointWebServer::handleFileList() {
   html += "</div>";
   html += "</div>";
 
-  // +Add dropdown button
-  html += "<div class=\"add-dropdown\" id=\"addDropdown\">";
-  html += "<button class=\"add-btn\" onclick=\"toggleDropdown()\">";
-  html += "+ Add <span class=\"arrow\">▼</span>";
+  // Action buttons
+  html += "<div class=\"action-buttons\">";
+  html += "<button class=\"action-btn upload-action-btn\" onclick=\"openUploadModal()\">";
+  html += "📤 Upload";
   html += "</button>";
-  html += "<div class=\"dropdown-menu\">";
-  html += "<button class=\"dropdown-item\" onclick=\"openUploadModal()\">";
-  html += "<span class=\"icon\">📤</span> Upload eBook";
+  html += "<button class=\"action-btn folder-action-btn\" onclick=\"openFolderModal()\">";
+  html += "📁 New Folder";
   html += "</button>";
-  html += "<div class=\"dropdown-divider\"></div>";
-  html += "<button class=\"dropdown-item\" onclick=\"openFolderModal()\">";
-  html += "<span class=\"icon\">📁</span> New Folder";
-  html += "</button>";
-  html += "</div>";
   html += "</div>";
 
   html += "</div>";  // end page-header

@@ -2,6 +2,7 @@
 
 #include <GfxRenderer.h>
 #include <WiFi.h>
+#include <map>
 
 #include "CrossPointWebServer.h"
 #include "WifiCredentialStore.h"
@@ -95,18 +96,35 @@ void WifiScreen::processWifiScanResults() {
   }
 
   // Scan complete, process results
-  networks.clear();
+  // Use a map to deduplicate networks by SSID, keeping the strongest signal
+  std::map<std::string, WifiNetworkInfo> uniqueNetworks;
+  
   for (int i = 0; i < scanResult; i++) {
-    WifiNetworkInfo network;
-    network.ssid = WiFi.SSID(i).c_str();
-    network.rssi = WiFi.RSSI(i);
-    network.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
-    network.hasSavedPassword = WIFI_STORE.hasSavedCredential(network.ssid);
-
+    std::string ssid = WiFi.SSID(i).c_str();
+    int32_t rssi = WiFi.RSSI(i);
+    
     // Skip hidden networks (empty SSID)
-    if (!network.ssid.empty()) {
-      networks.push_back(network);
+    if (ssid.empty()) {
+      continue;
     }
+    
+    // Check if we've already seen this SSID
+    auto it = uniqueNetworks.find(ssid);
+    if (it == uniqueNetworks.end() || rssi > it->second.rssi) {
+      // New network or stronger signal than existing entry
+      WifiNetworkInfo network;
+      network.ssid = ssid;
+      network.rssi = rssi;
+      network.isEncrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+      network.hasSavedPassword = WIFI_STORE.hasSavedCredential(network.ssid);
+      uniqueNetworks[ssid] = network;
+    }
+  }
+  
+  // Convert map to vector
+  networks.clear();
+  for (const auto& pair : uniqueNetworks) {
+    networks.push_back(pair.second);
   }
 
   // Sort by signal strength (strongest first)
