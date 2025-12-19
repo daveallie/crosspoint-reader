@@ -28,30 +28,18 @@ bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t*
 }
 
 bool ZipFile::loadFileStat(const char* filename, mz_zip_archive_file_stat* fileStat) const {
-  mz_zip_archive zipArchive = {};
-  const bool status = mz_zip_reader_init_file(&zipArchive, filePath.c_str(), 0);
-
-  if (!status) {
-    Serial.printf("[%lu] [ZIP] mz_zip_reader_init_file() failed! Error: %s\n", millis(),
-                  mz_zip_get_error_string(zipArchive.m_last_error));
-    return false;
-  }
-
   // find the file
   mz_uint32 fileIndex = 0;
   if (!mz_zip_reader_locate_file_v2(&zipArchive, filename, nullptr, 0, &fileIndex)) {
     Serial.printf("[%lu] [ZIP] Could not find file %s\n", millis(), filename);
-    mz_zip_reader_end(&zipArchive);
     return false;
   }
 
   if (!mz_zip_reader_file_stat(&zipArchive, fileIndex, fileStat)) {
     Serial.printf("[%lu] [ZIP] mz_zip_reader_file_stat() failed! Error: %s\n", millis(),
                   mz_zip_get_error_string(zipArchive.m_last_error));
-    mz_zip_reader_end(&zipArchive);
     return false;
   }
-  mz_zip_reader_end(&zipArchive);
   return true;
 }
 

@@ -5,6 +5,7 @@
 #include <ZipFile.h>
 
 #include <map>
+#include <ratio>
 
 #include "Epub/FsHelpers.h"
 #include "Epub/parsers/ContainerParser.h"
@@ -154,6 +155,41 @@ bool Epub::load() {
   return true;
 }
 
+std::string normalisePath(const std::string& path) {
+  std::vector<std::string> components;
+  std::string component;
+
+  for (const auto c : path) {
+    if (c == '/') {
+      if (!component.empty()) {
+        if (component == "..") {
+          if (!components.empty()) {
+            components.pop_back();
+          }
+        } else {
+          components.push_back(component);
+        }
+        component.clear();
+      }
+    } else {
+      component += c;
+    }
+  }
+
+  if (!component.empty()) {
+    components.push_back(component);
+  }
+
+  std::string result;
+  for (const auto& c : components) {
+    if (!result.empty()) {
+      result += "/";
+    }
+    result += c;
+  }
+
+  return result;
+}
 void Epub::initializeSpineItemSizes() {
   setupCacheDir();
 
@@ -174,10 +210,18 @@ void Epub::initializeSpineItemSizes() {
     File f = SD.open((getCachePath() + "/spine_size.bin").c_str(), FILE_WRITE);
     uint8_t data[4];
     // determine size of spine items
+    const ZipFile zip("/sd" + filepath);
+
     for (size_t i = 0; i < spineItemsCount; i++) {
       std::string spineItem = getSpineItem(i);
       size_t s = 0;
-      getItemSize(spineItem, &s);
+      unsigned long last = millis();
+      const std::string path = normalisePath(spineItem);
+      // TODO: This is still too slow, because zip opens zipfile every time?
+      zip.getInflatedFileSize(path.c_str(), &s);
+      // getItemSize(spineItem, &s);
+      Serial.printf("[%lu] [EBP] Determining size %d of item %d took %lu ms\n", millis(), cumSpineItemSize, i,
+                    millis() - last);
       cumSpineItemSize += s;
       cumulativeSpineItemSize.emplace_back(cumSpineItemSize);
 
@@ -186,8 +230,6 @@ void Epub::initializeSpineItemSizes() {
       data[1] = (cumSpineItemSize >> 8) & 0xFF;
       data[2] = (cumSpineItemSize >> 16) & 0xFF;
       data[3] = (cumSpineItemSize >> 24) & 0xFF;
-      // Serial.printf("[%lu] [EBP] Persisting item %d size %u to %u %u\n", millis(),
-      //     i, cumSpineItemSize, data[1], data[0]);
       f.write(data, 4);
     }
 
@@ -232,42 +274,6 @@ const std::string& Epub::getPath() const { return filepath; }
 const std::string& Epub::getTitle() const { return title; }
 
 const std::string& Epub::getCoverImageItem() const { return coverImageItem; }
-
-std::string normalisePath(const std::string& path) {
-  std::vector<std::string> components;
-  std::string component;
-
-  for (const auto c : path) {
-    if (c == '/') {
-      if (!component.empty()) {
-        if (component == "..") {
-          if (!components.empty()) {
-            components.pop_back();
-          }
-        } else {
-          components.push_back(component);
-        }
-        component.clear();
-      }
-    } else {
-      component += c;
-    }
-  }
-
-  if (!component.empty()) {
-    components.push_back(component);
-  }
-
-  std::string result;
-  for (const auto& c : components) {
-    if (!result.empty()) {
-      result += "/";
-    }
-    result += c;
-  }
-
-  return result;
-}
 
 uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, bool trailingNullByte) const {
   const ZipFile zip("/sd" + filepath);
