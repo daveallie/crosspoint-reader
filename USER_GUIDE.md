@@ -19,23 +19,50 @@ The device utilises the standard buttons on the Xtink X4 in the same layout:
 
 ### Power On / Off
 
-To turn the device on or off, **press and hold the Power button for 1 full second**.
+To turn the device on or off, **press and hold the Power button for half a second**. In **Settings** you can configure
+the power button to trigger on a short press instead of a long one.
 
 ### First Launch
 
-Upon turning the device on for the first time, you will be placed on the **Book Selection Screen** (File Browser).
+Upon turning the device on for the first time, you will be placed on the **Home** screen.
 
 > **Note:** On subsequent restarts, the firmware will automatically reopen the last book you were reading.
 
 ---
 
-## 3. Book Selection
+## 3. Screens
 
-The Home Screen acts as a folder and file browser.
+### 3.1 Home Screen
+
+The Home Screen is the main entry point to the firmware. From here you can navigate to the **Book Selection** screen,
+**Settings** screen, or **File Upload** screen.
+
+### 3.2 Book Selection (Read)
+
+The Book Selection acts as a folder and file browser.
 
 * **Navigate List:** Use **Left** (or **Volume Up**), or **Right** (or **Volume Down**) to move the selection cursor up 
   and down through folders and books.
 * **Open Selection:** Press **Confirm** to open a folder or read a selected book.
+
+### 3.3 Reading Screen
+
+See [4. Reading Mode](#4-reading-mode) below for more information.
+
+### 3.4 File Upload Screen
+
+The File Upload screen allows you to upload new e-books to the device. When you enter the screen you'll be prompted with
+a WiFi selection dialog and then your X4 will start hosting a web server.
+
+See the [webserver docs](./docs/webserver.md) for more information on how to connect to the web server and upload files.
+
+### 3.5 Settings
+
+The Settings screen allows you to configure the device's behavior. There are a few settings you can adjust:
+- **White Sleep Screen**: Whether to use the white screen or black (inverted) default sleep screen
+- **Extra Paragraph Spacing**: If enabled, vertical space will be added between paragraphs in the book, if disabled,
+  paragraphs will not have vertical space between them, but will have first word indentation.
+- **Short Power Button Click**: Whether to trigger the power button on a short press or a long press.
 
 ---
 
@@ -76,3 +103,4 @@ are planned for future updates:
 
 * **Images:** Embedded images in e-books will not render.
 * **Text Formatting:** There are currently no settings to adjust font type, size, line spacing, or margins.
+* **Rotation**: Different rotation options are not supported.

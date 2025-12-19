@@ -8,8 +8,9 @@
 // Define the static settings list
 
 const SettingInfo SettingsActivity::settingsList[settingsCount] = {
-    {"White Sleep Screen", &CrossPointSettings::whiteSleepScreen},
-    {"Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing},
+    {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
+    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
+    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn},
     {"Hyphenation", &CrossPointSettings::hyphenationEnabled}};
 
 void SettingsActivity::taskTrampoline(void* param) {
@@ -65,9 +66,11 @@ void SettingsActivity::loop() {
     selectedSettingIndex = (selectedSettingIndex > 0) ? (selectedSettingIndex - 1) : (settingsCount - 1);
     updateRequired = true;
   } else if (inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT)) {
-    // Move selection down (with wrap-around)
-    selectedSettingIndex = (selectedSettingIndex < settingsCount - 1) ? (selectedSettingIndex + 1) : 0;
-    updateRequired = true;
+    // Move selection down
+    if (selectedSettingIndex < settingsCount - 1) {
+      selectedSettingIndex++;
+      updateRequired = true;
+    }
   }
 }
 
@@ -77,9 +80,16 @@ void SettingsActivity::toggleCurrentSetting() {
     return;
   }
 
+  const auto& setting = settingsList[selectedSettingIndex];
+
+  // Only toggle if it's a toggle type and has a value pointer
+  if (setting.type != SettingType::TOGGLE || setting.valuePtr == nullptr) {
+    return;
+  }
+
   // Toggle the boolean value using the member pointer
-  bool currentValue = SETTINGS.*(settingsList[selectedSettingIndex].valuePtr);
-  SETTINGS.*(settingsList[selectedSettingIndex].valuePtr) = !currentValue;
+  bool currentValue = SETTINGS.*(setting.valuePtr);
+  SETTINGS.*(setting.valuePtr) = !currentValue;
 
   // Save settings when they change
   SETTINGS.saveToFile();
@@ -106,8 +116,6 @@ void SettingsActivity::render() const {
   // Draw header
   renderer.drawCenteredText(READER_FONT_ID, 10, "Settings", true, BOLD);
 
-  // We always have at least one setting
-
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
     const int settingY = 60 + i * 30;  // 30 pixels between settings
@@ -117,10 +125,14 @@ void SettingsActivity::render() const {
       renderer.drawText(UI_FONT_ID, 5, settingY, ">");
     }
 
-    // Draw setting name and value
+    // Draw setting name
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
-    bool value = SETTINGS.*(settingsList[i].valuePtr);
-    renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+
+    // Draw value based on setting type
+    if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
+      bool value = SETTINGS.*(settingsList[i].valuePtr);
+      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+    }
   }
 
   // Draw help text

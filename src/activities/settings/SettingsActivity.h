@@ -4,6 +4,7 @@
 #include <freertos/task.h>
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -11,10 +12,13 @@
 
 class CrossPointSettings;
 
+enum class SettingType { TOGGLE };
+
 // Structure to hold setting information
 struct SettingInfo {
   const char* name;                        // Display name of the setting
-  uint8_t CrossPointSettings::* valuePtr;  // Pointer to member in CrossPointSettings
+  SettingType type;                        // Type of setting
+  uint8_t CrossPointSettings::* valuePtr;  // Pointer to member in CrossPointSettings (for TOGGLE)
 };
 
 class SettingsActivity final : public Activity {

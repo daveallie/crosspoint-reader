@@ -14,6 +14,7 @@ class HomeActivity final : public Activity {
   bool updateRequired = false;
   const std::function<void()> onReaderOpen;
   const std::function<void()> onSettingsOpen;
+  const std::function<void()> onFileTransferOpen;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -21,8 +22,11 @@ class HomeActivity final : public Activity {
 
  public:
   explicit HomeActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onReaderOpen,
-                        const std::function<void()>& onSettingsOpen)
-      : Activity(renderer, inputManager), onReaderOpen(onReaderOpen), onSettingsOpen(onSettingsOpen) {}
+                        const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen)
+      : Activity(renderer, inputManager),
+        onReaderOpen(onReaderOpen),
+        onSettingsOpen(onSettingsOpen),
+        onFileTransferOpen(onFileTransferOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

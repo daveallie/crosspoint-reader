@@ -2,24 +2,92 @@
 
 #include <GfxRenderer.h>
 
+#include <vector>
+
 #include "CrossPointSettings.h"
 #include "SD.h"
 #include "config.h"
 #include "images/CrossLarge.h"
 
 void SleepActivity::onEnter() {
+  renderPopup("Entering Sleep...");
+  // Check if we have a /sleep directory
+  auto dir = SD.open("/sleep");
+  if (dir && dir.isDirectory()) {
+    std::vector<std::string> files;
+    // collect all valid BMP files
+    for (File file = dir.openNextFile(); file; file = dir.openNextFile()) {
+      if (file.isDirectory()) {
+        file.close();
+        continue;
+      }
+      auto filename = std::string(file.name());
+      if (filename[0] == '.') {
+        file.close();
+        continue;
+      }
+
+      if (filename.substr(filename.length() - 4) != ".bmp") {
+        Serial.printf("[%lu] [Slp] Skipping non-.bmp file name: %s\n", millis(), file.name());
+        file.close();
+        continue;
+      }
+      Bitmap bitmap(file);
+      if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+        Serial.printf("[%lu] [Slp] Skipping invalid BMP file: %s\n", millis(), file.name());
+        file.close();
+        continue;
+      }
+      files.emplace_back(filename);
+      file.close();
+    }
+    int numFiles = files.size();
+    if (numFiles > 0) {
+      // Generate a random number between 1 and numFiles
+      int randomFileIndex = random(numFiles);
+      auto filename = "/sleep/" + files[randomFileIndex];
+      auto file = SD.open(filename.c_str());
+      if (file) {
+        Serial.printf("[%lu] [Slp] Randomly loading: /sleep/%s\n", millis(), files[randomFileIndex].c_str());
+        delay(100);
+        Bitmap bitmap(file);
+        if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+          renderCustomSleepScreen(bitmap);
+          dir.close();
+          return;
+        }
+      }
+    }
+  }
+  if (dir) dir.close();
+
   // Look for sleep.bmp on the root of the sd card to determine if we should
   // render a custom sleep screen instead of the default.
   auto file = SD.open("/sleep.bmp");
   if (file) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+      Serial.printf("[%lu] [Slp] Loading: /sleep.bmp\n", millis());
       renderCustomSleepScreen(bitmap);
       return;
     }
   }
 
   renderDefaultSleepScreen();
+}
+
+void SleepActivity::renderPopup(const char* message) const {
+  const int textWidth = renderer.getTextWidth(READER_FONT_ID, message);
+  constexpr int margin = 20;
+  const int x = (GfxRenderer::getScreenWidth() - textWidth - margin * 2) / 2;
+  constexpr int y = 117;
+  const int w = textWidth + margin * 2;
+  const int h = renderer.getLineHeight(READER_FONT_ID) + margin * 2;
+  // renderer.clearScreen();
+  renderer.fillRect(x + 5, y + 5, w - 10, h - 10, false);
+  renderer.drawText(READER_FONT_ID, x + margin, y + margin, message);
+  renderer.drawRect(x + 5, y + 5, w - 10, h - 10);
+  renderer.displayBuffer();
 }
 
 void SleepActivity::renderDefaultSleepScreen() const {

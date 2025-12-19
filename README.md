@@ -23,18 +23,23 @@ CrossPoint Reader aims to:
 
 This project is **not affiliated with Xteink**; it's built as a community project.
 
-## Features
+## Features & Usage
 
 - [x] EPUB parsing and rendering
+- [ ] Image support within EPUB
 - [x] Saved reading position
-- [ ] File explorer with file picker
+- [x] File explorer with file picker
   - [x] Basic EPUB picker from root directory
   - [x] Support nested folders
   - [ ] EPUB picker with cover art
-- [ ] Image support within EPUB
+- [x] Custom sleep screen
+  - [ ] Cover sleep screen
+- [x] Wifi book upload
+- [ ] Wifi OTA updates
 - [ ] Configurable font, layout, and display options
-- [ ] WiFi connectivity
-- [ ] BLE connectivity
+- [ ] Screen rotation
+
+See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint.
 
 ## Installing
 
@@ -58,10 +63,6 @@ back to the other partition using the "Swap boot partition" button here https://
 ### Manual
 
 See [Development](#development) below.
-
-## Usage
-
-See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint.
 
 ## Development
 

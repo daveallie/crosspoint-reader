@@ -15,4 +15,5 @@ class Activity {
   virtual void onEnter() {}
   virtual void onExit() {}
   virtual void loop() {}
+  virtual bool skipLoopDelay() { return false; }
 };

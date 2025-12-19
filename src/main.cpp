@@ -5,6 +5,7 @@
 #include <InputManager.h>
 #include <SD.h>
 #include <SPI.h>
+#include <WiFi.h>
 #include <builtinFonts/bookerly_2b.h>
 #include <builtinFonts/bookerly_bold_2b.h>
 #include <builtinFonts/bookerly_bold_italic_2b.h>
@@ -19,6 +20,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
+#include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
@@ -57,11 +59,6 @@ EpdFont ubuntu10Font(&ubuntu_10);
 EpdFont ubuntuBold10Font(&ubuntu_bold_10);
 EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ubuntuBold10Font);
 
-// Power button timing
-// Time required to confirm boot from sleep
-constexpr unsigned long POWER_BUTTON_WAKEUP_MS = 500;
-// Time required to enter sleep mode
-constexpr unsigned long POWER_BUTTON_SLEEP_MS = 500;
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -69,6 +66,7 @@ void exitActivity() {
   if (currentActivity) {
     currentActivity->onExit();
     delete currentActivity;
+    currentActivity = nullptr;
   }
 }
 
@@ -79,23 +77,24 @@ void enterNewActivity(Activity* activity) {
 
 // Verify long press on wake-up from deep sleep
 void verifyWakeupLongPress() {
-  // Give the user up to 1000ms to start holding the power button, and must hold for POWER_BUTTON_WAKEUP_MS
+  // Give the user up to 1000ms to start holding the power button, and must hold for SETTINGS.getPowerButtonDuration()
   const auto start = millis();
   bool abort = false;
 
-  Serial.printf("[%lu] [   ] Verifying power button press\n", millis());
   inputManager.update();
+  // Verify the user has actually pressed
   while (!inputManager.isPressed(InputManager::BTN_POWER) && millis() - start < 1000) {
-    delay(50);
+    delay(10);  // only wait 10ms each iteration to not delay too much in case of short configured duration.
     inputManager.update();
   }
 
   if (inputManager.isPressed(InputManager::BTN_POWER)) {
     do {
-      delay(50);
+      delay(10);
       inputManager.update();
-    } while (inputManager.isPressed(InputManager::BTN_POWER) && inputManager.getHeldTime() < POWER_BUTTON_WAKEUP_MS);
-    abort = inputManager.getHeldTime() < POWER_BUTTON_WAKEUP_MS;
+    } while (inputManager.isPressed(InputManager::BTN_POWER) &&
+             inputManager.getHeldTime() < SETTINGS.getPowerButtonDuration());
+    abort = inputManager.getHeldTime() < SETTINGS.getPowerButtonDuration();
   } else {
     abort = true;
   }
@@ -121,7 +120,7 @@ void enterDeepSleep() {
   exitActivity();
   enterNewActivity(new SleepActivity(renderer, inputManager));
 
-  Serial.printf("[%lu] [   ] Power button released after a long press. Entering deep sleep.\n", millis());
+  Serial.printf("[%lu] [   ] Entering deep sleep.\n", millis());
   delay(1000);  // Allow Serial buffer to empty and display to update
 
   // Enable Wakeup on LOW (button press)
@@ -140,6 +139,11 @@ void onGoToReader(const std::string& initialEpubPath) {
 }
 void onGoToReaderHome() { onGoToReader(std::string()); }
 
+void onGoToFileTransfer() {
+  exitActivity();
+  enterNewActivity(new CrossPointWebServerActivity(renderer, inputManager, onGoHome));
+}
+
 void onGoToSettings() {
   exitActivity();
   enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome));
@@ -147,7 +151,7 @@ void onGoToSettings() {
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings));
+  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
 }
 
 void setup() {
@@ -156,13 +160,24 @@ void setup() {
   Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
 
   inputManager.begin();
-  verifyWakeupLongPress();
-
   // Initialize pins
   pinMode(BAT_GPIO0, INPUT);
 
   // Initialize SPI with custom pins
   SPI.begin(EPD_SCLK, SD_SPI_MISO, EPD_MOSI, EPD_CS);
+
+  // SD Card Initialization
+  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ)) {
+    Serial.printf("[%lu] [   ] SD card initialization failed\n", millis());
+    exitActivity();
+    enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "SD card error", BOLD));
+    return;
+  }
+
+  SETTINGS.loadFromFile();
+
+  // verify power button press duration after we've read settings.
+  verifyWakeupLongPress();
 
   // Initialize display
   einkDisplay.begin();
@@ -176,10 +191,6 @@ void setup() {
   exitActivity();
   enterNewActivity(new BootActivity(renderer, inputManager));
 
-  // SD Card Initialization
-  SD.begin(SD_SPI_CS, SPI, SPI_FQ);
-
-  SETTINGS.loadFromFile();
   APP_STATE.loadFromFile();
   if (APP_STATE.openEpubPath.empty()) {
     onGoHome();
@@ -192,7 +203,10 @@ void setup() {
 }
 
 void loop() {
-  delay(10);
+  static unsigned long lastLoopTime = 0;
+  static unsigned long maxLoopDuration = 0;
+
+  unsigned long loopStartTime = millis();
 
   static unsigned long lastMemPrint = 0;
   if (Serial && millis() - lastMemPrint >= 10000) {
@@ -216,13 +230,36 @@ void loop() {
     return;
   }
 
-  if (inputManager.wasReleased(InputManager::BTN_POWER) && inputManager.getHeldTime() > POWER_BUTTON_SLEEP_MS) {
+  if (inputManager.wasReleased(InputManager::BTN_POWER) &&
+      inputManager.getHeldTime() > SETTINGS.getPowerButtonDuration()) {
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;
   }
 
+  unsigned long activityStartTime = millis();
   if (currentActivity) {
     currentActivity->loop();
+  }
+  unsigned long activityDuration = millis() - activityStartTime;
+
+  unsigned long loopDuration = millis() - loopStartTime;
+  if (loopDuration > maxLoopDuration) {
+    maxLoopDuration = loopDuration;
+    if (maxLoopDuration > 50) {
+      Serial.printf("[%lu] [LOOP] New max loop duration: %lu ms (activity: %lu ms)\n", millis(), maxLoopDuration,
+                    activityDuration);
+    }
+  }
+
+  lastLoopTime = loopStartTime;
+
+  // Add delay at the end of the loop to prevent tight spinning
+  // When an activity requests skip loop delay (e.g., webserver running), use yield() for faster response
+  // Otherwise, use longer delay to save power
+  if (currentActivity && currentActivity->skipLoopDelay()) {
+    yield();  // Give FreeRTOS a chance to run tasks, but return immediately
+  } else {
+    delay(10);  // Normal delay when no activity requires fast response
   }
 }

@@ -25,6 +25,7 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, SETTINGS_COUNT);
   serialization::writePod(outputFile, whiteSleepScreen);
   serialization::writePod(outputFile, extraParagraphSpacing);
+  serialization::writePod(outputFile, shortPwrBtn);
   serialization::writePod(outputFile, hyphenationEnabled);
   outputFile.close();
 
@@ -51,16 +52,18 @@ bool CrossPointSettings::loadFromFile() {
   uint8_t fileSettingsCount = 0;
   serialization::readPod(inputFile, fileSettingsCount);
 
-  // load settings that exist in the file (supports backward compatibility)
-  if (fileSettingsCount >= 1) {
+  // load settings that exist
+  uint8_t settingsRead = 0;
+  do {
     serialization::readPod(inputFile, whiteSleepScreen);
-  }
-  if (fileSettingsCount >= 2) {
+    if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, extraParagraphSpacing);
-  }
-  if (fileSettingsCount >= 3) {
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, shortPwrBtn);
+    if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, hyphenationEnabled);
-  }
+    if (++settingsRead >= fileSettingsCount) break;
+  } while (false);
 
   inputFile.close();
   Serial.printf("[%lu] [CPS] Settings loaded from file\n", millis());
