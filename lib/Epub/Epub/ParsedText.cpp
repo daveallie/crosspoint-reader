@@ -25,6 +25,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     return;
   }
 
+  // horizontalMargin accounts for both left and right gutters, leaving the drawable width.
   const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
   if (pageWidth <= 0) {
     words.clear();
@@ -50,6 +51,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   std::vector<uint16_t> lineWordWidths;
   lineWordWidths.reserve(16);
 
+  // Guard against malicious/invalid content generating unbounded line counts.
   size_t producedLines = 0;
   constexpr size_t MAX_LINES = 1000;
 
@@ -186,6 +188,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
       continue;
     }
 
+    // No more tricks available; flush the collected words and move on.
     commitLine(false);
   }
 

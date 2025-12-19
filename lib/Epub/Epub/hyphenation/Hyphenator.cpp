@@ -110,16 +110,19 @@ bool Hyphenator::splitWord(const GfxRenderer& renderer, const int fontId, const 
     return false;
   }
 
+  // Skip mixed tokens (e.g., "v2.0") unless the caller forces a split due to overflow.
   if (!force && !hasOnlyAlphabetic(cps)) {
     return false;
   }
 
   const auto breakIndexes = collectBreakIndexes(cps);
+  // Budget for a trailing hyphen so rendered width matches the layout test.
   const int hyphenWidth = renderer.getTextWidth(fontId, "-", style);
   const int adjustedWidth = availableWidth - hyphenWidth;
 
   size_t chosenIndex = std::numeric_limits<size_t>::max();
 
+  // Prefer dictionary-style break points emitted by language hyphenators.
   if (adjustedWidth > 0) {
     for (const size_t idx : breakIndexes) {
       const size_t byteOffset = byteOffsetForIndex(cps, idx);
@@ -160,6 +163,7 @@ bool Hyphenator::splitWord(const GfxRenderer& renderer, const int fontId, const 
     return false;
   }
 
+  // Append the printed hyphen to the prefix while leaving the tail untouched.
   result->head = head + "-";
   result->tail = tail;
   return true;
