@@ -81,7 +81,7 @@ void SleepActivity::renderPopup(const char* message) const {
   constexpr int margin = 20;
   // Round all coordinates to 8 pixel boundaries
   const int x = ((GfxRenderer::getScreenWidth() - textWidth - margin * 2) / 2 + 7) / 8 * 8;
-  constexpr int y = 56;
+  constexpr int y = 117;
   const int w = (textWidth + margin * 2 + 7) / 8 * 8;
   const int h = (renderer.getLineHeight(READER_FONT_ID) + margin * 2 + 7) / 8 * 8;
   // renderer.clearScreen();
