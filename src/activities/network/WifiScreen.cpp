@@ -79,7 +79,12 @@ void WifiScreen::onExit() {
   
   Serial.printf("[%lu] [WIFI] [MEM] Free heap after WiFi disconnect: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  // Delete the display task
+  // Acquire mutex before deleting task to ensure task isn't using it
+  // This prevents hangs/crashes if the task holds the mutex when deleted
+  Serial.printf("[%lu] [WIFI] Acquiring rendering mutex before task deletion...\n", millis());
+  xSemaphoreTake(renderingMutex, portMAX_DELAY);
+
+  // Delete the display task (we now hold the mutex, so task is blocked if it needs it)
   Serial.printf("[%lu] [WIFI] Deleting display task...\n", millis());
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -87,17 +92,11 @@ void WifiScreen::onExit() {
     Serial.printf("[%lu] [WIFI] Display task deleted\n", millis());
   }
 
-  // Small delay to ensure task is fully deleted before cleaning up mutex
-  Serial.printf("[%lu] [WIFI] Waiting for task cleanup...\n", millis());
-  vTaskDelay(10 / portTICK_PERIOD_MS);
-
-  // Now safe to delete the mutex
+  // Now safe to delete the mutex since we own it
   Serial.printf("[%lu] [WIFI] Deleting mutex...\n", millis());
-  if (renderingMutex) {
-    vSemaphoreDelete(renderingMutex);
-    renderingMutex = nullptr;
-    Serial.printf("[%lu] [WIFI] Mutex deleted\n", millis());
-  }
+  vSemaphoreDelete(renderingMutex);
+  renderingMutex = nullptr;
+  Serial.printf("[%lu] [WIFI] Mutex deleted\n", millis());
 
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
   Serial.printf("[%lu] [WIFI] ========== onExit COMPLETE ==========\n", millis());
