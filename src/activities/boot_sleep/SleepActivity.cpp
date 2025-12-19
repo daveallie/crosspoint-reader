@@ -10,6 +10,7 @@
 #include "images/CrossLarge.h"
 
 void SleepActivity::onEnter() {
+  renderPopup("Entering Sleep...");
   // Check if we have a /sleep directory
   auto dir = SD.open("/sleep");
   if (dir && dir.isDirectory()) {
@@ -21,6 +22,11 @@ void SleepActivity::onEnter() {
         continue;
       }
       auto filename = std::string(file.name());
+      if (filename[0] == '.') {
+        file.close();
+        continue;
+      }
+
       if (filename.substr(filename.length() - 4) != ".bmp") {
         Serial.printf("[%lu] [Slp] Skipping non-.bmp file name: %s\n", millis(), file.name());
         file.close();
@@ -68,6 +74,21 @@ void SleepActivity::onEnter() {
   }
 
   renderDefaultSleepScreen();
+}
+
+void SleepActivity::renderPopup(const char* message) const {
+  const int textWidth = renderer.getTextWidth(READER_FONT_ID, message);
+  constexpr int margin = 20;
+  // Round all coordinates to 8 pixel boundaries
+  const int x = ((GfxRenderer::getScreenWidth() - textWidth - margin * 2) / 2 + 7) / 8 * 8;
+  constexpr int y = 56;
+  const int w = (textWidth + margin * 2 + 7) / 8 * 8;
+  const int h = (renderer.getLineHeight(READER_FONT_ID) + margin * 2 + 7) / 8 * 8;
+  // renderer.clearScreen();
+  renderer.fillRect(x + 5, y + 5, w - 10, h - 10, false);
+  renderer.drawText(READER_FONT_ID, x + margin, y + margin, message);
+  renderer.drawRect(x + 5, y + 5, w - 10, h - 10);
+  renderer.displayBuffer();
 }
 
 void SleepActivity::renderDefaultSleepScreen() const {
