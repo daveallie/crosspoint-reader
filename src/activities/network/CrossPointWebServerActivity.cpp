@@ -3,7 +3,6 @@
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
-#include "CrossPointWebServer.h"
 #include "config.h"
 
 void CrossPointWebServerActivity::taskTrampoline(void* param) {
@@ -119,9 +118,11 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(bool connected) {
 void CrossPointWebServerActivity::startWebServer() {
   Serial.printf("[%lu] [WEBACT] Starting web server...\n", millis());
 
-  crossPointWebServer.begin();
+  // Create the web server instance
+  webServer.reset(new CrossPointWebServer());
+  webServer->begin();
 
-  if (crossPointWebServer.isRunning()) {
+  if (webServer->isRunning()) {
     state = WebServerActivityState::SERVER_RUNNING;
     Serial.printf("[%lu] [WEBACT] Web server started successfully\n", millis());
 
@@ -133,17 +134,19 @@ void CrossPointWebServerActivity::startWebServer() {
     Serial.printf("[%lu] [WEBACT] Rendered File Transfer screen\n", millis());
   } else {
     Serial.printf("[%lu] [WEBACT] ERROR: Failed to start web server!\n", millis());
+    webServer.reset();
     // Go back on error
     onGoBack();
   }
 }
 
 void CrossPointWebServerActivity::stopWebServer() {
-  if (crossPointWebServer.isRunning()) {
+  if (webServer && webServer->isRunning()) {
     Serial.printf("[%lu] [WEBACT] Stopping web server...\n", millis());
-    crossPointWebServer.stop();
+    webServer->stop();
     Serial.printf("[%lu] [WEBACT] Web server stopped\n", millis());
   }
+  webServer.reset();
 }
 
 void CrossPointWebServerActivity::loop() {
@@ -158,7 +161,7 @@ void CrossPointWebServerActivity::loop() {
 
     case WebServerActivityState::SERVER_RUNNING:
       // Handle web server requests
-      if (crossPointWebServer.isRunning()) {
+      if (webServer && webServer->isRunning()) {
         unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
 
         // Log if there's a significant gap between handleClient calls (>100ms)
@@ -167,7 +170,7 @@ void CrossPointWebServerActivity::loop() {
                         timeSinceLastHandleClient);
         }
 
-        crossPointWebServer.handleClient();
+        webServer->handleClient();
         lastHandleClientTime = millis();
       }
 

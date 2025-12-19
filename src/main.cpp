@@ -17,7 +17,6 @@
 #include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
-#include "CrossPointWebServer.h"
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
@@ -45,6 +44,7 @@ EInkDisplay einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
 InputManager inputManager;
 GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
+CrossPointWebServerActivity* webServerActivity = nullptr;  // Track web server activity for loop timing
 
 // Fonts
 EpdFont bookerlyFont(&bookerly_2b);
@@ -72,6 +72,8 @@ void exitActivity() {
   if (currentActivity) {
     currentActivity->onExit();
     delete currentActivity;
+    currentActivity = nullptr;
+    webServerActivity = nullptr;  // Clear web server activity pointer when exiting
   }
 }
 
@@ -145,7 +147,8 @@ void onGoToReaderHome() { onGoToReader(std::string()); }
 
 void onGoToFileTransfer() {
   exitActivity();
-  enterNewActivity(new CrossPointWebServerActivity(renderer, inputManager, onGoHome));
+  webServerActivity = new CrossPointWebServerActivity(renderer, inputManager, onGoHome);
+  enterNewActivity(webServerActivity);
 }
 
 void onGoToSettings() {
@@ -207,7 +210,7 @@ void loop() {
 
   // Reduce delay when webserver is running to allow faster handleClient() calls
   // This is critical for upload performance and preventing TCP timeouts
-  if (crossPointWebServer.isRunning()) {
+  if (webServerActivity && webServerActivity->isWebServerRunning()) {
     delay(1);  // Minimal delay to prevent tight loop
   } else {
     delay(10);  // Normal delay when webserver not active

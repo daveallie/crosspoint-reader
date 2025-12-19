@@ -10,9 +10,6 @@
 #include "html/FilesPageHeaderHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 
-// Global instance
-CrossPointWebServer crossPointWebServer;
-
 // Folders/files to hide from the web interface file browser
 // Note: Items starting with "." are automatically hidden
 static const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};

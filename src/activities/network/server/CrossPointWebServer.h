@@ -54,6 +54,3 @@ class CrossPointWebServer {
   void handleCreateFolder();
   void handleDelete();
 };
-
-// Global instance
-extern CrossPointWebServer crossPointWebServer;

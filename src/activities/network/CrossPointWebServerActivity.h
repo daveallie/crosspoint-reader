@@ -9,6 +9,7 @@
 
 #include "../Activity.h"
 #include "WifiSelectionActivity.h"
+#include "server/CrossPointWebServer.h"
 
 // Web server activity states
 enum class WebServerActivityState {
@@ -35,6 +36,9 @@ class CrossPointWebServerActivity final : public Activity {
   // WiFi selection subactivity
   std::unique_ptr<WifiSelectionActivity> wifiSelection;
 
+  // Web server - owned by this activity
+  std::unique_ptr<CrossPointWebServer> webServer;
+
   // Server status
   std::string connectedIP;
   std::string connectedSSID;
@@ -58,4 +62,7 @@ class CrossPointWebServerActivity final : public Activity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
+
+  // Check if web server is running (used by main loop for timing optimization)
+  bool isWebServerRunning() const { return webServer && webServer->isRunning(); }
 };

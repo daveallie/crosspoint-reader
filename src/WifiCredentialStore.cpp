@@ -9,6 +9,7 @@
 // Initialize the static instance
 WifiCredentialStore WifiCredentialStore::instance;
 
+namespace {
 // File format version
 constexpr uint8_t WIFI_FILE_VERSION = 1;
 
@@ -19,6 +20,7 @@ constexpr char WIFI_FILE[] = "/sd/.crosspoint/wifi.bin";
 // This is NOT cryptographic security, just prevents casual file reading
 constexpr uint8_t OBFUSCATION_KEY[] = {0x43, 0x72, 0x6F, 0x73, 0x73, 0x50, 0x6F, 0x69, 0x6E, 0x74};
 constexpr size_t KEY_LENGTH = sizeof(OBFUSCATION_KEY);
+}  // namespace
 
 void WifiCredentialStore::obfuscate(std::string& data) const {
   Serial.printf("[%lu] [WCS] Obfuscating/deobfuscating %zu bytes\n", millis(), data.size());
