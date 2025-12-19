@@ -33,13 +33,14 @@ void EpubReaderActivity::onEnter() {
 
   epub->setupCacheDir();
 
-  if (SD.exists((epub->getCachePath() + "/progress.bin").c_str())) {
-    File f = SD.open((epub->getCachePath() + "/progress.bin").c_str());
+  File f = SD.open((epub->getCachePath() + "/progress.bin").c_str());
+  if (f) {
     uint8_t data[4];
-    f.read(data, 4);
-    currentSpineIndex = data[0] + (data[1] << 8);
-    nextPageNumber = data[2] + (data[3] << 8);
-    Serial.printf("[%lu] [ERS] Loaded cache: %d, %d\n", millis(), currentSpineIndex, nextPageNumber);
+    if (f.read(data, 4) == 4) {
+      currentSpineIndex = data[0] + (data[1] << 8);
+      nextPageNumber = data[2] + (data[3] << 8);
+      Serial.printf("[%lu] [ERS] Loaded cache: %d, %d\n", millis(), currentSpineIndex, nextPageNumber);
+    }
     f.close();
   }
 
