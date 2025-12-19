@@ -11,7 +11,7 @@ const SettingInfo SettingsActivity::settingsList[settingsCount] = {
     {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
     {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn},
-    {"Hyphenation", &CrossPointSettings::hyphenationEnabled}};
+    {"Hyphenation", SettingType::TOGGLE, &CrossPointSettings::hyphenationEnabled}};
 
 void SettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<SettingsActivity*>(param);
