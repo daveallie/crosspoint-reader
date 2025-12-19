@@ -6,7 +6,7 @@
 #include "config.h"
 
 namespace {
-constexpr int menuItemCount = 2;
+constexpr int menuItemCount = 3;
 }
 
 void HomeActivity::taskTrampoline(void* param) {
@@ -51,6 +51,8 @@ void HomeActivity::loop() {
     if (selectorIndex == 0) {
       onReaderOpen();
     } else if (selectorIndex == 1) {
+      onFileTransferOpen();
+    } else if (selectorIndex == 2) {
       onSettingsOpen();
     }
   } else if (prevPressed) {
@@ -84,7 +86,8 @@ void HomeActivity::render() const {
   // Draw selection
   renderer.fillRect(0, 60 + selectorIndex * 30 + 2, pageWidth - 1, 30);
   renderer.drawText(UI_FONT_ID, 20, 60, "Read", selectorIndex != 0);
-  renderer.drawText(UI_FONT_ID, 20, 90, "Settings", selectorIndex != 1);
+  renderer.drawText(UI_FONT_ID, 20, 90, "File transfer", selectorIndex != 1);
+  renderer.drawText(UI_FONT_ID, 20, 120, "Settings", selectorIndex != 2);
 
   renderer.drawRect(25, pageHeight - 40, 106, 40);
   renderer.drawText(UI_FONT_ID, 25 + (105 - renderer.getTextWidth(UI_FONT_ID, "Back")) / 2, pageHeight - 35, "Back");

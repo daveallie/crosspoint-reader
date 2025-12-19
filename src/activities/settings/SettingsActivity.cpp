@@ -9,8 +9,7 @@
 
 const SettingInfo SettingsActivity::settingsList[settingsCount] = {
     {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
-    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
-    {"WiFi", SettingType::ACTION, nullptr}};
+    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing}};
 
 void SettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<SettingsActivity*>(param);
@@ -48,7 +47,7 @@ void SettingsActivity::onExit() {
 void SettingsActivity::loop() {
   // Handle actions with early return
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-    activateCurrentSetting();
+    toggleCurrentSetting();
     updateRequired = true;
     return;
   }
@@ -69,26 +68,6 @@ void SettingsActivity::loop() {
     if (selectedSettingIndex < settingsCount - 1) {
       selectedSettingIndex++;
       updateRequired = true;
-    }
-  }
-}
-
-void SettingsActivity::activateCurrentSetting() {
-  // Validate index
-  if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
-    return;
-  }
-
-  const auto& setting = settingsList[selectedSettingIndex];
-
-  if (setting.type == SettingType::TOGGLE) {
-    toggleCurrentSetting();
-    // Trigger a redraw of the entire screen
-    updateRequired = true;
-  } else if (setting.type == SettingType::ACTION) {
-    // Handle action settings
-    if (std::string(setting.name) == "WiFi") {
-      onGoWifi();
     }
   }
 }
@@ -135,8 +114,6 @@ void SettingsActivity::render() const {
   // Draw header
   renderer.drawCenteredText(READER_FONT_ID, 10, "Settings", true, BOLD);
 
-  // We always have at least one setting
-
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
     const int settingY = 60 + i * 30;  // 30 pixels between settings
@@ -153,13 +130,11 @@ void SettingsActivity::render() const {
     if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
       bool value = SETTINGS.*(settingsList[i].valuePtr);
       renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
-    } else if (settingsList[i].type == SettingType::ACTION) {
-      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, ">");
     }
   }
 
   // Draw help text
-  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to select, BACK to save & exit");
+  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to toggle, BACK to save & exit");
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();

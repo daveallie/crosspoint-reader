@@ -21,7 +21,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
-#include "activities/network/WifiScreen.h"
+#include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
@@ -143,21 +143,19 @@ void onGoToReader(const std::string& initialEpubPath) {
 }
 void onGoToReaderHome() { onGoToReader(std::string()); }
 
-void onGoToSettings();
-
-void onGoToWifi() {
+void onGoToFileTransfer() {
   exitActivity();
-  enterNewActivity(new WifiScreen(renderer, inputManager, onGoToSettings));
+  enterNewActivity(new CrossPointWebServerActivity(renderer, inputManager, onGoHome));
 }
 
 void onGoToSettings() {
   exitActivity();
-  enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome, onGoToWifi));
+  enterNewActivity(new SettingsActivity(renderer, inputManager, onGoHome));
 }
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings));
+  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
 }
 
 void setup() {
@@ -204,10 +202,8 @@ void setup() {
 void loop() {
   static unsigned long lastLoopTime = 0;
   static unsigned long maxLoopDuration = 0;
-  static unsigned long lastHandleClientTime = 0;
 
   unsigned long loopStartTime = millis();
-  unsigned long timeSinceLastLoop = loopStartTime - lastLoopTime;
 
   // Reduce delay when webserver is running to allow faster handleClient() calls
   // This is critical for upload performance and preventing TCP timeouts
@@ -250,20 +246,6 @@ void loop() {
     currentActivity->loop();
   }
   unsigned long activityDuration = millis() - activityStartTime;
-
-  // Handle web server requests if running
-  if (crossPointWebServer.isRunning()) {
-    unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
-
-    // Log if there's a significant gap between handleClient calls (>100ms)
-    if (lastHandleClientTime > 0 && timeSinceLastHandleClient > 100) {
-      Serial.printf("[%lu] [LOOP] WARNING: %lu ms gap since last handleClient (activity took %lu ms)\n", millis(),
-                    timeSinceLastHandleClient, activityDuration);
-    }
-
-    crossPointWebServer.handleClient();
-    lastHandleClientTime = millis();
-  }
 
   unsigned long loopDuration = millis() - loopStartTime;
   if (loopDuration > maxLoopDuration) {

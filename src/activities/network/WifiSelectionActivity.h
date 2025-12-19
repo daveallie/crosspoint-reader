@@ -20,26 +20,37 @@ struct WifiNetworkInfo {
   bool hasSavedPassword;  // Whether we have saved credentials for this network
 };
 
-// WiFi screen states
-enum class WifiScreenState {
+// WiFi selection states
+enum class WifiSelectionState {
   SCANNING,           // Scanning for networks
   NETWORK_LIST,       // Displaying available networks
   PASSWORD_ENTRY,     // Entering password for selected network
   CONNECTING,         // Attempting to connect
-  CONNECTED,          // Successfully connected, showing IP
+  CONNECTED,          // Successfully connected
   SAVE_PROMPT,        // Asking user if they want to save the password
   CONNECTION_FAILED,  // Connection failed
   FORGET_PROMPT       // Asking user if they want to forget the network
 };
 
-class WifiScreen final : public Activity {
+/**
+ * WifiSelectionActivity is responsible for scanning WiFi APs and connecting to them.
+ * It will:
+ * - Enter scanning mode on entry
+ * - List available WiFi networks
+ * - Allow selection and launch KeyboardEntryActivity for password if needed
+ * - Save the password if requested
+ * - Call onComplete callback when connected or cancelled
+ * 
+ * The onComplete callback receives true if connected successfully, false if cancelled.
+ */
+class WifiSelectionActivity final : public Activity {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
-  WifiScreenState state = WifiScreenState::SCANNING;
+  WifiSelectionState state = WifiSelectionState::SCANNING;
   int selectedNetworkIndex = 0;
   std::vector<WifiNetworkInfo> networks;
-  const std::function<void()> onGoBack;
+  const std::function<void(bool connected)> onComplete;
 
   // Selected network for connection
   std::string selectedSSID;
@@ -85,9 +96,13 @@ class WifiScreen final : public Activity {
   std::string getSignalStrengthIndicator(int32_t rssi) const;
 
  public:
-  explicit WifiScreen(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoBack)
-      : Activity(renderer, inputManager), onGoBack(onGoBack) {}
+  explicit WifiSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
+                                  const std::function<void(bool connected)>& onComplete)
+      : Activity(renderer, inputManager), onComplete(onComplete) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  
+  // Get the IP address after successful connection
+  const std::string& getConnectedIP() const { return connectedIP; }
 };

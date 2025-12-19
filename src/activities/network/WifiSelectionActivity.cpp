@@ -1,20 +1,19 @@
-#include "WifiScreen.h"
+#include "WifiSelectionActivity.h"
 
 #include <GfxRenderer.h>
 #include <WiFi.h>
 
 #include <map>
 
-#include "CrossPointWebServer.h"
 #include "WifiCredentialStore.h"
 #include "config.h"
 
-void WifiScreen::taskTrampoline(void* param) {
-  auto* self = static_cast<WifiScreen*>(param);
+void WifiSelectionActivity::taskTrampoline(void* param) {
+  auto* self = static_cast<WifiSelectionActivity*>(param);
   self->displayTaskLoop();
 }
 
-void WifiScreen::onEnter() {
+void WifiSelectionActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   // Load saved WiFi credentials
@@ -23,7 +22,7 @@ void WifiScreen::onEnter() {
   // Reset state
   selectedNetworkIndex = 0;
   networks.clear();
-  state = WifiScreenState::SCANNING;
+  state = WifiSelectionState::SCANNING;
   selectedSSID.clear();
   connectedIP.clear();
   connectionError.clear();
@@ -36,7 +35,7 @@ void WifiScreen::onEnter() {
   // Trigger first update to show scanning message
   updateRequired = true;
 
-  xTaskCreate(&WifiScreen::taskTrampoline, "WifiScreenTask",
+  xTaskCreate(&WifiSelectionActivity::taskTrampoline, "WifiSelectionTask",
               4096,               // Stack size (larger for WiFi operations)
               this,               // Parameters
               1,                  // Priority
@@ -47,8 +46,8 @@ void WifiScreen::onEnter() {
   startWifiScan();
 }
 
-void WifiScreen::onExit() {
-  Serial.printf("[%lu] [WIFI] ========== onExit START ==========\n", millis());
+void WifiSelectionActivity::onExit() {
+  Serial.printf("[%lu] [WIFI] ========== WifiSelectionActivity onExit START ==========\n", millis());
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit start: %d bytes\n", millis(), ESP.getFreeHeap());
 
   // Stop any ongoing WiFi scan
@@ -56,28 +55,8 @@ void WifiScreen::onExit() {
   WiFi.scanDelete();
   Serial.printf("[%lu] [WIFI] [MEM] Free heap after scanDelete: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  // CRITICAL: Stop the web server FIRST to prevent new packets from being queued
-  Serial.printf("[%lu] [WIFI] Stopping web server...\n", millis());
-  crossPointWebServer.stop();
-  Serial.printf("[%lu] [WIFI] Web server stopped successfully\n", millis());
-  Serial.printf("[%lu] [WIFI] [MEM] Free heap after webserver stop: %d bytes\n", millis());
-
-  // CRITICAL: Wait for LWIP stack to flush any pending packets
-  // The crash occurs because WiFi.disconnect() tears down the interface while
-  // packets are still queued in the LWIP stack (ethernet.c, etharp.c, wlanif.c)
-  Serial.printf("[%lu] [WIFI] Waiting 500ms for network stack to flush pending packets...\n", millis());
-  delay(500);
-
-  // Disconnect WiFi gracefully - use disconnect(false) first to send disconnect frame
-  Serial.printf("[%lu] [WIFI] Disconnecting WiFi (graceful)...\n", millis());
-  WiFi.disconnect(false);  // false = don't erase credentials, send disconnect frame
-  delay(100);  // Allow disconnect frame to be sent
-  
-  Serial.printf("[%lu] [WIFI] Setting WiFi mode OFF...\n", millis());
-  WiFi.mode(WIFI_OFF);
-  delay(100);  // Allow WiFi hardware to fully power down
-  
-  Serial.printf("[%lu] [WIFI] [MEM] Free heap after WiFi disconnect: %d bytes\n", millis(), ESP.getFreeHeap());
+  // Note: We do NOT disconnect WiFi here - the parent activity (CrossPointWebServerActivity)
+  // manages WiFi connection state. We just clean up the scan and task.
 
   // Acquire mutex before deleting task to ensure task isn't using it
   // This prevents hangs/crashes if the task holds the mutex when deleted
@@ -99,11 +78,11 @@ void WifiScreen::onExit() {
   Serial.printf("[%lu] [WIFI] Mutex deleted\n", millis());
 
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
-  Serial.printf("[%lu] [WIFI] ========== onExit COMPLETE ==========\n", millis());
+  Serial.printf("[%lu] [WIFI] ========== WifiSelectionActivity onExit COMPLETE ==========\n", millis());
 }
 
-void WifiScreen::startWifiScan() {
-  state = WifiScreenState::SCANNING;
+void WifiSelectionActivity::startWifiScan() {
+  state = WifiSelectionState::SCANNING;
   networks.clear();
   updateRequired = true;
 
@@ -116,7 +95,7 @@ void WifiScreen::startWifiScan() {
   WiFi.scanNetworks(true);  // true = async scan
 }
 
-void WifiScreen::processWifiScanResults() {
+void WifiSelectionActivity::processWifiScanResults() {
   int16_t scanResult = WiFi.scanComplete();
 
   if (scanResult == WIFI_SCAN_RUNNING) {
@@ -125,7 +104,7 @@ void WifiScreen::processWifiScanResults() {
   }
 
   if (scanResult == WIFI_SCAN_FAILED) {
-    state = WifiScreenState::NETWORK_LIST;
+    state = WifiSelectionState::NETWORK_LIST;
     updateRequired = true;
     return;
   }
@@ -167,12 +146,12 @@ void WifiScreen::processWifiScanResults() {
             [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
 
   WiFi.scanDelete();
-  state = WifiScreenState::NETWORK_LIST;
+  state = WifiSelectionState::NETWORK_LIST;
   selectedNetworkIndex = 0;
   updateRequired = true;
 }
 
-void WifiScreen::selectNetwork(int index) {
+void WifiSelectionActivity::selectNetwork(int index) {
   if (index < 0 || index >= static_cast<int>(networks.size())) {
     return;
   }
@@ -197,7 +176,7 @@ void WifiScreen::selectNetwork(int index) {
 
   if (selectedRequiresPassword) {
     // Show password entry
-    state = WifiScreenState::PASSWORD_ENTRY;
+    state = WifiSelectionState::PASSWORD_ENTRY;
     keyboard.reset(new KeyboardEntryActivity(renderer, inputManager, "Enter WiFi Password",
                                              "",    // No initial text
                                              64,    // Max password length
@@ -210,8 +189,8 @@ void WifiScreen::selectNetwork(int index) {
   }
 }
 
-void WifiScreen::attemptConnection() {
-  state = WifiScreenState::CONNECTING;
+void WifiSelectionActivity::attemptConnection() {
+  state = WifiSelectionState::CONNECTING;
   connectionStartTime = millis();
   connectedIP.clear();
   connectionError.clear();
@@ -231,8 +210,8 @@ void WifiScreen::attemptConnection() {
   }
 }
 
-void WifiScreen::checkConnectionStatus() {
-  if (state != WifiScreenState::CONNECTING) {
+void WifiSelectionActivity::checkConnectionStatus() {
+  if (state != WifiSelectionState::CONNECTING) {
     return;
   }
 
@@ -245,18 +224,17 @@ void WifiScreen::checkConnectionStatus() {
     snprintf(ipStr, sizeof(ipStr), "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
     connectedIP = ipStr;
 
-    // Start the web server
-    crossPointWebServer.begin();
-
-    // If we used a saved password, go directly to connected screen
     // If we entered a new password, ask if user wants to save it
-    if (usedSavedPassword || enteredPassword.empty()) {
-      state = WifiScreenState::CONNECTED;
-    } else {
-      state = WifiScreenState::SAVE_PROMPT;
+    // Otherwise, immediately complete so parent can start web server
+    if (!usedSavedPassword && !enteredPassword.empty()) {
+      state = WifiSelectionState::SAVE_PROMPT;
       savePromptSelection = 0;  // Default to "Yes"
+      updateRequired = true;
+    } else {
+      // Using saved password or open network - complete immediately
+      Serial.printf("[%lu] [WIFI] Connected with saved/open credentials, completing immediately\n", millis());
+      onComplete(true);
     }
-    updateRequired = true;
     return;
   }
 
@@ -265,7 +243,7 @@ void WifiScreen::checkConnectionStatus() {
     if (status == WL_NO_SSID_AVAIL) {
       connectionError = "Network not found";
     }
-    state = WifiScreenState::CONNECTION_FAILED;
+    state = WifiSelectionState::CONNECTION_FAILED;
     updateRequired = true;
     return;
   }
@@ -274,27 +252,27 @@ void WifiScreen::checkConnectionStatus() {
   if (millis() - connectionStartTime > CONNECTION_TIMEOUT_MS) {
     WiFi.disconnect();
     connectionError = "Connection timeout";
-    state = WifiScreenState::CONNECTION_FAILED;
+    state = WifiSelectionState::CONNECTION_FAILED;
     updateRequired = true;
     return;
   }
 }
 
-void WifiScreen::loop() {
+void WifiSelectionActivity::loop() {
   // Check scan progress
-  if (state == WifiScreenState::SCANNING) {
+  if (state == WifiSelectionState::SCANNING) {
     processWifiScanResults();
     return;
   }
 
   // Check connection progress
-  if (state == WifiScreenState::CONNECTING) {
+  if (state == WifiSelectionState::CONNECTING) {
     checkConnectionStatus();
     return;
   }
 
   // Handle password entry state
-  if (state == WifiScreenState::PASSWORD_ENTRY && keyboard) {
+  if (state == WifiSelectionState::PASSWORD_ENTRY && keyboard) {
     keyboard->handleInput();
 
     if (keyboard->isComplete()) {
@@ -303,7 +281,7 @@ void WifiScreen::loop() {
     }
 
     if (keyboard->isCancelled()) {
-      state = WifiScreenState::NETWORK_LIST;
+      state = WifiSelectionState::NETWORK_LIST;
       keyboard.reset();
       updateRequired = true;
       return;
@@ -314,7 +292,7 @@ void WifiScreen::loop() {
   }
 
   // Handle save prompt state
-  if (state == WifiScreenState::SAVE_PROMPT) {
+  if (state == WifiSelectionState::SAVE_PROMPT) {
     if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
       if (savePromptSelection > 0) {
         savePromptSelection--;
@@ -330,19 +308,17 @@ void WifiScreen::loop() {
         // User chose "Yes" - save the password
         WIFI_STORE.addCredential(selectedSSID, enteredPassword);
       }
-      // Move to connected screen
-      state = WifiScreenState::CONNECTED;
-      updateRequired = true;
+      // Complete - parent will start web server
+      onComplete(true);
     } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-      // Skip saving, go to connected screen
-      state = WifiScreenState::CONNECTED;
-      updateRequired = true;
+      // Skip saving, complete anyway
+      onComplete(true);
     }
     return;
   }
 
   // Handle forget prompt state (connection failed with saved credentials)
-  if (state == WifiScreenState::FORGET_PROMPT) {
+  if (state == WifiSelectionState::FORGET_PROMPT) {
     if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
       if (forgetPromptSelection > 0) {
         forgetPromptSelection--;
@@ -366,35 +342,33 @@ void WifiScreen::loop() {
         }
       }
       // Go back to network list
-      state = WifiScreenState::NETWORK_LIST;
+      state = WifiSelectionState::NETWORK_LIST;
       updateRequired = true;
     } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
       // Skip forgetting, go back to network list
-      state = WifiScreenState::NETWORK_LIST;
+      state = WifiSelectionState::NETWORK_LIST;
       updateRequired = true;
     }
     return;
   }
 
-  // Handle connected state
-  if (state == WifiScreenState::CONNECTED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK) || inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
-      // Exit screen on success
-      onGoBack();
-      return;
-    }
+  // Handle connected state (should not normally be reached - connection completes immediately)
+  if (state == WifiSelectionState::CONNECTED) {
+    // Safety fallback - immediately complete
+    onComplete(true);
+    return;
   }
 
   // Handle connection failed state
-  if (state == WifiScreenState::CONNECTION_FAILED) {
+  if (state == WifiSelectionState::CONNECTION_FAILED) {
     if (inputManager.wasPressed(InputManager::BTN_BACK) || inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
       // If we used saved credentials, offer to forget the network
       if (usedSavedPassword) {
-        state = WifiScreenState::FORGET_PROMPT;
+        state = WifiSelectionState::FORGET_PROMPT;
         forgetPromptSelection = 0;  // Default to "Yes"
       } else {
         // Go back to network list on failure
-        state = WifiScreenState::NETWORK_LIST;
+        state = WifiSelectionState::NETWORK_LIST;
       }
       updateRequired = true;
       return;
@@ -402,10 +376,10 @@ void WifiScreen::loop() {
   }
 
   // Handle network list state
-  if (state == WifiScreenState::NETWORK_LIST) {
-    // Check for Back button to exit
+  if (state == WifiSelectionState::NETWORK_LIST) {
+    // Check for Back button to exit (cancel)
     if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-      onGoBack();
+      onComplete(false);
       return;
     }
 
@@ -434,7 +408,7 @@ void WifiScreen::loop() {
   }
 }
 
-std::string WifiScreen::getSignalStrengthIndicator(int32_t rssi) const {
+std::string WifiSelectionActivity::getSignalStrengthIndicator(int32_t rssi) const {
   // Convert RSSI to signal bars representation
   if (rssi >= -50) {
     return "||||";  // Excellent
@@ -448,7 +422,7 @@ std::string WifiScreen::getSignalStrengthIndicator(int32_t rssi) const {
   return "    ";  // Very weak
 }
 
-void WifiScreen::displayTaskLoop() {
+void WifiSelectionActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
       updateRequired = false;
@@ -460,32 +434,32 @@ void WifiScreen::displayTaskLoop() {
   }
 }
 
-void WifiScreen::render() const {
+void WifiSelectionActivity::render() const {
   renderer.clearScreen();
 
   switch (state) {
-    case WifiScreenState::SCANNING:
+    case WifiSelectionState::SCANNING:
       renderConnecting();  // Reuse connecting screen with different message
       break;
-    case WifiScreenState::NETWORK_LIST:
+    case WifiSelectionState::NETWORK_LIST:
       renderNetworkList();
       break;
-    case WifiScreenState::PASSWORD_ENTRY:
+    case WifiSelectionState::PASSWORD_ENTRY:
       renderPasswordEntry();
       break;
-    case WifiScreenState::CONNECTING:
+    case WifiSelectionState::CONNECTING:
       renderConnecting();
       break;
-    case WifiScreenState::CONNECTED:
+    case WifiSelectionState::CONNECTED:
       renderConnected();
       break;
-    case WifiScreenState::SAVE_PROMPT:
+    case WifiSelectionState::SAVE_PROMPT:
       renderSavePrompt();
       break;
-    case WifiScreenState::CONNECTION_FAILED:
+    case WifiSelectionState::CONNECTION_FAILED:
       renderConnectionFailed();
       break;
-    case WifiScreenState::FORGET_PROMPT:
+    case WifiSelectionState::FORGET_PROMPT:
       renderForgetPrompt();
       break;
   }
@@ -493,7 +467,7 @@ void WifiScreen::render() const {
   renderer.displayBuffer();
 }
 
-void WifiScreen::renderNetworkList() const {
+void WifiSelectionActivity::renderNetworkList() const {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
 
@@ -569,7 +543,7 @@ void WifiScreen::renderNetworkList() const {
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "OK: Connect | * = Encrypted | + = Saved");
 }
 
-void WifiScreen::renderPasswordEntry() const {
+void WifiSelectionActivity::renderPasswordEntry() const {
   const auto pageHeight = GfxRenderer::getScreenHeight();
 
   // Draw header
@@ -588,12 +562,12 @@ void WifiScreen::renderPasswordEntry() const {
   }
 }
 
-void WifiScreen::renderConnecting() const {
+void WifiSelectionActivity::renderConnecting() const {
   const auto pageHeight = GfxRenderer::getScreenHeight();
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height) / 2;
 
-  if (state == WifiScreenState::SCANNING) {
+  if (state == WifiSelectionState::SCANNING) {
     renderer.drawCenteredText(UI_FONT_ID, top, "Scanning...", true, REGULAR);
   } else {
     renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connecting...", true, BOLD);
@@ -606,7 +580,7 @@ void WifiScreen::renderConnecting() const {
   }
 }
 
-void WifiScreen::renderConnected() const {
+void WifiSelectionActivity::renderConnected() const {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
   const auto height = renderer.getLineHeight(UI_FONT_ID);
@@ -623,14 +597,10 @@ void WifiScreen::renderConnected() const {
   std::string ipInfo = "IP Address: " + connectedIP;
   renderer.drawCenteredText(UI_FONT_ID, top + 40, ipInfo.c_str(), true, REGULAR);
 
-  // Show web server info
-  std::string webInfo = "Web: http://" + connectedIP + "/";
-  renderer.drawCenteredText(UI_FONT_ID, top + 70, webInfo.c_str(), true, REGULAR);
-
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to exit", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
 }
 
-void WifiScreen::renderSavePrompt() const {
+void WifiSelectionActivity::renderSavePrompt() const {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
   const auto height = renderer.getLineHeight(UI_FONT_ID);
@@ -670,7 +640,7 @@ void WifiScreen::renderSavePrompt() const {
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm", true, REGULAR);
 }
 
-void WifiScreen::renderConnectionFailed() const {
+void WifiSelectionActivity::renderConnectionFailed() const {
   const auto pageHeight = GfxRenderer::getScreenHeight();
   const auto height = renderer.getLineHeight(UI_FONT_ID);
   const auto top = (pageHeight - height * 2) / 2;
@@ -680,7 +650,7 @@ void WifiScreen::renderConnectionFailed() const {
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
 }
 
-void WifiScreen::renderForgetPrompt() const {
+void WifiSelectionActivity::renderForgetPrompt() const {
   const auto pageWidth = GfxRenderer::getScreenWidth();
   const auto pageHeight = GfxRenderer::getScreenHeight();
   const auto height = renderer.getLineHeight(UI_FONT_ID);
