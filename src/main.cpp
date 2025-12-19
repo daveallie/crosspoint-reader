@@ -44,7 +44,6 @@ EInkDisplay einkDisplay(EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY);
 InputManager inputManager;
 GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
-CrossPointWebServerActivity* webServerActivity = nullptr;  // Track web server activity for loop timing
 
 // Fonts
 EpdFont bookerlyFont(&bookerly_2b);
@@ -73,7 +72,6 @@ void exitActivity() {
     currentActivity->onExit();
     delete currentActivity;
     currentActivity = nullptr;
-    webServerActivity = nullptr;  // Clear web server activity pointer when exiting
   }
 }
 
@@ -147,8 +145,7 @@ void onGoToReaderHome() { onGoToReader(std::string()); }
 
 void onGoToFileTransfer() {
   exitActivity();
-  webServerActivity = new CrossPointWebServerActivity(renderer, inputManager, onGoHome);
-  enterNewActivity(webServerActivity);
+  enterNewActivity(new CrossPointWebServerActivity(renderer, inputManager, onGoHome));
 }
 
 void onGoToSettings() {
@@ -254,11 +251,11 @@ void loop() {
   lastLoopTime = loopStartTime;
 
   // Add delay at the end of the loop to prevent tight spinning
-  // When webserver is running, use yield() instead of delay for faster response
-  // When webserver is not running, use longer delay to save power
-  if (webServerActivity && webServerActivity->isWebServerRunning()) {
+  // When an activity requests skip loop delay (e.g., webserver running), use yield() for faster response
+  // Otherwise, use longer delay to save power
+  if (currentActivity && currentActivity->skipLoopDelay()) {
     yield();  // Give FreeRTOS a chance to run tasks, but return immediately
   } else {
-    delay(10);  // Normal delay when webserver not active
+    delay(10);  // Normal delay when no activity requires fast response
   }
 }

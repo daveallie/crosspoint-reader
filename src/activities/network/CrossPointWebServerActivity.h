@@ -62,7 +62,5 @@ class CrossPointWebServerActivity final : public Activity {
   void onEnter() override;
   void onExit() override;
   void loop() override;
-
-  // Check if web server is running (used by main loop for timing optimization)
-  bool isWebServerRunning() const { return webServer && webServer->isRunning(); }
+  bool skipLoopDelay() override { return webServer && webServer->isRunning(); }
 };
