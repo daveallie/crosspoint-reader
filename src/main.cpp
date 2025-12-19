@@ -177,7 +177,12 @@ void setup() {
   enterNewActivity(new BootActivity(renderer, inputManager));
 
   // SD Card Initialization
-  SD.begin(SD_SPI_CS, SPI, SPI_FQ);
+  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ)) {
+    Serial.printf("[%lu] [   ] SD card initialization failed\n", millis());
+    exitActivity();
+    enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "SD card error", BOLD));
+    return;
+  }
 
   SETTINGS.loadFromFile();
   APP_STATE.loadFromFile();
