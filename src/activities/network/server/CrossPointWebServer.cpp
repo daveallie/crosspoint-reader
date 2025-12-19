@@ -10,13 +10,15 @@
 #include "html/FilesPageHeaderHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 
+namespace {
+
 // Folders/files to hide from the web interface file browser
 // Note: Items starting with "." are automatically hidden
-static const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
-static const size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
+const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
+const size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
 
 // Helper function to escape HTML special characters to prevent XSS
-static String escapeHtml(const String& input) {
+String escapeHtml(const String& input) {
   String output;
   output.reserve(input.length() * 1.1);  // Pre-allocate with some extra space
 
@@ -45,6 +47,8 @@ static String escapeHtml(const String& input) {
   }
   return output;
 }
+
+}  // namespace
 
 // File listing page template - now using generated headers:
 // - HomePageHtml (from html/HomePage.html)

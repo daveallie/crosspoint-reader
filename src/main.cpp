@@ -208,14 +208,6 @@ void loop() {
 
   unsigned long loopStartTime = millis();
 
-  // Reduce delay when webserver is running to allow faster handleClient() calls
-  // This is critical for upload performance and preventing TCP timeouts
-  if (webServerActivity && webServerActivity->isWebServerRunning()) {
-    delay(1);  // Minimal delay to prevent tight loop
-  } else {
-    delay(10);  // Normal delay when webserver not active
-  }
-
   static unsigned long lastMemPrint = 0;
   if (Serial && millis() - lastMemPrint >= 10000) {
     Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes\n", millis(), ESP.getFreeHeap(),
@@ -260,4 +252,13 @@ void loop() {
   }
 
   lastLoopTime = loopStartTime;
+
+  // Add delay at the end of the loop to prevent tight spinning
+  // When webserver is running, use yield() instead of delay for faster response
+  // When webserver is not running, use longer delay to save power
+  if (webServerActivity && webServerActivity->isWebServerRunning()) {
+    yield();  // Give FreeRTOS a chance to run tasks, but return immediately
+  } else {
+    delay(10);  // Normal delay when webserver not active
+  }
 }

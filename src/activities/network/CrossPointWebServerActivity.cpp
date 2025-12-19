@@ -160,7 +160,8 @@ void CrossPointWebServerActivity::loop() {
       break;
 
     case WebServerActivityState::SERVER_RUNNING:
-      // Handle web server requests
+      // Handle web server requests - call handleClient multiple times per loop
+      // to improve responsiveness and upload throughput
       if (webServer && webServer->isRunning()) {
         unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
 
@@ -170,7 +171,13 @@ void CrossPointWebServerActivity::loop() {
                         timeSinceLastHandleClient);
         }
 
-        webServer->handleClient();
+        // Call handleClient multiple times to process pending requests faster
+        // This is critical for upload performance - HTTP file uploads send data
+        // in chunks and each handleClient() call processes incoming data
+        constexpr int HANDLE_CLIENT_ITERATIONS = 10;
+        for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
+          webServer->handleClient();
+        }
         lastHandleClientTime = millis();
       }
 
