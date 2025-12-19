@@ -322,6 +322,11 @@ int Epub::getTocItemsCount() const { return toc.size(); }
 
 // work out the section index for a toc index
 int Epub::getSpineIndexForTocIndex(const int tocIndex) const {
+  if (tocIndex < 0 || tocIndex >= toc.size()) {
+    Serial.printf("[%lu] [EBP] getSpineIndexForTocIndex: tocIndex %d out of range\n", millis(), tocIndex);
+    return 0;
+  }
+
   // the toc entry should have an href that matches the spine item
   // so we can find the spine index by looking for the href
   for (int i = 0; i < spine.size(); i++) {
@@ -336,6 +341,11 @@ int Epub::getSpineIndexForTocIndex(const int tocIndex) const {
 }
 
 int Epub::getTocIndexForSpineIndex(const int spineIndex) const {
+  if (spineIndex < 0 || spineIndex >= spine.size()) {
+    Serial.printf("[%lu] [EBP] getTocIndexForSpineIndex: spineIndex %d out of range\n", millis(), spineIndex);
+    return -1;
+  }
+
   // the toc entry should have an href that matches the spine item
   // so we can find the toc index by looking for the href
   for (int i = 0; i < toc.size(); i++) {
