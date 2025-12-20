@@ -136,6 +136,13 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
 
+  if (!outputRow || !rowBytes) {
+    Serial.printf("[%lu] [GFX] !! Failed to allocate BMP row buffers\n", millis());
+    free(outputRow);
+    free(rowBytes);
+    return;
+  }
+
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
     // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
     // Screen's (0, 0) is the top-left corner.
