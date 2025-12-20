@@ -12,7 +12,8 @@ CrossPointSettings CrossPointSettings::instance;
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
-constexpr uint8_t SETTINGS_COUNT = 3;
+// Increment this when adding new persisted settings fields
+constexpr uint8_t SETTINGS_COUNT = 5;
 constexpr char SETTINGS_FILE[] = "/sd/.crosspoint/settings.bin";
 }  // namespace
 
@@ -26,6 +27,8 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, whiteSleepScreen);
   serialization::writePod(outputFile, extraParagraphSpacing);
   serialization::writePod(outputFile, shortPwrBtn);
+  serialization::writePod(outputFile, landscapeReading);
+  serialization::writePod(outputFile, landscapeFlipped);
   outputFile.close();
 
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -51,7 +54,7 @@ bool CrossPointSettings::loadFromFile() {
   uint8_t fileSettingsCount = 0;
   serialization::readPod(inputFile, fileSettingsCount);
 
-  // load settings that exist
+  // load settings that exist (support older files with fewer fields)
   uint8_t settingsRead = 0;
   do {
     serialization::readPod(inputFile, whiteSleepScreen);
@@ -59,6 +62,10 @@ bool CrossPointSettings::loadFromFile() {
     serialization::readPod(inputFile, extraParagraphSpacing);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, shortPwrBtn);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, landscapeReading);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, landscapeFlipped);
     if (++settingsRead >= fileSettingsCount) break;
   } while (false);
 

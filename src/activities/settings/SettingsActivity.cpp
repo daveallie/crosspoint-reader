@@ -10,7 +10,9 @@
 const SettingInfo SettingsActivity::settingsList[settingsCount] = {
     {"White Sleep Screen", SettingType::TOGGLE, &CrossPointSettings::whiteSleepScreen},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing},
-    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn}};
+    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn},
+    {"Landscape Reading", SettingType::TOGGLE, &CrossPointSettings::landscapeReading},
+    {"Flip Landscape (swap top/bottom)", SettingType::TOGGLE, &CrossPointSettings::landscapeFlipped}};
 
 void SettingsActivity::taskTrampoline(void* param) {
   auto* self = static_cast<SettingsActivity*>(param);

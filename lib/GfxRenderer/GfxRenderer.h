@@ -12,11 +12,21 @@ class GfxRenderer {
  public:
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
+  // Logical screen orientation from the perspective of callers
+  enum class Orientation {
+    Portrait,         // 480x800 logical coordinates (current default)
+    LandscapeNormal,  // 800x480 logical coordinates, native panel orientation
+    LandscapeFlipped  // 800x480 logical coordinates, rotated 180° (swap top/bottom)
+  };
+
  private:
   static constexpr size_t BW_BUFFER_CHUNK_SIZE = 8000;  // 8KB chunks to allow for non-contiguous memory
   static constexpr size_t BW_BUFFER_NUM_CHUNKS = EInkDisplay::BUFFER_SIZE / BW_BUFFER_CHUNK_SIZE;
   static_assert(BW_BUFFER_CHUNK_SIZE * BW_BUFFER_NUM_CHUNKS == EInkDisplay::BUFFER_SIZE,
                 "BW buffer chunking does not line up with display buffer size");
+
+  // Global orientation used for all rendering operations
+  static Orientation orientation;
 
   EInkDisplay& einkDisplay;
   RenderMode renderMode;
@@ -33,11 +43,15 @@ class GfxRenderer {
   // Setup
   void insertFont(int fontId, EpdFontFamily font);
 
+  // Orientation control (affects logical width/height and coordinate transforms)
+  static void setOrientation(Orientation o) { orientation = o; }
+  static Orientation getOrientation() { return orientation; }
+
   // Screen ops
   static int getScreenWidth();
   static int getScreenHeight();
   void displayBuffer(EInkDisplay::RefreshMode refreshMode = EInkDisplay::FAST_REFRESH) const;
-  // EXPERIMENTAL: Windowed update - display only a rectangular region (portrait coordinates)
+  // EXPERIMENTAL: Windowed update - display only a rectangular region
   void displayWindow(int x, int y, int width, int height) const;
   void invertScreen() const;
   void clearScreen(uint8_t color = 0xFF) const;

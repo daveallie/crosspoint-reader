@@ -21,6 +21,11 @@ class CrossPointSettings {
   uint8_t extraParagraphSpacing = 1;
   // Duration of the power button press
   uint8_t shortPwrBtn = 0;
+  // EPUB reading orientation settings
+  // 0 = portrait (default), 1 = landscape
+  uint8_t landscapeReading = 0;
+  // When in landscape mode: 0 = normal, 1 = flipped (swap top/bottom)
+  uint8_t landscapeFlipped = 0;
 
   ~CrossPointSettings() = default;
 

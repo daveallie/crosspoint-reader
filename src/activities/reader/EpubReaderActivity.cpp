@@ -29,6 +29,17 @@ void EpubReaderActivity::onEnter() {
     return;
   }
 
+  // Configure screen orientation based on settings
+  if (SETTINGS.landscapeReading) {
+    if (SETTINGS.landscapeFlipped) {
+      GfxRenderer::setOrientation(GfxRenderer::Orientation::LandscapeFlipped);
+    } else {
+      GfxRenderer::setOrientation(GfxRenderer::Orientation::LandscapeNormal);
+    }
+  } else {
+    GfxRenderer::setOrientation(GfxRenderer::Orientation::Portrait);
+  }
+
   renderingMutex = xSemaphoreCreateMutex();
 
   epub->setupCacheDir();
@@ -56,6 +67,9 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  // Reset orientation back to portrait for the rest of the UI
+  GfxRenderer::setOrientation(GfxRenderer::Orientation::Portrait);
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -208,7 +222,8 @@ void EpubReaderActivity::renderScreen() {
     Serial.printf("[%lu] [ERS] Loading file: %s, index: %d\n", millis(), filepath.c_str(), currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
     if (!section->loadCacheMetadata(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom, marginLeft,
-                                    SETTINGS.extraParagraphSpacing)) {
+                                    SETTINGS.extraParagraphSpacing, GfxRenderer::getScreenWidth(),
+                                    GfxRenderer::getScreenHeight())) {
       Serial.printf("[%lu] [ERS] Cache not found, building...\n", millis());
 
       {
@@ -227,7 +242,8 @@ void EpubReaderActivity::renderScreen() {
 
       section->setupCacheDir();
       if (!section->persistPageDataToSD(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom,
-                                        marginLeft, SETTINGS.extraParagraphSpacing)) {
+                                        marginLeft, SETTINGS.extraParagraphSpacing, GfxRenderer::getScreenWidth(),
+                                        GfxRenderer::getScreenHeight())) {
         Serial.printf("[%lu] [ERS] Failed to persist page data to SD\n", millis());
         section.reset();
         return;
@@ -322,7 +338,9 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page) {
 }
 
 void EpubReaderActivity::renderStatusBar() const {
-  constexpr auto textY = 776;
+  // Position status bar near the bottom of the logical screen, regardless of orientation
+  const auto screenHeight = GfxRenderer::getScreenHeight();
+  const auto textY = screenHeight - 24;
 
   // Calculate progress in book
   float sectionChapterProg = static_cast<float>(section->currentPage) / section->pageCount;
@@ -345,7 +363,7 @@ void EpubReaderActivity::renderStatusBar() const {
   constexpr int batteryWidth = 15;
   constexpr int batteryHeight = 10;
   constexpr int x = marginLeft;
-  constexpr int y = 783;
+  const int y = screenHeight - 17;
 
   // Top line
   renderer.drawLine(x, y, x + batteryWidth - 4, y);

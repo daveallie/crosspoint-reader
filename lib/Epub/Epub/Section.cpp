@@ -10,8 +10,8 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 5;
-}
+constexpr uint8_t SECTION_FILE_VERSION = 6;
+}  // namespace
 
 void Section::onPageComplete(std::unique_ptr<Page> page) {
   const auto filePath = cachePath + "/page_" + std::to_string(pageCount) + ".bin";
@@ -27,7 +27,8 @@ void Section::onPageComplete(std::unique_ptr<Page> page) {
 
 void Section::writeCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                  const int marginRight, const int marginBottom, const int marginLeft,
-                                 const bool extraParagraphSpacing) const {
+                                 const bool extraParagraphSpacing, const int screenWidth,
+                                 const int screenHeight) const {
   std::ofstream outputFile(("/sd" + cachePath + "/section.bin").c_str());
   serialization::writePod(outputFile, SECTION_FILE_VERSION);
   serialization::writePod(outputFile, fontId);
@@ -37,13 +38,15 @@ void Section::writeCacheMetadata(const int fontId, const float lineCompression, 
   serialization::writePod(outputFile, marginBottom);
   serialization::writePod(outputFile, marginLeft);
   serialization::writePod(outputFile, extraParagraphSpacing);
+  serialization::writePod(outputFile, screenWidth);
+  serialization::writePod(outputFile, screenHeight);
   serialization::writePod(outputFile, pageCount);
   outputFile.close();
 }
 
 bool Section::loadCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                 const int marginRight, const int marginBottom, const int marginLeft,
-                                const bool extraParagraphSpacing) {
+                                const bool extraParagraphSpacing, const int screenWidth, const int screenHeight) {
   if (!SD.exists(cachePath.c_str())) {
     return false;
   }
@@ -69,6 +72,7 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     int fileFontId, fileMarginTop, fileMarginRight, fileMarginBottom, fileMarginLeft;
     float fileLineCompression;
     bool fileExtraParagraphSpacing;
+    int fileScreenWidth, fileScreenHeight;
     serialization::readPod(inputFile, fileFontId);
     serialization::readPod(inputFile, fileLineCompression);
     serialization::readPod(inputFile, fileMarginTop);
@@ -76,10 +80,13 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     serialization::readPod(inputFile, fileMarginBottom);
     serialization::readPod(inputFile, fileMarginLeft);
     serialization::readPod(inputFile, fileExtraParagraphSpacing);
+    serialization::readPod(inputFile, fileScreenWidth);
+    serialization::readPod(inputFile, fileScreenHeight);
 
     if (fontId != fileFontId || lineCompression != fileLineCompression || marginTop != fileMarginTop ||
         marginRight != fileMarginRight || marginBottom != fileMarginBottom || marginLeft != fileMarginLeft ||
-        extraParagraphSpacing != fileExtraParagraphSpacing) {
+        extraParagraphSpacing != fileExtraParagraphSpacing || screenWidth != fileScreenWidth ||
+        screenHeight != fileScreenHeight) {
       inputFile.close();
       Serial.printf("[%lu] [SCT] Deserialization failed: Parameters do not match\n", millis());
       clearCache();
@@ -116,7 +123,7 @@ bool Section::clearCache() const {
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
-                                  const bool extraParagraphSpacing) {
+                                  const bool extraParagraphSpacing, const int screenWidth, const int screenHeight) {
   const auto localPath = epub->getSpineItem(spineIndex);
 
   // TODO: Should we get rid of this file all together?
@@ -147,7 +154,8 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
     return false;
   }
 
-  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft, extraParagraphSpacing);
+  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft, extraParagraphSpacing,
+                     screenWidth, screenHeight);
 
   return true;
 }
