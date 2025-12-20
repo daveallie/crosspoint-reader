@@ -298,10 +298,21 @@ bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
 
 int Epub::getSpineItemsCount() const { return spine.size(); }
 
-size_t Epub::getCumulativeSpineItemSize(const int spineIndex) const { return cumulativeSpineItemSize.at(spineIndex); }
+size_t Epub::getCumulativeSpineItemSize(const int spineIndex) const {
+  if (spineIndex < 0 || spineIndex >= static_cast<int>(cumulativeSpineItemSize.size())) {
+    Serial.printf("[%lu] [EBP] getCumulativeSpineItemSize index:%d is out of range\n", millis(), spineIndex);
+    return 0;
+  }
+  return cumulativeSpineItemSize.at(spineIndex);
+}
 
 std::string& Epub::getSpineItem(const int spineIndex) {
-  if (spineIndex < 0 || spineIndex >= spine.size()) {
+  static std::string emptyString;
+  if (spine.empty()) {
+    Serial.printf("[%lu] [EBP] getSpineItem called but spine is empty\n", millis());
+    return emptyString;
+  }
+  if (spineIndex < 0 || spineIndex >= static_cast<int>(spine.size())) {
     Serial.printf("[%lu] [EBP] getSpineItem index:%d is out of range\n", millis(), spineIndex);
     return spine.at(0).second;
   }
@@ -310,7 +321,12 @@ std::string& Epub::getSpineItem(const int spineIndex) {
 }
 
 EpubTocEntry& Epub::getTocItem(const int tocTndex) {
-  if (tocTndex < 0 || tocTndex >= toc.size()) {
+  static EpubTocEntry emptyEntry("", "", "", 0);
+  if (toc.empty()) {
+    Serial.printf("[%lu] [EBP] getTocItem called but toc is empty\n", millis());
+    return emptyEntry;
+  }
+  if (tocTndex < 0 || tocTndex >= static_cast<int>(toc.size())) {
     Serial.printf("[%lu] [EBP] getTocItem index:%d is out of range\n", millis(), tocTndex);
     return toc.at(0);
   }
