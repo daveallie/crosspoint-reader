@@ -183,6 +183,10 @@ void GfxRenderer::clearScreen(const uint8_t color) const { einkDisplay.clearScre
 
 void GfxRenderer::invertScreen() const {
   uint8_t* buffer = einkDisplay.getFrameBuffer();
+  if (!buffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in invertScreen\n", millis());
+    return;
+  }
   for (int i = 0; i < EInkDisplay::BUFFER_SIZE; i++) {
     buffer[i] = ~buffer[i];
   }
@@ -256,6 +260,10 @@ void GfxRenderer::freeBwBufferChunks() {
  */
 void GfxRenderer::storeBwBuffer() {
   const uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (!frameBuffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in storeBwBuffer\n", millis());
+    return;
+  }
 
   // Allocate and copy each chunk
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
@@ -306,6 +314,12 @@ void GfxRenderer::restoreBwBuffer() {
   }
 
   uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (!frameBuffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in restoreBwBuffer\n", millis());
+    freeBwBufferChunks();
+    return;
+  }
+
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
     // Check if chunk is missing
     if (!bwBufferChunks[i]) {
