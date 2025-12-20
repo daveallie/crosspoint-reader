@@ -118,6 +118,11 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
   const auto inflatedDataSize = static_cast<size_t>(fileStat.m_uncomp_size);
   const auto dataSize = trailingNullByte ? inflatedDataSize + 1 : inflatedDataSize;
   const auto data = static_cast<uint8_t*>(malloc(dataSize));
+  if (data == nullptr) {
+    Serial.printf("[%lu] [ZIP] Failed to allocate memory for output buffer (%zu bytes)\n", millis(), dataSize);
+    fclose(file);
+    return nullptr;
+  }
 
   if (fileStat.m_method == MZ_NO_COMPRESSION) {
     // no deflation, just read content
