@@ -6,9 +6,9 @@
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "config.h"
-#include "CrossPointState.h"
 
 namespace {
 constexpr int pagesPerRefresh = 15;
