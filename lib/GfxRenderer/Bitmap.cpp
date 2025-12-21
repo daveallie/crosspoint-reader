@@ -128,7 +128,7 @@ BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer) const {
   int bitShift = 6;
 
   // Helper lambda to pack 2bpp color into the output stream
-  auto packPixel = [&](uint8_t lum) {
+  auto packPixel = [&](const uint8_t lum) {
     uint8_t color = (lum >> 6);  // Simple 2-bit reduction: 0-255 -> 0-3
     currentOutByte |= (color << bitShift);
     if (bitShift == 0) {
@@ -140,38 +140,49 @@ BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer) const {
     }
   };
 
+  uint8_t lum;
+
   switch (bpp) {
-    case 8: {
+    case 32: {
+      const uint8_t* p = rowBuffer;
       for (int x = 0; x < width; x++) {
-        packPixel(paletteLum[rowBuffer[x]]);
+        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
+        packPixel(lum);
+        p += 4;
       }
       break;
     }
     case 24: {
       const uint8_t* p = rowBuffer;
       for (int x = 0; x < width; x++) {
-        uint8_t lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
+        lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
         packPixel(lum);
         p += 3;
       }
       break;
     }
+    case 8: {
+      for (int x = 0; x < width; x++) {
+        packPixel(paletteLum[rowBuffer[x]]);
+      }
+      break;
+    }
+    case 2: {
+      for (int x = 0; x < width; x++) {
+        lum = paletteLum[(rowBuffer[x >> 2] >> (6 - ((x & 3) * 2))) & 0x03];
+        packPixel(lum);
+      }
+      break;
+    }
     case 1: {
       for (int x = 0; x < width; x++) {
-        uint8_t lum = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 0xFF : 0x00;
+        lum = (rowBuffer[x >> 3] & (0x80 >> (x & 7))) ? 0xFF : 0x00;
         packPixel(lum);
       }
       break;
     }
-    case 32: {
-      const uint8_t* p = rowBuffer;
-      for (int x = 0; x < width; x++) {
-        uint8_t lum = (77u * p[2] + 150u * p[1] + 29u * p[0]) >> 8;
-        packPixel(lum);
-        p += 4;
-      }
-      break;
-    }
+    default:
+      return BmpReaderError::UnsupportedBpp;
   }
 
   // Flush remaining bits if width is not a multiple of 4
