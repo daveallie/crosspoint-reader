@@ -1,6 +1,7 @@
 #include "Epub.h"
 
 #include <HardwareSerial.h>
+#include <JpegToBmpConverter.h>
 #include <SD.h>
 #include <ZipFile.h>
 
@@ -218,7 +219,38 @@ const std::string& Epub::getPath() const { return filepath; }
 
 const std::string& Epub::getTitle() const { return title; }
 
-const std::string& Epub::getCoverImageItem() const { return coverImageItem; }
+bool Epub::generateCoverBmp() const {
+  // Already generated, return true
+  if (SD.exists((getCachePath() + "/cover.bmp").c_str())) {
+    return true;
+  }
+
+  if (coverImageItem.empty()) {
+    Serial.printf("[%lu] [EBP] No known cover image\n", millis());
+    return false;
+  }
+
+  if (coverImageItem.substr(coverImageItem.length() - 4) == ".jpg" ||
+      coverImageItem.substr(coverImageItem.length() - 5) == ".jpeg") {
+    Serial.printf("[%lu] [EBP] Generating BMP from JPG cover image\n", millis());
+    File coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_WRITE, true);
+    readItemContentsToStream(coverImageItem, coverJpg, 1024);
+    coverJpg.close();
+
+    coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_READ);
+    File coverBmp = SD.open((getCachePath() + "/cover.bmp").c_str(), FILE_WRITE, true);
+    const bool success = JpegToBmpConverter::jpegFileToBmpStream(coverJpg, coverBmp);
+    coverJpg.close();
+    coverBmp.close();
+    SD.remove((getCachePath() + "/.cover.jpg").c_str());
+    Serial.printf("[%lu] [EBP] Generated BMP from JPG cover image, success: %s\n", millis(), success ? "yes" : "no");
+    return success;
+  } else {
+    Serial.printf("[%lu] [EBP] Cover image is not a JPG, skipping\n", millis());
+  }
+
+  return false;
+}
 
 std::string normalisePath(const std::string& path) {
   std::vector<std::string> components;
