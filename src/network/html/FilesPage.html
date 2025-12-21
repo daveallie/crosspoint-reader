@@ -612,7 +612,7 @@
       breadcrumbContent += '<a href="/files">🏠</a>';
       const pathSegments = currentPath.split('/');
       pathSegments.slice(1, pathSegments.length - 1).forEach(function(segment, index) {
-        breadcrumbContent += '<span class="sep">/</span><a href="/files?path=' + encodeURIComponent(pathSegments.slice(0, index + 1).join('/')) + '">' + escapeHtml(segment) + '</a>';
+        breadcrumbContent += '<span class="sep">/</span><a href="/files?path=' + encodeURIComponent(pathSegments.slice(0, index + 2).join('/')) + '">' + escapeHtml(segment) + '</a>';
       });
       breadcrumbContent += '<span class="sep">/</span>';
       breadcrumbContent += '<span class="current">' + escapeHtml(pathSegments[pathSegments.length - 1]) + '</span>';
@@ -621,7 +621,11 @@
 
     let files = [];
     try {
-      files = await fetch('/api/files?path=' + encodeURIComponent(currentPath)).then(response => response.json());
+      const response = await fetch('/api/files?path=' + encodeURIComponent(currentPath));
+      if (!response.ok) {
+        throw new Error('Failed to load files: ' + response.status + ' ' + response.statusText);
+      }
+      files = await response.json();
     } catch (e) {
       console.error(e);
       fileTable.innerHTML = '<div class="no-files">An error occurred while loading the files</div>';

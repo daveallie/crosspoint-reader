@@ -212,10 +212,7 @@ bool CrossPointWebServer::isEpubFile(const String& filename) const {
   return lower.endsWith(".epub");
 }
 
-void CrossPointWebServer::handleFileList() const {
-  // server->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server->send(200, "text/html", FilesPageHtml);
-}
+void CrossPointWebServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
 
 void CrossPointWebServer::handleFileListData() const {
   // Get current path from query string (default to root)
@@ -235,15 +232,21 @@ void CrossPointWebServer::handleFileListData() const {
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
   server->send(200, "application/json", "");
   server->sendContent("[");
-  char output[300];
+  char output[512];
+  constexpr size_t outputSize = sizeof(output);
   bool seenFirst = false;
-  scanFiles(currentPath.c_str(), [this, output, seenFirst](const FileInfo& info) mutable {
+  scanFiles(currentPath.c_str(), [this, &output, seenFirst](const FileInfo& info) mutable {
     JsonDocument doc;
     doc["name"] = info.name;
     doc["size"] = info.size;
     doc["isDirectory"] = info.isDirectory;
     doc["isEpub"] = info.isEpub;
-    serializeJson(doc, output, sizeof(output));
+    const size_t written = serializeJson(doc, output, outputSize);
+    if (written >= outputSize) {
+      // JSON output truncated; skip this entry to avoid sending malformed JSON
+      Serial.printf("[%lu] [WEB] Skipping file entry with oversized JSON for name: %s\n", millis(), info.name.c_str());
+      return;
+    }
 
     if (seenFirst) {
       server->sendContent(",");
@@ -253,6 +256,7 @@ void CrossPointWebServer::handleFileListData() const {
     server->sendContent(output);
   });
   server->sendContent("]");
+  // End of streamed response, empty chunk to signal client
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
 }

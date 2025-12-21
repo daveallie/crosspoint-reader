@@ -108,6 +108,9 @@
     async function fetchStatus() {
       try {
         const response = await fetch('/api/status');
+        if (!response.ok) {
+          throw new Error('Failed to fetch status: ' + response.status + ' ' + response.statusText);
+        }
         const data = await response.json();
         document.getElementById('version').textContent = data.version || 'N/A';
         document.getElementById('ip-address').textContent = data.ip || 'N/A';
