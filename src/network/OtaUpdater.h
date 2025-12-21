@@ -7,7 +7,7 @@ class OtaUpdater {
   bool updateAvailable = false;
   std::string latestVersion;
   std::string otaUrl;
-  size_t otaSize;
+  size_t otaSize = 0;
 
  public:
   enum OtaUpdaterError {
