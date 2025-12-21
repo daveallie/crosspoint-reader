@@ -11,7 +11,8 @@ void CrossPointWebServerActivity::taskTrampoline(void* param) {
 }
 
 void CrossPointWebServerActivity::onEnter() {
-  Serial.printf("[%lu] [WEBACT] ========== CrossPointWebServerActivity onEnter ==========\n", millis());
+  ActivityWithSubactivity::onEnter();
+
   Serial.printf("[%lu] [WEBACT] [MEM] Free heap at onEnter: %d bytes\n", millis(), ESP.getFreeHeap());
 
   renderingMutex = xSemaphoreCreateMutex();
@@ -36,27 +37,19 @@ void CrossPointWebServerActivity::onEnter() {
 
   // Launch WiFi selection subactivity
   Serial.printf("[%lu] [WEBACT] Launching WifiSelectionActivity...\n", millis());
-  wifiSelection.reset(new WifiSelectionActivity(renderer, inputManager,
-                                                [this](bool connected) { onWifiSelectionComplete(connected); }));
-  wifiSelection->onEnter();
+  enterNewActivity(new WifiSelectionActivity(renderer, inputManager,
+                                             [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
 
 void CrossPointWebServerActivity::onExit() {
-  Serial.printf("[%lu] [WEBACT] ========== CrossPointWebServerActivity onExit START ==========\n", millis());
+  ActivityWithSubactivity::onExit();
+
   Serial.printf("[%lu] [WEBACT] [MEM] Free heap at onExit start: %d bytes\n", millis(), ESP.getFreeHeap());
 
   state = WebServerActivityState::SHUTTING_DOWN;
 
   // Stop the web server first (before disconnecting WiFi)
   stopWebServer();
-
-  // Exit WiFi selection subactivity if still active
-  if (wifiSelection) {
-    Serial.printf("[%lu] [WEBACT] Exiting WifiSelectionActivity...\n", millis());
-    wifiSelection->onExit();
-    wifiSelection.reset();
-    Serial.printf("[%lu] [WEBACT] WifiSelectionActivity exited\n", millis());
-  }
 
   // CRITICAL: Wait for LWIP stack to flush any pending packets
   Serial.printf("[%lu] [WEBACT] Waiting 500ms for network stack to flush pending packets...\n", millis());
@@ -92,20 +85,17 @@ void CrossPointWebServerActivity::onExit() {
   Serial.printf("[%lu] [WEBACT] Mutex deleted\n", millis());
 
   Serial.printf("[%lu] [WEBACT] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
-  Serial.printf("[%lu] [WEBACT] ========== CrossPointWebServerActivity onExit COMPLETE ==========\n", millis());
 }
 
-void CrossPointWebServerActivity::onWifiSelectionComplete(bool connected) {
+void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) {
   Serial.printf("[%lu] [WEBACT] WifiSelectionActivity completed, connected=%d\n", millis(), connected);
 
   if (connected) {
     // Get connection info before exiting subactivity
-    connectedIP = wifiSelection->getConnectedIP();
+    connectedIP = static_cast<WifiSelectionActivity*>(subActivity.get())->getConnectedIP();
     connectedSSID = WiFi.SSID().c_str();
 
-    // Exit the wifi selection subactivity
-    wifiSelection->onExit();
-    wifiSelection.reset();
+    exitActivity();
 
     // Start the web server
     startWebServer();
@@ -150,47 +140,40 @@ void CrossPointWebServerActivity::stopWebServer() {
 }
 
 void CrossPointWebServerActivity::loop() {
+  if (subActivity) {
+    // Forward loop to subactivity
+    subActivity->loop();
+    return;
+  }
+
   // Handle different states
-  switch (state) {
-    case WebServerActivityState::WIFI_SELECTION:
-      // Forward loop to WiFi selection subactivity
-      if (wifiSelection) {
-        wifiSelection->loop();
-      }
-      break;
+  if (state == WebServerActivityState::SERVER_RUNNING) {
+    // Handle web server requests - call handleClient multiple times per loop
+    // to improve responsiveness and upload throughput
+    if (webServer && webServer->isRunning()) {
+      const unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
 
-    case WebServerActivityState::SERVER_RUNNING:
-      // Handle web server requests - call handleClient multiple times per loop
-      // to improve responsiveness and upload throughput
-      if (webServer && webServer->isRunning()) {
-        unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
-
-        // Log if there's a significant gap between handleClient calls (>100ms)
-        if (lastHandleClientTime > 0 && timeSinceLastHandleClient > 100) {
-          Serial.printf("[%lu] [WEBACT] WARNING: %lu ms gap since last handleClient\n", millis(),
-                        timeSinceLastHandleClient);
-        }
-
-        // Call handleClient multiple times to process pending requests faster
-        // This is critical for upload performance - HTTP file uploads send data
-        // in chunks and each handleClient() call processes incoming data
-        constexpr int HANDLE_CLIENT_ITERATIONS = 10;
-        for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
-          webServer->handleClient();
-        }
-        lastHandleClientTime = millis();
+      // Log if there's a significant gap between handleClient calls (>100ms)
+      if (lastHandleClientTime > 0 && timeSinceLastHandleClient > 100) {
+        Serial.printf("[%lu] [WEBACT] WARNING: %lu ms gap since last handleClient\n", millis(),
+                      timeSinceLastHandleClient);
       }
 
-      // Handle exit on Back button
-      if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-        onGoBack();
-        return;
+      // Call handleClient multiple times to process pending requests faster
+      // This is critical for upload performance - HTTP file uploads send data
+      // in chunks and each handleClient() call processes incoming data
+      constexpr int HANDLE_CLIENT_ITERATIONS = 10;
+      for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
+        webServer->handleClient();
       }
-      break;
+      lastHandleClientTime = millis();
+    }
 
-    case WebServerActivityState::SHUTTING_DOWN:
-      // Do nothing - waiting for cleanup
-      break;
+    // Handle exit on Back button
+    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+      onGoBack();
+      return;
+    }
   }
 }
 

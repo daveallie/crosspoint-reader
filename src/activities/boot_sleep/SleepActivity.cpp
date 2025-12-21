@@ -12,6 +12,7 @@
 #include "images/CrossLarge.h"
 
 void SleepActivity::onEnter() {
+  Activity::onEnter();
   renderPopup("Entering Sleep...");
 
   if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
@@ -170,11 +171,16 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
 }
 
 void SleepActivity::renderCoverSleepScreen() const {
+  if (APP_STATE.openEpubPath.empty()) {
+    return renderDefaultSleepScreen();
+  }
+
   Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
   if (!lastEpub.load()) {
     Serial.println("[SLP] Failed to load last epub");
     return renderDefaultSleepScreen();
   }
+
   if (!lastEpub.generateCoverBmp()) {
     Serial.println("[SLP] Failed to generate cover bmp");
     return renderDefaultSleepScreen();

@@ -21,6 +21,8 @@ void SettingsActivity::taskTrampoline(void* param) {
 }
 
 void SettingsActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   // Reset selection to first item
@@ -38,6 +40,8 @@ void SettingsActivity::onEnter() {
 }
 
 void SettingsActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -76,7 +80,7 @@ void SettingsActivity::loop() {
   }
 }
 
-void SettingsActivity::toggleCurrentSetting() {
+void SettingsActivity::toggleCurrentSetting() const {
   // Validate index
   if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
     return;

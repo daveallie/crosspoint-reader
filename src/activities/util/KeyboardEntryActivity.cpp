@@ -12,11 +12,6 @@ const char* const KeyboardEntryActivity::keyboard[NUM_ROWS] = {
 const char* const KeyboardEntryActivity::keyboardShift[NUM_ROWS] = {"~!@#$%^&*()_+", "QWERTYUIOP{}|", "ASDFGHJKL:\"",
                                                                     "ZXCVBNM<>?", "^  _____<OK"};
 
-KeyboardEntryActivity::KeyboardEntryActivity(GfxRenderer& renderer, InputManager& inputManager,
-                                             const std::string& title, const std::string& initialText, size_t maxLength,
-                                             bool isPassword)
-    : Activity(renderer, inputManager), title(title), text(initialText), maxLength(maxLength), isPassword(isPassword) {}
-
 void KeyboardEntryActivity::setText(const std::string& newText) {
   text = newText;
   if (maxLength > 0 && text.length() > maxLength) {
@@ -37,13 +32,11 @@ void KeyboardEntryActivity::reset(const std::string& newTitle, const std::string
 }
 
 void KeyboardEntryActivity::onEnter() {
+  Activity::onEnter();
+
   // Reset state when entering the activity
   complete = false;
   cancelled = false;
-}
-
-void KeyboardEntryActivity::onExit() {
-  // Clean up if needed
 }
 
 void KeyboardEntryActivity::loop() {

@@ -98,7 +98,7 @@ class WifiSelectionActivity final : public Activity {
  public:
   explicit WifiSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
                                  const std::function<void(bool connected)>& onComplete)
-      : Activity(renderer, inputManager), onComplete(onComplete) {}
+      : Activity("WifiSelection", renderer, inputManager), onComplete(onComplete) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

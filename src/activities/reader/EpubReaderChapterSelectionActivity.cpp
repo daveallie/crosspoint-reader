@@ -16,6 +16,8 @@ void EpubReaderChapterSelectionActivity::taskTrampoline(void* param) {
 }
 
 void EpubReaderChapterSelectionActivity::onEnter() {
+  Activity::onEnter();
+
   if (!epub) {
     return;
   }
@@ -34,6 +36,8 @@ void EpubReaderChapterSelectionActivity::onEnter() {
 }
 
 void EpubReaderChapterSelectionActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {

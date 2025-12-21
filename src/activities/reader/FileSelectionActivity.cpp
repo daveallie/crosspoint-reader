@@ -48,6 +48,8 @@ void FileSelectionActivity::loadFiles() {
 }
 
 void FileSelectionActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   basepath = "/";
@@ -66,6 +68,8 @@ void FileSelectionActivity::onEnter() {
 }
 
 void FileSelectionActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {

@@ -32,11 +32,11 @@ class SettingsActivity final : public Activity {
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
   void render() const;
-  void toggleCurrentSetting();
+  void toggleCurrentSetting() const;
 
  public:
   explicit SettingsActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoHome)
-      : Activity(renderer, inputManager), onGoHome(onGoHome) {}
+      : Activity("Settings", renderer, inputManager), onGoHome(onGoHome) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

@@ -50,6 +50,8 @@ void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {
 }
 
 void ReaderActivity::onEnter() {
+  ActivityWithSubactivity::onEnter();
+
   if (initialEpubPath.empty()) {
     onGoToFileSelection();
     return;

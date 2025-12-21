@@ -26,6 +26,8 @@ void EpubReaderActivity::taskTrampoline(void* param) {
 }
 
 void EpubReaderActivity::onEnter() {
+  ActivityWithSubactivity::onEnter();
+
   if (!epub) {
     return;
   }
@@ -61,6 +63,8 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  ActivityWithSubactivity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -75,8 +79,8 @@ void EpubReaderActivity::onExit() {
 
 void EpubReaderActivity::loop() {
   // Pass input responsibility to sub activity if exists
-  if (subAcitivity) {
-    subAcitivity->loop();
+  if (subActivity) {
+    subActivity->loop();
     return;
   }
 
@@ -84,11 +88,11 @@ void EpubReaderActivity::loop() {
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     // Don't start activity transition while rendering
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
-    subAcitivity.reset(new EpubReaderChapterSelectionActivity(
+    exitActivity();
+    enterNewActivity(new EpubReaderChapterSelectionActivity(
         this->renderer, this->inputManager, epub, currentSpineIndex,
         [this] {
-          subAcitivity->onExit();
-          subAcitivity.reset();
+          exitActivity();
           updateRequired = true;
         },
         [this](const int newSpineIndex) {
@@ -97,11 +101,9 @@ void EpubReaderActivity::loop() {
             nextPageNumber = 0;
             section.reset();
           }
-          subAcitivity->onExit();
-          subAcitivity.reset();
+          exitActivity();
           updateRequired = true;
         }));
-    subAcitivity->onEnter();
     xSemaphoreGive(renderingMutex);
   }
 
@@ -330,8 +332,8 @@ void EpubReaderActivity::renderStatusBar() const {
   constexpr auto textY = 776;
 
   // Calculate progress in book
-  float sectionChapterProg = static_cast<float>(section->currentPage) / section->pageCount;
-  uint8_t bookProgress = epub->calculateProgress(currentSpineIndex, sectionChapterProg);
+  const float sectionChapterProg = static_cast<float>(section->currentPage) / section->pageCount;
+  const uint8_t bookProgress = epub->calculateProgress(currentSpineIndex, sectionChapterProg);
 
   // Right aligned text for progress counter
   const std::string progress = std::to_string(section->currentPage + 1) + "/" + std::to_string(section->pageCount) +

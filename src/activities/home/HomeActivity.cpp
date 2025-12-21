@@ -15,6 +15,8 @@ void HomeActivity::taskTrampoline(void* param) {
 }
 
 void HomeActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   selectorIndex = 0;
@@ -31,6 +33,8 @@ void HomeActivity::onEnter() {
 }
 
 void HomeActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {

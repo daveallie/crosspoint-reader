@@ -9,6 +9,7 @@
 
 #include "../Activity.h"
 #include "WifiSelectionActivity.h"
+#include "activities/ActivityWithSubactivity.h"
 #include "server/CrossPointWebServer.h"
 
 // Web server activity states
@@ -26,15 +27,12 @@ enum class WebServerActivityState {
  * - Handles client requests in its loop() function
  * - Cleans up the server and shuts down WiFi on exit
  */
-class CrossPointWebServerActivity final : public Activity {
+class CrossPointWebServerActivity final : public ActivityWithSubactivity {
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
   WebServerActivityState state = WebServerActivityState::WIFI_SELECTION;
   const std::function<void()> onGoBack;
-
-  // WiFi selection subactivity
-  std::unique_ptr<WifiSelectionActivity> wifiSelection;
 
   // Web server - owned by this activity
   std::unique_ptr<CrossPointWebServer> webServer;
@@ -58,7 +56,7 @@ class CrossPointWebServerActivity final : public Activity {
  public:
   explicit CrossPointWebServerActivity(GfxRenderer& renderer, InputManager& inputManager,
                                        const std::function<void()>& onGoBack)
-      : Activity(renderer, inputManager), onGoBack(onGoBack) {}
+      : ActivityWithSubactivity("CrossPointWebServer", renderer, inputManager), onGoBack(onGoBack) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

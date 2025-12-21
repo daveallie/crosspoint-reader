@@ -14,6 +14,8 @@ void WifiSelectionActivity::taskTrampoline(void* param) {
 }
 
 void WifiSelectionActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   // Load saved WiFi credentials
@@ -47,7 +49,8 @@ void WifiSelectionActivity::onEnter() {
 }
 
 void WifiSelectionActivity::onExit() {
-  Serial.printf("[%lu] [WIFI] ========== WifiSelectionActivity onExit START ==========\n", millis());
+  Activity::onExit();
+
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit start: %d bytes\n", millis(), ESP.getFreeHeap());
 
   // Stop any ongoing WiFi scan
@@ -78,7 +81,6 @@ void WifiSelectionActivity::onExit() {
   Serial.printf("[%lu] [WIFI] Mutex deleted\n", millis());
 
   Serial.printf("[%lu] [WIFI] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
-  Serial.printf("[%lu] [WIFI] ========== WifiSelectionActivity onExit COMPLETE ==========\n", millis());
 }
 
 void WifiSelectionActivity::startWifiScan() {
