@@ -107,7 +107,7 @@
   <script>
     async function fetchStatus() {
       try {
-        const response = await fetch('/status');
+        const response = await fetch('/api/status');
         const data = await response.json();
         document.getElementById('version').textContent = data.version || 'N/A';
         document.getElementById('ip-address').textContent = data.ip || 'N/A';

@@ -38,7 +38,7 @@ class CrossPointWebServer {
   uint16_t port = 80;
 
   // File scanning
-  std::vector<FileInfo> scanFiles(const char* path = "/") const;
+  void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
   String formatFileSize(size_t bytes) const;
   bool isEpubFile(const String& filename) const;
 
@@ -47,6 +47,7 @@ class CrossPointWebServer {
   void handleNotFound() const;
   void handleStatus() const;
   void handleFileList() const;
+  void handleFileListData() const;
   void handleUpload() const;
   void handleUploadPost() const;
   void handleCreateFolder() const;

@@ -1,52 +1,19 @@
 #include "CrossPointWebServer.h"
 
+#include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
 
 #include <algorithm>
 
-#include "html/FilesPageFooterHtml.generated.h"
-#include "html/FilesPageHeaderHtml.generated.h"
+#include "html/FilesPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
 
 namespace {
-
 // Folders/files to hide from the web interface file browser
 // Note: Items starting with "." are automatically hidden
 const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
-
-// Helper function to escape HTML special characters to prevent XSS
-String escapeHtml(const String& input) {
-  String output;
-  output.reserve(input.length() * 1.1);  // Pre-allocate with some extra space
-
-  for (size_t i = 0; i < input.length(); i++) {
-    const char c = input.charAt(i);
-    switch (c) {
-      case '&':
-        output += "&amp;";
-        break;
-      case '<':
-        output += "&lt;";
-        break;
-      case '>':
-        output += "&gt;";
-        break;
-      case '"':
-        output += "&quot;";
-        break;
-      case '\'':
-        output += "&#39;";
-        break;
-      default:
-        output += c;
-        break;
-    }
-  }
-  return output;
-}
-
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -82,8 +49,10 @@ void CrossPointWebServer::begin() {
   // Setup routes
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
   server->on("/", HTTP_GET, [this] { handleRoot(); });
-  server->on("/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
+
+  server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
+  server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
 
   // Upload endpoint with special handling for multipart form data
   server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
@@ -183,19 +152,17 @@ void CrossPointWebServer::handleStatus() const {
   server->send(200, "application/json", json);
 }
 
-std::vector<FileInfo> CrossPointWebServer::scanFiles(const char* path) const {
-  std::vector<FileInfo> files;
-
+void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
   File root = SD.open(path);
   if (!root) {
     Serial.printf("[%lu] [WEB] Failed to open directory: %s\n", millis(), path);
-    return files;
+    return;
   }
 
   if (!root.isDirectory()) {
     Serial.printf("[%lu] [WEB] Not a directory: %s\n", millis(), path);
     root.close();
-    return files;
+    return;
   }
 
   Serial.printf("[%lu] [WEB] Scanning files in: %s\n", millis(), path);
@@ -230,26 +197,13 @@ std::vector<FileInfo> CrossPointWebServer::scanFiles(const char* path) const {
         info.isEpub = isEpubFile(info.name);
       }
 
-      files.push_back(info);
+      callback(info);
     }
 
     file.close();
     file = root.openNextFile();
   }
   root.close();
-
-  Serial.printf("[%lu] [WEB] Found %d items (files and folders)\n", millis(), files.size());
-  return files;
-}
-
-String CrossPointWebServer::formatFileSize(const size_t bytes) const {
-  if (bytes < 1024) {
-    return String(bytes) + " B";
-  }
-  if (bytes < 1024 * 1024) {
-    return String(bytes / 1024.0, 1) + " KB";
-  }
-  return String(bytes / (1024.0 * 1024.0), 1) + " MB";
 }
 
 bool CrossPointWebServer::isEpubFile(const String& filename) const {
@@ -259,10 +213,11 @@ bool CrossPointWebServer::isEpubFile(const String& filename) const {
 }
 
 void CrossPointWebServer::handleFileList() const {
-  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server->send(200, "text/html", "");
-  server->sendContent(FilesPageHeaderHtml);
+  // server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "text/html", FilesPageHtml);
+}
 
+void CrossPointWebServer::handleFileListData() const {
   // Get current path from query string (default to root)
   String currentPath = "/";
   if (server->hasArg("path")) {
@@ -277,182 +232,27 @@ void CrossPointWebServer::handleFileList() const {
     }
   }
 
-  // Get message from query string if present
-  if (server->hasArg("msg")) {
-    String msg = escapeHtml(server->arg("msg"));
-    String msgType = server->hasArg("type") ? escapeHtml(server->arg("type")) : "success";
-    server->sendContent("<div class=\"message " + msgType + "\">" + msg + "</div>");
-  }
+  server->setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server->send(200, "application/json", "");
+  server->sendContent("[");
+  char output[300];
+  bool seenFirst = false;
+  scanFiles(currentPath.c_str(), [this, output, seenFirst](const FileInfo& info) mutable {
+    JsonDocument doc;
+    doc["name"] = info.name;
+    doc["size"] = info.size;
+    doc["isDirectory"] = info.isDirectory;
+    doc["isEpub"] = info.isEpub;
+    serializeJson(doc, output, sizeof(output));
 
-  // Hidden input to store current path for JavaScript
-  server->sendContent("<input type=\"hidden\" id=\"currentPath\" value=\"" + currentPath + "\">");
-
-  // Scan files in current path first (we need counts for the header)
-  std::vector<FileInfo> files = scanFiles(currentPath.c_str());
-
-  // Count items
-  int epubCount = 0;
-  int folderCount = 0;
-  size_t totalSize = 0;
-  for (const auto& file : files) {
-    if (file.isDirectory) {
-      folderCount++;
+    if (seenFirst) {
+      server->sendContent(",");
     } else {
-      if (file.isEpub) epubCount++;
-      totalSize += file.size;
+      seenFirst = true;
     }
-  }
-
-  // Page header with inline breadcrumb and action buttons
-  server->sendContent(
-      "<div class=\"page-header\">"
-      "<div class=\"page-header-left\">"
-      "<h1>📁 File Manager</h1>");
-
-  // Inline breadcrumb
-  server->sendContent(
-      "<div class=\"breadcrumb-inline\">"
-      "<span class=\"sep\">/</span>");
-
-  if (currentPath == "/") {
-    server->sendContent("<span class=\"current\">🏠</span>");
-  } else {
-    server->sendContent("<a href=\"/files\">🏠</a>");
-    String pathParts = currentPath.substring(1);  // Remove leading /
-    String buildPath = "";
-    int start = 0;
-    int end = pathParts.indexOf('/');
-
-    while (start < static_cast<int>(pathParts.length())) {
-      String part;
-      if (end == -1) {
-        part = pathParts.substring(start);
-        server->sendContent("<span class=\"sep\">/</span><span class=\"current\">" + escapeHtml(part) + "</span>");
-        break;
-      } else {
-        part = pathParts.substring(start, end);
-        buildPath += "/" + part;
-        server->sendContent("<span class=\"sep\">/</span><a href=\"/files?path=" + buildPath + "\">" +
-                            escapeHtml(part) + "</a>");
-        start = end + 1;
-        end = pathParts.indexOf('/', start);
-      }
-    }
-  }
-  server->sendContent("</div></div>");
-
-  // Action buttons
-  server->sendContent(
-      "<div class=\"action-buttons\">"
-      "<button class=\"action-btn upload-action-btn\" onclick=\"openUploadModal()\">"
-      "📤 Upload"
-      "</button>"
-      "<button class=\"action-btn folder-action-btn\" onclick=\"openFolderModal()\">"
-      "📁 New Folder"
-      "</button>"
-      "</div>"
-      "</div>");  // end page-header
-
-  // Contents card with inline summary
-
-  server->sendContent(
-      "<div class=\"card\">"
-      // Contents header with inline stats
-      "<div class=\"contents-header\">"
-      "<h2 class=\"contents-title\">Contents</h2>"
-      "<span class=\"summary-inline\">");
-  server->sendContent(String(folderCount) + " folder" + (folderCount != 1 ? "s" : "") + ", " +
-                      String(files.size() - folderCount) + " file" + ((files.size() - folderCount) != 1 ? "s" : "") +
-                      ", " + formatFileSize(totalSize) + "</span></div>");
-
-  if (files.empty()) {
-    server->sendContent("<div class=\"no-files\">This folder is empty</div>");
-  } else {
-    server->sendContent(
-        "<table class=\"file-table\">"
-        "<tr><th>Name</th><th>Type</th><th>Size</th><th class=\"actions-col\">Actions</th></tr>");
-
-    // Sort files: folders first, then epub files, then other files, alphabetically within each group
-    std::sort(files.begin(), files.end(), [](const FileInfo& a, const FileInfo& b) {
-      // Folders come first
-      if (a.isDirectory != b.isDirectory) return a.isDirectory > b.isDirectory;
-      // Then sort by epub status (epubs first among files)
-      if (a.isEpub != b.isEpub) return a.isEpub > b.isEpub;
-      // Then alphabetically
-      return a.name < b.name;
-    });
-
-    for (const auto& file : files) {
-      String rowClass;
-      String icon;
-      String badge;
-      String typeStr;
-      String sizeStr;
-
-      if (file.isDirectory) {
-        rowClass = "folder-row";
-        icon = "📁";
-        badge = "<span class=\"folder-badge\">FOLDER</span>";
-        typeStr = "Folder";
-        sizeStr = "-";
-
-        // Build the path to this folder
-        String folderPath = currentPath;
-        if (!folderPath.endsWith("/")) folderPath += "/";
-        folderPath += file.name;
-
-        server->sendContent("<tr class=\"" + rowClass + "\">");
-        server->sendContent("<td><span class=\"file-icon\">" + icon +
-                            "</span>"
-                            "<a href=\"/files?path=" +
-                            folderPath + "\" class=\"folder-link\">" + escapeHtml(file.name) + "</a>" + badge +
-                            "</td>");
-        server->sendContent("<td>" + typeStr + "</td>");
-        server->sendContent("<td>" + sizeStr + "</td>");
-        // Escape quotes for JavaScript string
-        String escapedName = file.name;
-        escapedName.replace("'", "\\'");
-        String escapedPath = folderPath;
-        escapedPath.replace("'", "\\'");
-        server->sendContent("<td class=\"actions-col\"><button class=\"delete-btn\" onclick=\"openDeleteModal('" +
-                            escapedName + "', '" + escapedPath + "', true)\" title=\"Delete folder\">🗑️</button></td>");
-        server->sendContent("</tr>");
-      } else {
-        rowClass = file.isEpub ? "epub-file" : "";
-        icon = file.isEpub ? "📗" : "📄";
-        badge = file.isEpub ? "<span class=\"epub-badge\">EPUB</span>" : "";
-        String ext = file.name.substring(file.name.lastIndexOf('.') + 1);
-        ext.toUpperCase();
-        typeStr = ext;
-        sizeStr = formatFileSize(file.size);
-
-        // Build file path for delete
-        String filePath = currentPath;
-        if (!filePath.endsWith("/")) filePath += "/";
-        filePath += file.name;
-
-        server->sendContent("<tr class=\"" + rowClass + "\">");
-        server->sendContent("<td><span class=\"file-icon\">" + icon + "</span>" + escapeHtml(file.name) + badge +
-                            "</td>");
-        server->sendContent("<td>" + typeStr + "</td>");
-        server->sendContent("<td>" + sizeStr + "</td>");
-        // Escape quotes for JavaScript string
-        String escapedName = file.name;
-        escapedName.replace("'", "\\'");
-        String escapedPath = filePath;
-        escapedPath.replace("'", "\\'");
-        server->sendContent("<td class=\"actions-col\"><button class=\"delete-btn\" onclick=\"openDeleteModal('" +
-                            escapedName + "', '" + escapedPath + "', false)\" title=\"Delete file\">🗑️</button></td>");
-        server->sendContent("</tr>");
-      }
-    }
-
-    server->sendContent("</table>");
-  }
-
-  server->sendContent("</div>");
-  server->sendContent(FilesPageFooterHtml);
-  // Signal end of content
+    server->sendContent(output);
+  });
+  server->sendContent("]");
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
 }
