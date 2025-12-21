@@ -4,16 +4,19 @@
 #include <InputManager.h>
 
 #include "CrossPointSettings.h"
+#include "OtaUpdateActivity.h"
 #include "config.h"
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 3;
+constexpr int settingsCount = 4;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
-    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}}};
+    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
+    {"Check for updates", SettingType::ACTION, nullptr, {}},
+};
 }  // namespace
 
 void SettingsActivity::taskTrampoline(void* param) {
@@ -41,7 +44,7 @@ void SettingsActivity::onEnter() {
 }
 
 void SettingsActivity::onExit() {
-  Activity::onExit();
+  ActivityWithSubactivity::onExit();
 
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -54,6 +57,11 @@ void SettingsActivity::onExit() {
 }
 
 void SettingsActivity::loop() {
+  if (subActivity) {
+    subActivity->loop();
+    return;
+  }
+
   // Handle actions with early return
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     toggleCurrentSetting();
@@ -81,7 +89,7 @@ void SettingsActivity::loop() {
   }
 }
 
-void SettingsActivity::toggleCurrentSetting() const {
+void SettingsActivity::toggleCurrentSetting() {
   // Validate index
   if (selectedSettingIndex < 0 || selectedSettingIndex >= settingsCount) {
     return;
@@ -96,6 +104,16 @@ void SettingsActivity::toggleCurrentSetting() const {
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = (currentValue + 1) % static_cast<uint8_t>(setting.enumValues.size());
+  } else if (setting.type == SettingType::ACTION) {
+    if (std::string(setting.name) == "Check for updates") {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      exitActivity();
+      enterNewActivity(new OtaUpdateActivity(renderer, inputManager, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
+      xSemaphoreGive(renderingMutex);
+    }
   } else {
     // Only toggle if it's a toggle type and has a value pointer
     return;
@@ -107,7 +125,7 @@ void SettingsActivity::toggleCurrentSetting() const {
 
 void SettingsActivity::displayTaskLoop() {
   while (true) {
-    if (updateRequired) {
+    if (updateRequired && !subActivity) {
       updateRequired = false;
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       render();
@@ -152,6 +170,8 @@ void SettingsActivity::render() const {
 
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to toggle, BACK to save & exit");
+  renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
+                    pageHeight - 30, CROSSPOINT_VERSION);
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();
