@@ -107,7 +107,7 @@ bool Epub::parseTocNcxFile() {
     return false;
   }
 
-  const auto ncxBuffer = static_cast<uint8_t *>(malloc(1024));
+  const auto ncxBuffer = static_cast<uint8_t*>(malloc(1024));
   if (!ncxBuffer) {
     Serial.printf("[%lu] [EBP] Could not allocate memory for toc ncx parser\n", millis());
     return false;
