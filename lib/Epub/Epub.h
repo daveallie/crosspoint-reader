@@ -33,6 +33,7 @@ class Epub {
   bool parseContentOpf(const std::string& contentOpfFilePath);
   bool parseTocNcxFile();
   void initializeSpineItemSizes();
+  static bool getItemSize(const ZipFile &zip, const std::string &itemHref, size_t *size);
 
  public:
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
