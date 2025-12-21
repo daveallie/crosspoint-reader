@@ -161,14 +161,7 @@ void CrossPointWebServer::handleClient() const {
 }
 
 void CrossPointWebServer::handleRoot() const {
-  String html = HomePageHtml;
-
-  // Replace placeholders with actual values
-  html.replace("%VERSION%", CROSSPOINT_VERSION);
-  html.replace("%IP_ADDRESS%", WiFi.localIP().toString());
-  html.replace("%FREE_HEAP%", String(ESP.getFreeHeap()));
-
-  server->send(200, "text/html", html);
+  server->send(200, "text/html", HomePageHtml);
   Serial.printf("[%lu] [WEB] Served root page\n", millis());
 }
 
