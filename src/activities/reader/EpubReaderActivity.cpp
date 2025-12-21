@@ -8,6 +8,7 @@
 #include "CrossPointSettings.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "config.h"
+#include "CrossPointState.h"
 
 namespace {
 constexpr int pagesPerRefresh = 15;
@@ -43,6 +44,10 @@ void EpubReaderActivity::onEnter() {
     }
     f.close();
   }
+
+  // Save current epub as last opened epub
+  APP_STATE.openEpubPath = epub->getPath();
+  APP_STATE.saveToFile();
 
   // Trigger first update
   updateRequired = true;

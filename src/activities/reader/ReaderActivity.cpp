@@ -2,7 +2,6 @@
 
 #include <SD.h>
 
-#include "CrossPointState.h"
 #include "Epub.h"
 #include "EpubReaderActivity.h"
 #include "FileSelectionActivity.h"
@@ -29,8 +28,6 @@ void ReaderActivity::onSelectEpubFile(const std::string& path) {
 
   auto epub = loadEpub(path);
   if (epub) {
-    APP_STATE.openEpubPath = path;
-    APP_STATE.saveToFile();
     onGoToEpubReader(std::move(epub));
   } else {
     exitActivity();
