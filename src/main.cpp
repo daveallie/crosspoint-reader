@@ -119,14 +119,12 @@ void enterDeepSleep() {
   exitActivity();
   enterNewActivity(new SleepActivity(renderer, inputManager));
 
-  Serial.printf("[%lu] [   ] Entering deep sleep.\n", millis());
-  delay(1000);  // Allow Serial buffer to empty and display to update
-
-  // Enable Wakeup on LOW (button press)
-  esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
-
   einkDisplay.deepSleep();
 
+  Serial.printf("[%lu] [   ] Entering deep sleep.\n", millis());
+  esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
+  // Ensure that the power button has been released to avoid immediately turning back on if you're holding it
+  waitForPowerRelease();
   // Enter Deep Sleep
   esp_deep_sleep_start();
 }
@@ -231,7 +229,7 @@ void loop() {
     return;
   }
 
-  if (inputManager.wasReleased(InputManager::BTN_POWER) &&
+  if (inputManager.isPressed(InputManager::BTN_POWER) &&
       inputManager.getHeldTime() > SETTINGS.getPowerButtonDuration()) {
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
