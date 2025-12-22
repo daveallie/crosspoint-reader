@@ -4,7 +4,8 @@
 
 #include "Epub.h"
 #include "EpubReaderActivity.h"
-#include "FileSelectionActivity.h"
+// #include "FileSelectionActivity.h"
+#include "../home/GridBrowserActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
 
 std::unique_ptr<Epub> ReaderActivity::loadEpub(const std::string& path) {
@@ -40,7 +41,7 @@ void ReaderActivity::onSelectEpubFile(const std::string& path) {
 
 void ReaderActivity::onGoToFileSelection() {
   exitActivity();
-  enterNewActivity(new FileSelectionActivity(
+  enterNewActivity(new GridBrowserActivity(
       renderer, inputManager, [this](const std::string& path) { onSelectEpubFile(path); }, onGoBack));
 }
 

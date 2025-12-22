@@ -80,6 +80,57 @@ void GfxRenderer::drawText(const int fontId, const int x, const int y, const cha
   }
 }
 
+void GfxRenderer::drawTextInBox(const int fontId, const int x, const int y, const int w, const int h, const char* text, const bool black, const EpdFontStyle style) const {
+  const int lineHeight = getLineHeight(fontId);
+  const int spaceWidth = getSpaceWidth(fontId);
+  int xpos = x;
+  int ypos = y + lineHeight;
+
+  // cannot draw a NULL / empty string
+  if (text == nullptr || *text == '\0') {
+    return;
+  }
+
+  if (fontMap.count(fontId) == 0) {
+    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
+    return;
+  }
+  const auto font = fontMap.at(fontId);
+
+  // no printable characters
+  if (!font.hasPrintableChars(text, style)) {
+    return;
+  }
+
+  uint32_t cp;
+  while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
+    // Handle space character for word wrapping
+    if (cp == ' ') {
+      if (xpos + spaceWidth > x + w) {
+        xpos = x;
+        ypos += lineHeight;
+        if (h > 0 && ypos - y > h) {
+          break;  // Exceeded box height
+        }
+      } else {
+        xpos += spaceWidth;
+      }
+      continue;
+    }
+
+    const int charWidth = getTextWidth(fontId, reinterpret_cast<const char*>(&cp), style);
+    if (xpos + charWidth > x + w) {
+      xpos = x;
+      ypos += lineHeight;
+      if (h > 0 && ypos - y > h) {
+        break;  // Exceeded box height
+      }
+    }
+
+    renderChar(font, cp, &xpos, &ypos, black, style);
+  }
+}
+
 void GfxRenderer::drawLine(int x1, int y1, int x2, int y2, const bool state) const {
   if (x1 == x2) {
     if (y2 < y1) {

@@ -54,6 +54,7 @@ class GfxRenderer {
   int getTextWidth(int fontId, const char* text, EpdFontStyle style = REGULAR) const;
   void drawCenteredText(int fontId, int y, const char* text, bool black = true, EpdFontStyle style = REGULAR) const;
   void drawText(int fontId, int x, int y, const char* text, bool black = true, EpdFontStyle style = REGULAR) const;
+  void drawTextInBox(int fontId, int x, int y, int w, int h, const char* text, bool black = true, EpdFontStyle style = REGULAR) const;
   int getSpaceWidth(int fontId) const;
   int getLineHeight(int fontId) const;
 
