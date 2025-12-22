@@ -181,7 +181,7 @@ bool Epub::load() {
   }
 
   // Now compute mappings and sizes (this loads entries temporarily, computes, then rewrites)
-  if (!spineTocCache->updateMappingsAndSizes(filepath)) {
+  if (!spineTocCache->updateMapsAndSizes(filepath)) {
     Serial.printf("[%lu] [EBP] Could not update mappings and sizes\n", millis());
     return false;
   }

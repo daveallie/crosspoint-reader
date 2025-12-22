@@ -40,11 +40,12 @@ class SpineTocCache {
   bool buildMode;
 
   // Temp file handles during build
+  File metaFile;
   File spineFile;
   File tocFile;
 
-  void writeSpineEntry(File& file, const SpineEntry& entry) const;
-  void writeTocEntry(File& file, const TocEntry& entry) const;
+  size_t writeSpineEntry(File& file, const SpineEntry& entry) const;
+  size_t writeTocEntry(File& file, const TocEntry& entry) const;
   SpineEntry readSpineEntry(File& file) const;
   TocEntry readTocEntry(File& file) const;
 
@@ -60,7 +61,7 @@ class SpineTocCache {
   bool endWrite();
 
   // Post-processing to update mappings and sizes
-  bool updateMappingsAndSizes(const std::string& epubPath);
+  bool updateMapsAndSizes(const std::string& epubPath);
 
   // Reading phase (read mode)
   bool load();
