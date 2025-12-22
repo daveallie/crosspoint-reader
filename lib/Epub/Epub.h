@@ -1,11 +1,12 @@
 #pragma once
 #include <Print.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "Epub/EpubTocEntry.h"
+#include "Epub/SpineTocCache.h"
 
 class ZipFile;
 
@@ -18,21 +19,16 @@ class Epub {
   std::string tocNcxItem;
   // where is the EPUBfile?
   std::string filepath;
-  // the spine of the EPUB file
-  std::vector<std::pair<std::string, std::string>> spine;
-  // the file size of the spine items (proxy to book progress)
-  std::vector<size_t> cumulativeSpineItemSize;
-  // the toc of the EPUB file
-  std::vector<EpubTocEntry> toc;
   // the base path for items in the EPUB file
   std::string contentBasePath;
   // Uniq cache key based on filepath
   std::string cachePath;
+  // Spine and TOC cache
+  std::unique_ptr<SpineTocCache> spineTocCache;
 
   bool findContentOpfFile(std::string* contentOpfFile) const;
   bool parseContentOpf(const std::string& contentOpfFilePath);
-  bool parseTocNcxFile();
-  void initializeSpineItemSizes();
+  bool parseTocNcxFile() const;
   static bool getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size);
 
  public:
@@ -54,14 +50,14 @@ class Epub {
                                    bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
   bool getItemSize(const std::string& itemHref, size_t* size) const;
-  std::string& getSpineItem(int spineIndex);
+  std::string getSpineHref(int spineIndex) const;
   int getSpineItemsCount() const;
-  size_t getCumulativeSpineItemSize(const int spineIndex) const;
-  EpubTocEntry& getTocItem(int tocIndex);
+  size_t getCumulativeSpineItemSize(int spineIndex) const;
+  SpineTocCache::TocEntry getTocItem(int tocIndex) const;
   int getTocItemsCount() const;
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
 
   size_t getBookSize() const;
-  uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead);
+  uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead) const;
 };

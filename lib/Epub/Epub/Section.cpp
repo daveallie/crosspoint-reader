@@ -117,7 +117,7 @@ bool Section::clearCache() const {
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
                                   const bool extraParagraphSpacing) {
-  const auto localPath = epub->getSpineItem(spineIndex);
+  const auto localPath = epub->getSpineHref(spineIndex);
 
   // TODO: Should we get rid of this file all together?
   //       It currently saves us a bit of memory by allowing for all the inflation bits to be released

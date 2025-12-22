@@ -4,6 +4,7 @@
 #include <map>
 
 #include "Epub.h"
+#include "Epub/SpineTocCache.h"
 #include "expat.h"
 
 class ContentOpfParser final : public Print {
@@ -20,6 +21,7 @@ class ContentOpfParser final : public Print {
   size_t remainingSize;
   XML_Parser parser = nullptr;
   ParserState state = START;
+  SpineTocCache* cache;
 
   static void startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void characterData(void* userData, const XML_Char* s, int len);
@@ -30,10 +32,9 @@ class ContentOpfParser final : public Print {
   std::string tocNcxPath;
   std::string coverItemId;
   std::map<std::string, std::string> items;
-  std::vector<std::string> spineRefs;
 
-  explicit ContentOpfParser(const std::string& baseContentPath, const size_t xmlSize)
-      : baseContentPath(baseContentPath), remainingSize(xmlSize) {}
+  explicit ContentOpfParser(const std::string& baseContentPath, const size_t xmlSize, SpineTocCache* cache)
+      : baseContentPath(baseContentPath), remainingSize(xmlSize), cache(cache) {}
   ~ContentOpfParser() override;
 
   bool setup();

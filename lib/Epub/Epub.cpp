@@ -53,7 +53,7 @@ bool Epub::parseContentOpf(const std::string& contentOpfFilePath) {
     return false;
   }
 
-  ContentOpfParser opfParser(getBasePath(), contentOpfSize);
+  ContentOpfParser opfParser(getBasePath(), contentOpfSize, spineTocCache.get());
 
   if (!opfParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup content.opf parser\n", millis());
@@ -75,17 +75,11 @@ bool Epub::parseContentOpf(const std::string& contentOpfFilePath) {
     tocNcxItem = opfParser.tocNcxPath;
   }
 
-  for (auto& spineRef : opfParser.spineRefs) {
-    if (opfParser.items.count(spineRef)) {
-      spine.emplace_back(spineRef, opfParser.items.at(spineRef));
-    }
-  }
-
   Serial.printf("[%lu] [EBP] Successfully parsed content.opf\n", millis());
   return true;
 }
 
-bool Epub::parseTocNcxFile() {
+bool Epub::parseTocNcxFile() const {
   // the ncx file should have been specified in the content.opf file
   if (tocNcxItem.empty()) {
     Serial.printf("[%lu] [EBP] No ncx file specified\n", millis());
@@ -101,7 +95,7 @@ bool Epub::parseTocNcxFile() {
   tempNcxFile = SD.open(tmpNcxPath.c_str(), FILE_READ);
   const auto ncxSize = tempNcxFile.size();
 
-  TocNcxParser ncxParser(contentBasePath, ncxSize);
+  TocNcxParser ncxParser(contentBasePath, ncxSize, spineTocCache.get());
 
   if (!ncxParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup toc ncx parser\n", millis());
@@ -130,15 +124,60 @@ bool Epub::parseTocNcxFile() {
   tempNcxFile.close();
   SD.remove(tmpNcxPath.c_str());
 
-  this->toc = std::move(ncxParser.toc);
-
-  Serial.printf("[%lu] [EBP] Parsed %d TOC items\n", millis(), this->toc.size());
+  Serial.printf("[%lu] [EBP] Parsed TOC items\n", millis());
   return true;
 }
 
 // load in the meta data for the epub file
 bool Epub::load() {
   Serial.printf("[%lu] [EBP] Loading ePub: %s\n", millis(), filepath.c_str());
+
+  // Initialize spine/TOC cache
+  spineTocCache.reset(new SpineTocCache(cachePath));
+
+  // Try to load existing cache first
+  if (spineTocCache->load()) {
+    Serial.printf("[%lu] [EBP] Loaded spine/TOC from cache\n", millis());
+
+    // Still need to parse content.opf for title and cover
+    // TODO: Should this data go in the cache?
+    std::string contentOpfFilePath;
+    if (!findContentOpfFile(&contentOpfFilePath)) {
+      Serial.printf("[%lu] [EBP] Could not find content.opf in zip\n", millis());
+      return false;
+    }
+
+    contentBasePath = contentOpfFilePath.substr(0, contentOpfFilePath.find_last_of('/') + 1);
+
+    // Parse content.opf but without cache (we already have it)
+    size_t contentOpfSize;
+    if (!getItemSize(contentOpfFilePath, &contentOpfSize)) {
+      Serial.printf("[%lu] [EBP] Could not get size of content.opf\n", millis());
+      return false;
+    }
+
+    ContentOpfParser opfParser(getBasePath(), contentOpfSize, nullptr);
+    if (!opfParser.setup()) {
+      Serial.printf("[%lu] [EBP] Could not setup content.opf parser\n", millis());
+      return false;
+    }
+
+    if (!readItemContentsToStream(contentOpfFilePath, opfParser, 1024)) {
+      Serial.printf("[%lu] [EBP] Could not read content.opf\n", millis());
+      return false;
+    }
+
+    title = opfParser.title;
+    if (!opfParser.coverItemId.empty() && opfParser.items.count(opfParser.coverItemId) > 0) {
+      coverImageItem = opfParser.items.at(opfParser.coverItemId);
+    }
+
+    Serial.printf("[%lu] [EBP] Loaded ePub: %s\n", millis(), filepath.c_str());
+    return true;
+  }
+
+  // Cache doesn't exist or is invalid, build it
+  Serial.printf("[%lu] [EBP] Cache not found, building spine/TOC cache\n", millis());
 
   std::string contentOpfFilePath;
   if (!findContentOpfFile(&contentOpfFilePath)) {
@@ -150,6 +189,17 @@ bool Epub::load() {
 
   contentBasePath = contentOpfFilePath.substr(0, contentOpfFilePath.find_last_of('/') + 1);
 
+  // Ensure cache directory exists
+  setupCacheDir();
+
+  Serial.printf("[%lu] [EBP] Cache path: %s\n", millis(), cachePath.c_str());
+
+  // Begin building cache - stream entries to disk immediately
+  if (!spineTocCache->beginWrite()) {
+    Serial.printf("[%lu] [EBP] Could not begin writing cache\n", millis());
+    return false;
+  }
+
   if (!parseContentOpf(contentOpfFilePath)) {
     Serial.printf("[%lu] [EBP] Could not parse content.opf\n", millis());
     return false;
@@ -160,28 +210,28 @@ bool Epub::load() {
     return false;
   }
 
-  initializeSpineItemSizes();
+  // Close the cache files
+  if (!spineTocCache->endWrite()) {
+    Serial.printf("[%lu] [EBP] Could not end writing cache\n", millis());
+    return false;
+  }
+
+  // Now compute mappings and sizes (this loads entries temporarily, computes, then rewrites)
+  if (!spineTocCache->updateMappingsAndSizes(filepath)) {
+    Serial.printf("[%lu] [EBP] Could not update mappings and sizes\n", millis());
+    return false;
+  }
+
+  // Reload the cache from disk so it's in the correct state
+  spineTocCache.reset(new SpineTocCache(cachePath));
+  if (!spineTocCache->load()) {
+    Serial.printf("[%lu] [EBP] Failed to reload cache after writing\n", millis());
+    return false;
+  }
+
   Serial.printf("[%lu] [EBP] Loaded ePub: %s\n", millis(), filepath.c_str());
 
   return true;
-}
-
-void Epub::initializeSpineItemSizes() {
-  Serial.printf("[%lu] [EBP] Calculating book size\n", millis());
-
-  const size_t spineItemsCount = getSpineItemsCount();
-  size_t cumSpineItemSize = 0;
-  const ZipFile zip("/sd" + filepath);
-
-  for (size_t i = 0; i < spineItemsCount; i++) {
-    std::string spineItem = getSpineItem(i);
-    size_t s = 0;
-    getItemSize(zip, spineItem, &s);
-    cumSpineItemSize += s;
-    cumulativeSpineItemSize.emplace_back(cumSpineItemSize);
-  }
-
-  Serial.printf("[%lu] [EBP] Book size: %lu\n", millis(), cumSpineItemSize);
 }
 
 bool Epub::clearCache() const {
@@ -295,7 +345,7 @@ std::string normalisePath(const std::string& path) {
   return result;
 }
 
-uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, bool trailingNullByte) const {
+uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, const bool trailingNullByte) const {
   const ZipFile zip("/sd" + filepath);
   const std::string path = normalisePath(itemHref);
 
@@ -325,99 +375,107 @@ bool Epub::getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* 
   return zip.getInflatedFileSize(path.c_str(), size);
 }
 
-int Epub::getSpineItemsCount() const { return spine.size(); }
+int Epub::getSpineItemsCount() const {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    return 0;
+  }
+  return spineTocCache->getSpineCount();
+}
 
 size_t Epub::getCumulativeSpineItemSize(const int spineIndex) const {
-  if (spineIndex < 0 || spineIndex >= static_cast<int>(cumulativeSpineItemSize.size())) {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getCumulativeSpineItemSize called but cache not loaded\n", millis());
+    return 0;
+  }
+  if (spineIndex < 0 || spineIndex >= spineTocCache->getSpineCount()) {
     Serial.printf("[%lu] [EBP] getCumulativeSpineItemSize index:%d is out of range\n", millis(), spineIndex);
     return 0;
   }
-  return cumulativeSpineItemSize.at(spineIndex);
+  return spineTocCache->getSpineEntry(spineIndex).cumulativeSize;
 }
 
-std::string& Epub::getSpineItem(const int spineIndex) {
-  static std::string emptyString;
-  if (spine.empty()) {
-    Serial.printf("[%lu] [EBP] getSpineItem called but spine is empty\n", millis());
-    return emptyString;
+std::string Epub::getSpineHref(const int spineIndex) const {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getSpineItem called but cache not loaded\n", millis());
+    return "";
   }
-  if (spineIndex < 0 || spineIndex >= static_cast<int>(spine.size())) {
+  if (spineIndex < 0 || spineIndex >= spineTocCache->getSpineCount()) {
     Serial.printf("[%lu] [EBP] getSpineItem index:%d is out of range\n", millis(), spineIndex);
-    return spine.at(0).second;
+    return spineTocCache->getSpineEntry(0).href;
   }
 
-  return spine.at(spineIndex).second;
+  return spineTocCache->getSpineEntry(spineIndex).href;
 }
 
-EpubTocEntry& Epub::getTocItem(const int tocTndex) {
-  static EpubTocEntry emptyEntry = {};
-  if (toc.empty()) {
-    Serial.printf("[%lu] [EBP] getTocItem called but toc is empty\n", millis());
-    return emptyEntry;
-  }
-  if (tocTndex < 0 || tocTndex >= static_cast<int>(toc.size())) {
-    Serial.printf("[%lu] [EBP] getTocItem index:%d is out of range\n", millis(), tocTndex);
-    return toc.at(0);
+SpineTocCache::TocEntry Epub::getTocItem(const int tocIndex) const {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getTocItem called but cache not loaded\n", millis());
+    return {};
   }
 
-  return toc.at(tocTndex);
+  if (tocIndex < 0 || tocIndex >= spineTocCache->getTocCount()) {
+    Serial.printf("[%lu] [EBP] getTocItem index:%d is out of range\n", millis(), tocIndex);
+    return {};
+  }
+
+  return spineTocCache->getTocEntry(tocIndex);
 }
 
-int Epub::getTocItemsCount() const { return toc.size(); }
+int Epub::getTocItemsCount() const {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    return 0;
+  }
+  return spineTocCache->getTocCount();
+}
 
 // work out the section index for a toc index
 int Epub::getSpineIndexForTocIndex(const int tocIndex) const {
-  if (tocIndex < 0 || tocIndex >= toc.size()) {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getSpineIndexForTocIndex called but cache not loaded\n", millis());
+    return 0;
+  }
+  if (tocIndex < 0 || tocIndex >= spineTocCache->getTocCount()) {
     Serial.printf("[%lu] [EBP] getSpineIndexForTocIndex: tocIndex %d out of range\n", millis(), tocIndex);
     return 0;
   }
 
-  // the toc entry should have an href that matches the spine item
-  // so we can find the spine index by looking for the href
-  for (int i = 0; i < spine.size(); i++) {
-    if (spine[i].second == toc[tocIndex].href) {
-      return i;
-    }
+  const int spineIndex = spineTocCache->getTocEntry(tocIndex).spineIndex;
+  if (spineIndex < 0) {
+    Serial.printf("[%lu] [EBP] Section not found for TOC index %d\n", millis(), tocIndex);
+    return 0;
   }
-
-  Serial.printf("[%lu] [EBP] Section not found\n", millis());
-  // not found - default to the start of the book
-  return 0;
+  return spineIndex;
 }
 
 int Epub::getTocIndexForSpineIndex(const int spineIndex) const {
-  if (spineIndex < 0 || spineIndex >= spine.size()) {
+  if (!spineTocCache || !spineTocCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getTocIndexForSpineIndex called but cache not loaded\n", millis());
+    return -1;
+  }
+
+  if (spineIndex < 0 || spineIndex >= spineTocCache->getSpineCount()) {
     Serial.printf("[%lu] [EBP] getTocIndexForSpineIndex: spineIndex %d out of range\n", millis(), spineIndex);
     return -1;
   }
 
-  // the toc entry should have an href that matches the spine item
-  // so we can find the toc index by looking for the href
-  for (int i = 0; i < toc.size(); i++) {
-    if (toc[i].href == spine[spineIndex].second) {
-      return i;
-    }
-  }
-
-  Serial.printf("[%lu] [EBP] TOC item not found\n", millis());
-  return -1;
+  return spineTocCache->getSpineEntry(spineIndex).tocIndex;
 }
 
 size_t Epub::getBookSize() const {
-  if (spine.empty()) {
+  if (!spineTocCache || !spineTocCache->isLoaded() || spineTocCache->getSpineCount() == 0) {
     return 0;
   }
   return getCumulativeSpineItemSize(getSpineItemsCount() - 1);
 }
 
 // Calculate progress in book
-uint8_t Epub::calculateProgress(const int currentSpineIndex, const float currentSpineRead) {
-  size_t bookSize = getBookSize();
+uint8_t Epub::calculateProgress(const int currentSpineIndex, const float currentSpineRead) const {
+  const size_t bookSize = getBookSize();
   if (bookSize == 0) {
     return 0;
   }
-  size_t prevChapterSize = (currentSpineIndex >= 1) ? getCumulativeSpineItemSize(currentSpineIndex - 1) : 0;
-  size_t curChapterSize = getCumulativeSpineItemSize(currentSpineIndex) - prevChapterSize;
-  size_t sectionProgSize = currentSpineRead * curChapterSize;
+  const size_t prevChapterSize = (currentSpineIndex >= 1) ? getCumulativeSpineItemSize(currentSpineIndex - 1) : 0;
+  const size_t curChapterSize = getCumulativeSpineItemSize(currentSpineIndex) - prevChapterSize;
+  const size_t sectionProgSize = currentSpineRead * curChapterSize;
   return round(static_cast<float>(prevChapterSize + sectionProgSize) / bookSize * 100.0);
 }
