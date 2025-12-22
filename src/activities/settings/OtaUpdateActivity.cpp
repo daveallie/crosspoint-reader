@@ -193,17 +193,12 @@ void OtaUpdateActivity::loop() {
   if (state == WAITING_CONFIRMATION) {
     if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
       Serial.printf("[%lu] [OTA] New update available, starting download...\n", millis());
-      int lastUpdatePercentage = 0;
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = UPDATE_IN_PROGRESS;
       xSemaphoreGive(renderingMutex);
       updateRequired = true;
       vTaskDelay(10 / portTICK_PERIOD_MS);
-      const auto res = updater.installUpdate([this, &lastUpdatePercentage](const size_t progress, const size_t total) {
-        // Only trigger display updates every 2% at most
-        updateRequired = true;
-        // vTaskDelay(10 / portTICK_PERIOD_MS);
-      });
+      const auto res = updater.installUpdate([this](const size_t, const size_t) { updateRequired = true; });
 
       if (res != OtaUpdater::OK) {
         Serial.printf("[%lu] [OTA] Update failed: %d\n", millis(), res);

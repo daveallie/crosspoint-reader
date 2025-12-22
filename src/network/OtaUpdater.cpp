@@ -27,7 +27,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
 
   JsonDocument doc;
-  const DeserializationError error = deserializeJson(doc, http.getStream());
+  const DeserializationError error = deserializeJson(doc, *client);
   http.end();
   if (error) {
     Serial.printf("[%lu] [OTA] JSON parse failed: %s\n", millis(), error.c_str());
@@ -121,6 +121,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(const std::function<void(s
 
   if (httpCode != HTTP_CODE_OK) {
     Serial.printf("[%lu] [OTA] Download failed: %d\n", millis(), httpCode);
+    http.end();
     return HTTP_ERROR;
   }
 
@@ -129,12 +130,14 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(const std::function<void(s
 
   if (contentLength != otaSize) {
     Serial.printf("[%lu] [OTA] Invalid content length\n", millis());
+    http.end();
     return HTTP_ERROR;
   }
 
   // 3. Begin the ESP-IDF Update process
   if (!Update.begin(otaSize)) {
     Serial.printf("[%lu] [OTA] Not enough space. Error: %s\n", millis(), Update.errorString());
+    http.end();
     return INTERNAL_UPDATE_ERROR;
   }
 
@@ -146,11 +149,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(const std::function<void(s
     onProgress(progress, total);
   });
   const size_t written = Update.writeStream(*client);
+  http.end();
 
   if (written == otaSize) {
     Serial.printf("[%lu] [OTA] Successfully written %u bytes\n", millis(), written);
   } else {
-    Serial.printf("[%lu] [OTA] Written only %u/%u bytes. Error: %s\n", millis(), written, contentLength,
+    Serial.printf("[%lu] [OTA] Written only %u/%u bytes. Error: %s\n", millis(), written, otaSize,
                   Update.errorString());
     return INTERNAL_UPDATE_ERROR;
   }

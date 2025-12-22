@@ -18,12 +18,15 @@ class OtaUpdateActivity : public ActivityWithSubactivity {
     SHUTTING_DOWN
   };
 
+  // Can't initialize this to 0 or the first render doesn't happen
+  static constexpr unsigned int UNINITIALIZED_PERCENTAGE = 111;
+
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   bool updateRequired = false;
   const std::function<void()> goBack;
   State state = WIFI_SELECTION;
-  unsigned int lastUpdaterPercentage = 111;  // Can't initialize this to 0 or the first render doesn't happen
+  unsigned int lastUpdaterPercentage = UNINITIALIZED_PERCENTAGE;
   OtaUpdater updater;
 
   void onWifiSelectionComplete(bool success);
