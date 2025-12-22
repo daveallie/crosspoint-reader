@@ -1,6 +1,7 @@
 #include "ContentOpfParser.h"
 
 #include <HardwareSerial.h>
+#include <Serialization.h>
 #include <ZipFile.h>
 
 namespace {
@@ -94,11 +95,13 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_PACKAGE && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_MANIFEST;
+    self->tempItemStore = SD.open("/.crosspoint/.tmp-items.bin", FILE_WRITE, true);
     return;
   }
 
   if (self->state == IN_PACKAGE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
     self->state = IN_SPINE;
+    self->tempItemStore = SD.open("/.crosspoint/.tmp-items.bin", FILE_READ);
     return;
   }
 
@@ -135,7 +138,10 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
-    self->items[itemId] = href;
+    serialization::writeString(self->tempItemStore, itemId);
+    serialization::writeString(self->tempItemStore, href);
+    // // Write items down to SD card
+    // self->items[itemId] = href;
 
     if (mediaType == MEDIA_TYPE_NCX) {
       if (self->tocNcxPath.empty()) {
@@ -156,11 +162,17 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
         if (strcmp(atts[i], "idref") == 0) {
           const std::string idref = atts[i + 1];
           // Resolve the idref to href using items map
-          if (self->items.count(idref) > 0) {
-            const std::string& href = self->items.at(idref);
-            self->cache->addSpineEntry(href);
+          self->tempItemStore.seek(0);
+          std::string itemId;
+          std::string href;
+          while (self->tempItemStore.available()) {
+            serialization::readString(self->tempItemStore, itemId);
+            serialization::readString(self->tempItemStore, href);
+            if (itemId == idref) {
+              self->cache->addSpineEntry(href);
+              break;
+            }
           }
-          break;
         }
       }
       return;
@@ -183,11 +195,13 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
 
   if (self->state == IN_SPINE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
     self->state = IN_PACKAGE;
+    self->tempItemStore.close();
     return;
   }
 
   if (self->state == IN_MANIFEST && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_PACKAGE;
+    self->tempItemStore.close();
     return;
   }
 

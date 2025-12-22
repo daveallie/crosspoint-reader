@@ -5,8 +5,6 @@
 #include <SD.h>
 #include <ZipFile.h>
 
-#include <map>
-
 #include "Epub/FsHelpers.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
@@ -75,9 +73,9 @@ bool Epub::parseContentOpf(bool useCache) {
 
   // Grab data from opfParser into epub
   title = opfParser.title;
-  if (!opfParser.coverItemId.empty() && opfParser.items.count(opfParser.coverItemId) > 0) {
-    coverImageItem = opfParser.items.at(opfParser.coverItemId);
-  }
+  // if (!opfParser.coverItemId.empty() && opfParser.items.count(opfParser.coverItemId) > 0) {
+  //   coverImageItem = opfParser.items.at(opfParser.coverItemId);
+  // }
 
   if (!opfParser.tocNcxPath.empty()) {
     tocNcxItem = opfParser.tocNcxPath;
