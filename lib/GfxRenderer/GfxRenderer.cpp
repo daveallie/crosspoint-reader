@@ -103,27 +103,30 @@ void GfxRenderer::drawTextInBox(const int fontId, const int x, const int y, cons
   }
 
   uint32_t cp;
+  int ellipsisWidth = 0;
   while ((cp = utf8NextCodepoint(reinterpret_cast<const uint8_t**>(&text)))) {
-    // Handle space character for word wrapping
-    if (cp == ' ') {
-      if (xpos + spaceWidth > x + w) {
+    const int charWidth = getTextWidth(fontId, reinterpret_cast<const char*>(&cp), style);
+    if (xpos + charWidth + ellipsisWidth > x + w) {
+      if (ellipsisWidth > 0) {
+        // Draw ellipsis and exit
+        int dotX = xpos;
+        renderChar(font, '.', &dotX, &ypos, black, style);
+        dotX += spaceWidth/3;
+        renderChar(font, '.', &dotX, &ypos, black, style);
+        dotX += spaceWidth/3;
+        renderChar(font, '.', &dotX, &ypos, black, style);
+        break;
+      } else {
         xpos = x;
         ypos += lineHeight;
         if (h > 0 && ypos - y > h) {
-          break;  // Exceeded box height
+          // Overflowing box height
+          break;
         }
-      } else {
-        xpos += spaceWidth;
-      }
-      continue;
-    }
-
-    const int charWidth = getTextWidth(fontId, reinterpret_cast<const char*>(&cp), style);
-    if (xpos + charWidth > x + w) {
-      xpos = x;
-      ypos += lineHeight;
-      if (h > 0 && ypos - y > h) {
-        break;  // Exceeded box height
+        if (h > 0 && ypos + lineHeight - y > h) {
+          // Last line, prepare ellipsis
+          ellipsisWidth = spaceWidth * 4;
+        }
       }
     }
 
