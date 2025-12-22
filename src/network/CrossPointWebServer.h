@@ -35,6 +35,7 @@ class CrossPointWebServer {
  private:
   std::unique_ptr<WebServer> server = nullptr;
   bool running = false;
+  bool apMode = false;  // true when running in AP mode, false for STA mode
   uint16_t port = 80;
 
   // File scanning

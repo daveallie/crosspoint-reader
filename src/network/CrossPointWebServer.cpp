@@ -30,12 +30,22 @@ void CrossPointWebServer::begin() {
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.printf("[%lu] [WEB] Cannot start webserver - WiFi not connected\n", millis());
+  // Check if we have a valid network connection (either STA connected or AP mode)
+  const wifi_mode_t wifiMode = WiFi.getMode();
+  const bool isStaConnected = (wifiMode & WIFI_MODE_STA) && (WiFi.status() == WL_CONNECTED);
+  const bool isInApMode = (wifiMode & WIFI_MODE_AP) && (WiFi.softAPgetStationNum() >= 0);  // AP is running
+
+  if (!isStaConnected && !isInApMode) {
+    Serial.printf("[%lu] [WEB] Cannot start webserver - no valid network (mode=%d, status=%d)\n", millis(), wifiMode,
+                  WiFi.status());
     return;
   }
 
+  // Store AP mode flag for later use (e.g., in handleStatus)
+  apMode = isInApMode;
+
   Serial.printf("[%lu] [WEB] [MEM] Free heap before begin: %d bytes\n", millis(), ESP.getFreeHeap());
+  Serial.printf("[%lu] [WEB] Network mode: %s\n", millis(), apMode ? "AP" : "STA");
 
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server.reset(new WebServer(port));
@@ -70,7 +80,9 @@ void CrossPointWebServer::begin() {
   running = true;
 
   Serial.printf("[%lu] [WEB] Web server started on port %d\n", millis(), port);
-  Serial.printf("[%lu] [WEB] Access at http://%s/\n", millis(), WiFi.localIP().toString().c_str());
+  // Show the correct IP based on network mode
+  const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  Serial.printf("[%lu] [WEB] Access at http://%s/\n", millis(), ipAddr.c_str());
   Serial.printf("[%lu] [WEB] [MEM] Free heap after server.begin(): %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
@@ -141,10 +153,14 @@ void CrossPointWebServer::handleNotFound() const {
 }
 
 void CrossPointWebServer::handleStatus() const {
+  // Get correct IP based on AP vs STA mode
+  const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+
   String json = "{";
   json += "\"version\":\"" + String(CROSSPOINT_VERSION) + "\",";
-  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-  json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+  json += "\"ip\":\"" + ipAddr + "\",";
+  json += "\"mode\":\"" + String(apMode ? "AP" : "STA") + "\",";
+  json += "\"rssi\":" + String(apMode ? 0 : WiFi.RSSI()) + ",";  // RSSI not applicable in AP mode
   json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
   json += "\"uptime\":" + String(millis() / 1000);
   json += "}";
