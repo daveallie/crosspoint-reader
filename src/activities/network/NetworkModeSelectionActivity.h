@@ -34,9 +34,7 @@ class NetworkModeSelectionActivity final : public Activity {
   explicit NetworkModeSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
                                         const std::function<void(NetworkMode)>& onModeSelected,
                                         const std::function<void()>& onCancel)
-      : Activity("NetworkModeSelection", renderer, inputManager),
-        onModeSelected(onModeSelected),
-        onCancel(onCancel) {}
+      : Activity("NetworkModeSelection", renderer, inputManager), onModeSelected(onModeSelected), onCancel(onCancel) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

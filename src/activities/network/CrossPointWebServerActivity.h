@@ -7,17 +7,17 @@
 #include <memory>
 #include <string>
 
+#include "NetworkModeSelectionActivity.h"
 #include "activities/ActivityWithSubactivity.h"
 #include "network/CrossPointWebServer.h"
-#include "NetworkModeSelectionActivity.h"
 
 // Web server activity states
 enum class WebServerActivityState {
-  MODE_SELECTION,    // Choosing between Join Network and Create Hotspot
-  WIFI_SELECTION,    // WiFi selection subactivity is active (for Join Network mode)
-  AP_STARTING,       // Starting Access Point mode
-  SERVER_RUNNING,    // Web server is running and handling requests
-  SHUTTING_DOWN      // Shutting down server and WiFi
+  MODE_SELECTION,  // Choosing between Join Network and Create Hotspot
+  WIFI_SELECTION,  // WiFi selection subactivity is active (for Join Network mode)
+  AP_STARTING,     // Starting Access Point mode
+  SERVER_RUNNING,  // Web server is running and handling requests
+  SHUTTING_DOWN    // Shutting down server and WiFi
 };
 
 /**

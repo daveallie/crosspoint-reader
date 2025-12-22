@@ -9,7 +9,7 @@ namespace {
 constexpr int MENU_ITEM_COUNT = 2;
 const char* MENU_ITEMS[MENU_ITEM_COUNT] = {"Join a Network", "Create Hotspot"};
 const char* MENU_DESCRIPTIONS[MENU_ITEM_COUNT] = {"Connect to an existing WiFi network",
-                                                   "Create a WiFi network others can join"};
+                                                  "Create a WiFi network others can join"};
 }  // namespace
 
 void NetworkModeSelectionActivity::taskTrampoline(void* param) {

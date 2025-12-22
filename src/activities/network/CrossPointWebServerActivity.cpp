@@ -1,10 +1,10 @@
 #include "CrossPointWebServerActivity.h"
 
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <InputManager.h>
 #include <WiFi.h>
-#include <ESPmDNS.h>
 
 #include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
@@ -54,10 +54,9 @@ void CrossPointWebServerActivity::onEnter() {
   // Launch network mode selection subactivity
   Serial.printf("[%lu] [WEBACT] Launching NetworkModeSelectionActivity...\n", millis());
   enterNewActivity(new NetworkModeSelectionActivity(
-      renderer, inputManager,
-      [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+      renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
       [this]() { onGoBack(); }  // Cancel goes back to home
-  ));
+      ));
 }
 
 void CrossPointWebServerActivity::onExit() {
@@ -172,10 +171,8 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
     exitActivity();
     state = WebServerActivityState::MODE_SELECTION;
     enterNewActivity(new NetworkModeSelectionActivity(
-        renderer, inputManager,
-        [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
-        [this]() { onGoBack(); }
-    ));
+        renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+        [this]() { onGoBack(); }));
   }
 }
 
@@ -356,8 +353,8 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     std::string ssidInfo = "Network: " + connectedSSID;
     renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING, ssidInfo.c_str(), true, REGULAR);
 
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, "Connect your device to this WiFi network", true,
-                              REGULAR);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, "Connect your device to this WiFi network",
+                              true, REGULAR);
 
     // Show primary URL (hostname)
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
