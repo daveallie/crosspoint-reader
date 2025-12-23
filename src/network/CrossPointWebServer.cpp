@@ -9,6 +9,9 @@
 
 #include "html/FilesPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
+#include "html/manager/indexCss.generated.h"
+#include "html/manager/indexHtml.generated.h"
+#include "html/manager/indexJs.generated.h"
 
 namespace {
 // Folders/files to hide from the web interface file browser
@@ -59,20 +62,36 @@ void CrossPointWebServer::begin() {
 
   // Setup routes
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
-  server->on("/", HTTP_GET, [this] { handleRoot(); });
+  server->on("/status", HTTP_GET, [this] { handleStatusPage(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
+
+  server->on("/", HTTP_GET, [this] {
+    server->setContentLength(indexHtml_size);
+    server->send(200, "text/html", "");
+    server->sendContent((char*)indexHtml_data, indexHtml_size);
+  });
+  server->on("/index.css", HTTP_GET, [this] {
+    server->setContentLength(indexCss_size);
+    server->send(200, "text/css", "");
+    server->sendContent((char*)indexCss_data, indexCss_size);
+  });
+  server->on("/index.js", HTTP_GET, [this] {
+    server->setContentLength(indexJs_size);
+    server->send(200, "text/javascript", "");
+    server->sendContent((char*)indexJs_data, indexJs_size);
+  });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
 
   // Upload endpoint with special handling for multipart form data
-  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
+  server->on("/api/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
 
   // Create folder endpoint
-  server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
+  server->on("/api/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
 
   // Delete file/folder endpoint
-  server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+  server->on("/api/delete", HTTP_POST, [this] { handleDelete(); });
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -142,8 +161,10 @@ void CrossPointWebServer::handleClient() const {
   server->handleClient();
 }
 
-void CrossPointWebServer::handleRoot() const {
-  server->send(200, "text/html", HomePageHtml);
+void CrossPointWebServer::handleStatusPage() const {
+  server->setContentLength(HomePageHtml_size);
+  server->send(200, "text/html", "");
+  server->sendContent((char*)HomePageHtml_data, HomePageHtml_size);
   Serial.printf("[%lu] [WEB] Served root page\n", millis());
 }
 
@@ -229,7 +250,11 @@ bool CrossPointWebServer::isEpubFile(const String& filename) const {
   return lower.endsWith(".epub");
 }
 
-void CrossPointWebServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
+void CrossPointWebServer::handleFileList() const {
+  server->setContentLength(FilesPageHtml_size);
+  server->send(200, "text/html", "");
+  server->sendContent((char*)FilesPageHtml_data, FilesPageHtml_size);
+}
 
 void CrossPointWebServer::handleFileListData() const {
   // Get current path from query string (default to root)

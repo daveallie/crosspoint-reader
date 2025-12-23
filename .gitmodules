@@ -1,3 +1,6 @@
 [submodule "open-x4-sdk"]
 	path = open-x4-sdk
 	url = https://github.com/open-x4-epaper/community-sdk.git
+[submodule "web-manager"]
+	path = web-manager
+	url = https://github.com/gebeto/crosspoint-web-manager
