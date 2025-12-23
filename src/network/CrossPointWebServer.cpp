@@ -50,7 +50,6 @@ void CrossPointWebServer::begin() {
 
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server.reset(new WebServer(port));
-  server->enableCORS(true);
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
 
   if (!server) {
@@ -167,7 +166,7 @@ void CrossPointWebServer::handleStatus() const {
   json += "\"uptime\":" + String(millis() / 1000);
   json += "}";
 
-  server->sendHeader("Access-Control-Allow-Origin", "*");
+  server->enableCORS(true);
   server->send(200, "application/json", json);
 }
 
@@ -249,7 +248,7 @@ void CrossPointWebServer::handleFileListData() const {
   }
 
   server->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server->sendHeader("Access-Control-Allow-Origin", "*");
+  server->enableCORS(true);
   server->send(200, "application/json", "");
   server->sendContent("[");
   char output[512];
@@ -404,6 +403,7 @@ void CrossPointWebServer::handleUpload() const {
 }
 
 void CrossPointWebServer::handleUploadPost() const {
+  server->enableCORS(true);
   if (uploadSuccess) {
     server->send(200, "text/plain", "File uploaded successfully: " + uploadFileName);
   } else {
