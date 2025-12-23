@@ -1,12 +1,16 @@
 #include "ContentOpfParser.h"
 
+#include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <Serialization.h>
 #include <ZipFile.h>
 
+#include "../BookMetadataCache.h"
+
 namespace {
 constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
-}
+constexpr char itemCacheFile[] = "/.items.bin";
+}  // namespace
 
 bool ContentOpfParser::setup() {
   parser = XML_ParserCreate(nullptr);
@@ -28,6 +32,12 @@ ContentOpfParser::~ContentOpfParser() {
     XML_SetCharacterDataHandler(parser, nullptr);
     XML_ParserFree(parser);
     parser = nullptr;
+  }
+  if (tempItemStore) {
+    tempItemStore.close();
+  }
+  if (SD.exists((cachePath + itemCacheFile).c_str())) {
+    SD.remove((cachePath + itemCacheFile).c_str());
   }
 }
 
@@ -95,13 +105,21 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_PACKAGE && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_MANIFEST;
-    self->tempItemStore = SD.open("/.crosspoint/.tmp-items.bin", FILE_WRITE, true);
+    if (!FsHelpers::openFileForWrite("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+      Serial.printf(
+          "[%lu] [COF] Couldn't open temp items file for writing. This is probably going to be a fatal error.\n",
+          millis());
+    }
     return;
   }
 
   if (self->state == IN_PACKAGE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
     self->state = IN_SPINE;
-    self->tempItemStore = SD.open("/.crosspoint/.tmp-items.bin", FILE_READ);
+    if (!FsHelpers::openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+      Serial.printf(
+          "[%lu] [COF] Couldn't open temp items file for reading. This is probably going to be a fatal error.\n",
+          millis());
+    }
     return;
   }
 
@@ -138,10 +156,13 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       }
     }
 
+    // Write items down to SD card
     serialization::writeString(self->tempItemStore, itemId);
     serialization::writeString(self->tempItemStore, href);
-    // // Write items down to SD card
-    // self->items[itemId] = href;
+
+    if (itemId == self->coverItemId) {
+      self->coverItemHref = href;
+    }
 
     if (mediaType == MEDIA_TYPE_NCX) {
       if (self->tocNcxPath.empty()) {
@@ -154,7 +175,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     return;
   }
 
-  // NOTE: This relies on spine appearing after item manifest
+  // NOTE: This relies on spine appearing after item manifest (which is pretty safe as it's part of the EPUB spec)
   // Only run the spine parsing if there's a cache to add it to
   if (self->cache) {
     if (self->state == IN_SPINE && (strcmp(name, "itemref") == 0 || strcmp(name, "opf:itemref") == 0)) {
@@ -169,7 +190,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
             serialization::readString(self->tempItemStore, itemId);
             serialization::readString(self->tempItemStore, href);
             if (itemId == idref) {
-              self->cache->addSpineEntry(href);
+              self->cache->createSpineEntry(href);
               break;
             }
           }

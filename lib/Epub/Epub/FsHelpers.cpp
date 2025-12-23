@@ -16,7 +16,7 @@ bool FsHelpers::openFileForRead(const char* moduleName, const std::string& path,
 bool FsHelpers::openFileForWrite(const char* moduleName, const std::string& path, File& file) {
   file = SD.open(path.c_str(), FILE_WRITE, true);
   if (!file) {
-    Serial.printf("[%lu] [%s] Failed to open spine file for writing: %s\n", millis(), moduleName, path.c_str());
+    Serial.printf("[%lu] [%s] Failed to open file for writing: %s\n", millis(), moduleName, path.c_str());
     return false;
   }
   return true;

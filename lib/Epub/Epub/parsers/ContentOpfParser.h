@@ -2,8 +2,9 @@
 #include <Print.h>
 
 #include "Epub.h"
-#include "Epub/SpineTocCache.h"
 #include "expat.h"
+
+class BookMetadataCache;
 
 class ContentOpfParser final : public Print {
   enum ParserState {
@@ -15,12 +16,14 @@ class ContentOpfParser final : public Print {
     IN_SPINE,
   };
 
+  const std::string& cachePath;
   const std::string& baseContentPath;
   size_t remainingSize;
   XML_Parser parser = nullptr;
   ParserState state = START;
-  SpineTocCache* cache;
+  BookMetadataCache* cache;
   File tempItemStore;
+  std::string coverItemId;
 
   static void startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void characterData(void* userData, const XML_Char* s, int len);
@@ -29,10 +32,11 @@ class ContentOpfParser final : public Print {
  public:
   std::string title;
   std::string tocNcxPath;
-  std::string coverItemId;
+  std::string coverItemHref;
 
-  explicit ContentOpfParser(const std::string& baseContentPath, const size_t xmlSize, SpineTocCache* cache)
-      : baseContentPath(baseContentPath), remainingSize(xmlSize), cache(cache) {}
+  explicit ContentOpfParser(const std::string& cachePath, const std::string& baseContentPath, const size_t xmlSize,
+                            BookMetadataCache* cache)
+      : cachePath(cachePath), baseContentPath(baseContentPath), remainingSize(xmlSize), cache(cache) {}
   ~ContentOpfParser() override;
 
   bool setup();

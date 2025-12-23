@@ -4,8 +4,14 @@
 
 #include <string>
 
-class SpineTocCache {
+class BookMetadataCache {
  public:
+  struct BookMetadata {
+    std::string title;
+    std::string author;
+    std::string coverItemHref;
+  };
+
   struct SpineEntry {
     std::string href;
     size_t cumulativeSize;
@@ -34,13 +40,14 @@ class SpineTocCache {
 
  private:
   std::string cachePath;
+  size_t lutOffset;
   uint16_t spineCount;
   uint16_t tocCount;
   bool loaded;
   bool buildMode;
 
+  File bookFile;
   // Temp file handles during build
-  File metaFile;
   File spineFile;
   File tocFile;
 
@@ -50,24 +57,31 @@ class SpineTocCache {
   TocEntry readTocEntry(File& file) const;
 
  public:
-  explicit SpineTocCache(std::string cachePath)
-      : cachePath(std::move(cachePath)), spineCount(0), tocCount(0), loaded(false), buildMode(false) {}
-  ~SpineTocCache() = default;
+  BookMetadata coreMetadata;
+
+  explicit BookMetadataCache(std::string cachePath)
+      : cachePath(std::move(cachePath)), lutOffset(0), spineCount(0), tocCount(0), loaded(false), buildMode(false) {}
+  ~BookMetadataCache() = default;
 
   // Building phase (stream to disk immediately)
   bool beginWrite();
-  void addSpineEntry(const std::string& href);
-  void addTocEntry(const std::string& title, const std::string& href, const std::string& anchor, uint8_t level);
+  bool beginContentOpfPass();
+  void createSpineEntry(const std::string& href);
+  bool endContentOpfPass();
+  bool beginTocPass();
+  void createTocEntry(const std::string& title, const std::string& href, const std::string& anchor, uint8_t level);
+  bool endTocPass();
   bool endWrite();
+  bool cleanupTmpFiles() const;
 
   // Post-processing to update mappings and sizes
-  bool updateMapsAndSizes(const std::string& epubPath);
+  bool buildBookBin(const std::string& epubPath, const BookMetadata& metadata);
 
   // Reading phase (read mode)
   bool load();
   SpineEntry getSpineEntry(int index);
   TocEntry getTocEntry(int index);
-  int getSpineCount() const;
-  int getTocCount() const;
-  bool isLoaded() const;
+  int getSpineCount() const { return spineCount; }
+  int getTocCount() const { return tocCount; }
+  bool isLoaded() const { return loaded; }
 };

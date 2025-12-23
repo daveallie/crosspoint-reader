@@ -6,15 +6,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Epub/SpineTocCache.h"
+#include "Epub/BookMetadataCache.h"
 
 class ZipFile;
 
 class Epub {
-  // the title read from the EPUB meta data
-  std::string title;
-  // the cover image
-  std::string coverImageItem;
   // the ncx file
   std::string tocNcxItem;
   // where is the EPUBfile?
@@ -24,10 +20,10 @@ class Epub {
   // Uniq cache key based on filepath
   std::string cachePath;
   // Spine and TOC cache
-  std::unique_ptr<SpineTocCache> spineTocCache;
+  std::unique_ptr<BookMetadataCache> bookMetadataCache;
 
   bool findContentOpfFile(std::string* contentOpfFile) const;
-  bool parseContentOpf(bool useCache);
+  bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
   bool parseTocNcxFile() const;
   static bool getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size);
 
@@ -50,13 +46,13 @@ class Epub {
                                    bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
   bool getItemSize(const std::string& itemHref, size_t* size) const;
-  std::string getSpineHref(int spineIndex) const;
+  BookMetadataCache::SpineEntry getSpineItem(int spineIndex) const;
+  BookMetadataCache::TocEntry getTocItem(int tocIndex) const;
   int getSpineItemsCount() const;
-  size_t getCumulativeSpineItemSize(int spineIndex) const;
-  SpineTocCache::TocEntry getTocItem(int tocIndex) const;
   int getTocItemsCount() const;
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
+  size_t getCumulativeSpineItemSize(int spineIndex) const;
 
   size_t getBookSize() const;
   uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead) const;
