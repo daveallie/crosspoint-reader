@@ -1,10 +1,9 @@
 #include "WifiCredentialStore.h"
 
+#include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <SD.h>
 #include <Serialization.h>
-
-#include <fstream>
 
 // Initialize the static instance
 WifiCredentialStore WifiCredentialStore::instance;
@@ -14,7 +13,7 @@ namespace {
 constexpr uint8_t WIFI_FILE_VERSION = 1;
 
 // WiFi credentials file path
-constexpr char WIFI_FILE[] = "/sd/.crosspoint/wifi.bin";
+constexpr char WIFI_FILE[] = "/.crosspoint/wifi.bin";
 
 // Obfuscation key - "CrossPoint" in ASCII
 // This is NOT cryptographic security, just prevents casual file reading
@@ -33,9 +32,8 @@ bool WifiCredentialStore::saveToFile() const {
   // Make sure the directory exists
   SD.mkdir("/.crosspoint");
 
-  std::ofstream file(WIFI_FILE, std::ios::binary);
-  if (!file) {
-    Serial.printf("[%lu] [WCS] Failed to open wifi.bin for writing\n", millis());
+  File file;
+  if (!FsHelpers::openFileForWrite("WCS", WIFI_FILE, file)) {
     return false;
   }
 
@@ -62,14 +60,8 @@ bool WifiCredentialStore::saveToFile() const {
 }
 
 bool WifiCredentialStore::loadFromFile() {
-  if (!SD.exists(WIFI_FILE + 3)) {  // +3 to skip "/sd" prefix
-    Serial.printf("[%lu] [WCS] WiFi credentials file does not exist\n", millis());
-    return false;
-  }
-
-  std::ifstream file(WIFI_FILE, std::ios::binary);
-  if (!file) {
-    Serial.printf("[%lu] [WCS] Failed to open wifi.bin for reading\n", millis());
+  File file;
+  if (!FsHelpers::openFileForRead("WCS", WIFI_FILE, file)) {
     return false;
   }
 

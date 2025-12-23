@@ -1,5 +1,6 @@
 #include "Epub.h"
 
+#include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
 #include <SD.h>
@@ -7,7 +8,6 @@
 
 #include <map>
 
-#include "Epub/FsHelpers.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNcxParser.h"
@@ -95,10 +95,15 @@ bool Epub::parseTocNcxFile() {
   Serial.printf("[%lu] [EBP] Parsing toc ncx file: %s\n", millis(), tocNcxItem.c_str());
 
   const auto tmpNcxPath = getCachePath() + "/toc.ncx";
-  File tempNcxFile = SD.open(tmpNcxPath.c_str(), FILE_WRITE);
+  File tempNcxFile;
+  if (!FsHelpers::openFileForWrite("EBP", tmpNcxPath, tempNcxFile)) {
+    return false;
+  }
   readItemContentsToStream(tocNcxItem, tempNcxFile, 1024);
   tempNcxFile.close();
-  tempNcxFile = SD.open(tmpNcxPath.c_str(), FILE_READ);
+  if (!FsHelpers::openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
+    return false;
+  }
   const auto ncxSize = tempNcxFile.size();
 
   TocNcxParser ncxParser(contentBasePath, ncxSize);
@@ -235,16 +240,28 @@ bool Epub::generateCoverBmp() const {
   if (coverImageItem.substr(coverImageItem.length() - 4) == ".jpg" ||
       coverImageItem.substr(coverImageItem.length() - 5) == ".jpeg") {
     Serial.printf("[%lu] [EBP] Generating BMP from JPG cover image\n", millis());
-    File coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_WRITE, true);
+    const auto coverJpgTempPath = getCachePath() + "/.cover.jpg";
+
+    File coverJpg;
+    if (!FsHelpers::openFileForWrite("EBP", coverJpgTempPath, coverJpg)) {
+      return false;
+    }
     readItemContentsToStream(coverImageItem, coverJpg, 1024);
     coverJpg.close();
 
-    coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_READ);
-    File coverBmp = SD.open(getCoverBmpPath().c_str(), FILE_WRITE, true);
+    if (!FsHelpers::openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
+      return false;
+    }
+
+    File coverBmp;
+    if (!FsHelpers::openFileForWrite("EBP", getCoverBmpPath(), coverBmp)) {
+      coverJpg.close();
+      return false;
+    }
     const bool success = JpegToBmpConverter::jpegFileToBmpStream(coverJpg, coverBmp);
     coverJpg.close();
     coverBmp.close();
-    SD.remove((getCachePath() + "/.cover.jpg").c_str());
+    SD.remove(coverJpgTempPath.c_str());
 
     if (!success) {
       Serial.printf("[%lu] [EBP] Failed to generate BMP from JPG cover image\n", millis());
@@ -259,45 +276,9 @@ bool Epub::generateCoverBmp() const {
   return false;
 }
 
-std::string normalisePath(const std::string& path) {
-  std::vector<std::string> components;
-  std::string component;
-
-  for (const auto c : path) {
-    if (c == '/') {
-      if (!component.empty()) {
-        if (component == "..") {
-          if (!components.empty()) {
-            components.pop_back();
-          }
-        } else {
-          components.push_back(component);
-        }
-        component.clear();
-      }
-    } else {
-      component += c;
-    }
-  }
-
-  if (!component.empty()) {
-    components.push_back(component);
-  }
-
-  std::string result;
-  for (const auto& c : components) {
-    if (!result.empty()) {
-      result += "/";
-    }
-    result += c;
-  }
-
-  return result;
-}
-
 uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, bool trailingNullByte) const {
   const ZipFile zip("/sd" + filepath);
-  const std::string path = normalisePath(itemHref);
+  const std::string path = FsHelpers::normalisePath(itemHref);
 
   const auto content = zip.readFileToMemory(path.c_str(), size, trailingNullByte);
   if (!content) {
@@ -310,7 +291,7 @@ uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size
 
 bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, const size_t chunkSize) const {
   const ZipFile zip("/sd" + filepath);
-  const std::string path = normalisePath(itemHref);
+  const std::string path = FsHelpers::normalisePath(itemHref);
 
   return zip.readFileToStream(path.c_str(), out, chunkSize);
 }
@@ -321,7 +302,7 @@ bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
 }
 
 bool Epub::getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size) {
-  const std::string path = normalisePath(itemHref);
+  const std::string path = FsHelpers::normalisePath(itemHref);
   return zip.getInflatedFileSize(path.c_str(), size);
 }
 
@@ -349,18 +330,18 @@ std::string& Epub::getSpineItem(const int spineIndex) {
   return spine.at(spineIndex).second;
 }
 
-EpubTocEntry& Epub::getTocItem(const int tocTndex) {
+EpubTocEntry& Epub::getTocItem(const int tocIndex) {
   static EpubTocEntry emptyEntry = {};
   if (toc.empty()) {
     Serial.printf("[%lu] [EBP] getTocItem called but toc is empty\n", millis());
     return emptyEntry;
   }
-  if (tocTndex < 0 || tocTndex >= static_cast<int>(toc.size())) {
-    Serial.printf("[%lu] [EBP] getTocItem index:%d is out of range\n", millis(), tocTndex);
+  if (tocIndex < 0 || tocIndex >= static_cast<int>(toc.size())) {
+    Serial.printf("[%lu] [EBP] getTocItem index:%d is out of range\n", millis(), tocIndex);
     return toc.at(0);
   }
 
-  return toc.at(tocTndex);
+  return toc.at(tocIndex);
 }
 
 int Epub::getTocItemsCount() const { return toc.size(); }

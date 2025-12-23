@@ -1,6 +1,7 @@
 #include "SleepActivity.h"
 
 #include <Epub.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <SD.h>
 
@@ -76,8 +77,8 @@ void SleepActivity::renderCustomSleepScreen() const {
       // Generate a random number between 1 and numFiles
       const auto randomFileIndex = random(numFiles);
       const auto filename = "/sleep/" + files[randomFileIndex];
-      auto file = SD.open(filename.c_str());
-      if (file) {
+      File file;
+      if (FsHelpers::openFileForRead("SLP", filename, file)) {
         Serial.printf("[%lu] [SLP] Randomly loading: /sleep/%s\n", millis(), files[randomFileIndex].c_str());
         delay(100);
         Bitmap bitmap(file);
@@ -93,8 +94,8 @@ void SleepActivity::renderCustomSleepScreen() const {
 
   // Look for sleep.bmp on the root of the sd card to determine if we should
   // render a custom sleep screen instead of the default.
-  auto file = SD.open("/sleep.bmp");
-  if (file) {
+  File file;
+  if (FsHelpers::openFileForRead("SLP", "/sleep.bmp", file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       Serial.printf("[%lu] [SLP] Loading: /sleep.bmp\n", millis());
@@ -186,8 +187,8 @@ void SleepActivity::renderCoverSleepScreen() const {
     return renderDefaultSleepScreen();
   }
 
-  auto file = SD.open(lastEpub.getCoverBmpPath().c_str(), FILE_READ);
-  if (file) {
+  File file;
+  if (FsHelpers::openFileForRead("SLP", lastEpub.getCoverBmpPath(), file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       renderBitmapSleepScreen(bitmap);

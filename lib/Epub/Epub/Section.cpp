@@ -1,11 +1,9 @@
 #include "Section.h"
 
+#include <FsHelpers.h>
 #include <SD.h>
 #include <Serialization.h>
 
-#include <fstream>
-
-#include "FsHelpers.h"
 #include "Page.h"
 #include "parsers/ChapterHtmlSlimParser.h"
 
@@ -16,7 +14,10 @@ constexpr uint8_t SECTION_FILE_VERSION = 5;
 void Section::onPageComplete(std::unique_ptr<Page> page) {
   const auto filePath = cachePath + "/page_" + std::to_string(pageCount) + ".bin";
 
-  std::ofstream outputFile("/sd" + filePath);
+  File outputFile;
+  if (!FsHelpers::openFileForWrite("SCT", filePath, outputFile)) {
+    return;
+  }
   page->serialize(outputFile);
   outputFile.close();
 
@@ -28,7 +29,10 @@ void Section::onPageComplete(std::unique_ptr<Page> page) {
 void Section::writeCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                  const int marginRight, const int marginBottom, const int marginLeft,
                                  const bool extraParagraphSpacing) const {
-  std::ofstream outputFile(("/sd" + cachePath + "/section.bin").c_str());
+  File outputFile;
+  if (!FsHelpers::openFileForWrite("SCT", cachePath + "/section.bin", outputFile)) {
+    return;
+  }
   serialization::writePod(outputFile, SECTION_FILE_VERSION);
   serialization::writePod(outputFile, fontId);
   serialization::writePod(outputFile, lineCompression);
@@ -44,16 +48,11 @@ void Section::writeCacheMetadata(const int fontId, const float lineCompression, 
 bool Section::loadCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                 const int marginRight, const int marginBottom, const int marginLeft,
                                 const bool extraParagraphSpacing) {
-  if (!SD.exists(cachePath.c_str())) {
-    return false;
-  }
-
   const auto sectionFilePath = cachePath + "/section.bin";
-  if (!SD.exists(sectionFilePath.c_str())) {
+  File inputFile;
+  if (!FsHelpers::openFileForRead("SCT", sectionFilePath, inputFile)) {
     return false;
   }
-
-  std::ifstream inputFile(("/sd" + sectionFilePath).c_str());
 
   // Match parameters
   {
@@ -119,13 +118,13 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
                                   const bool extraParagraphSpacing) {
   const auto localPath = epub->getSpineItem(spineIndex);
 
-  // TODO: Should we get rid of this file all together?
-  //       It currently saves us a bit of memory by allowing for all the inflation bits to be released
-  //       before loading the XML parser
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
-  File f = SD.open(tmpHtmlPath.c_str(), FILE_WRITE, true);
-  bool success = epub->readItemContentsToStream(localPath, f, 1024);
-  f.close();
+  File tmpHtml;
+  if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+    return false;
+  }
+  bool success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+  tmpHtml.close();
 
   if (!success) {
     Serial.printf("[%lu] [SCT] Failed to stream item contents to temp file\n", millis());
@@ -134,10 +133,8 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
 
   Serial.printf("[%lu] [SCT] Streamed temp HTML to %s\n", millis(), tmpHtmlPath.c_str());
 
-  const auto sdTmpHtmlPath = "/sd" + tmpHtmlPath;
-
-  ChapterHtmlSlimParser visitor(sdTmpHtmlPath.c_str(), renderer, fontId, lineCompression, marginTop, marginRight,
-                                marginBottom, marginLeft, extraParagraphSpacing,
+  ChapterHtmlSlimParser visitor(tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom,
+                                marginLeft, extraParagraphSpacing,
                                 [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); });
   success = visitor.parseAndBuildPages();
 
@@ -153,13 +150,12 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
 }
 
 std::unique_ptr<Page> Section::loadPageFromSD() const {
-  const auto filePath = "/sd" + cachePath + "/page_" + std::to_string(currentPage) + ".bin";
-  if (!SD.exists(filePath.c_str() + 3)) {
-    Serial.printf("[%lu] [SCT] Page file does not exist: %s\n", millis(), filePath.c_str());
+  const auto filePath = cachePath + "/page_" + std::to_string(currentPage) + ".bin";
+
+  File inputFile;
+  if (!FsHelpers::openFileForRead("SCT", filePath, inputFile)) {
     return nullptr;
   }
-
-  std::ifstream inputFile(filePath);
   auto page = Page::deserialize(inputFile);
   inputFile.close();
   return page;
