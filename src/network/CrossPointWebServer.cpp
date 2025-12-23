@@ -66,7 +66,8 @@ void CrossPointWebServer::begin() {
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
 
   // Upload endpoint with special handling for multipart form data
-  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
+  server->on("/upload", HTTP_ANY, [this] { handleUploadPost(); }, [this] { handleUpload(); });
+
 
   // Create folder endpoint
   server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
@@ -403,13 +404,24 @@ void CrossPointWebServer::handleUpload() const {
 }
 
 void CrossPointWebServer::handleUploadPost() const {
-  server->enableCORS(true);
-  if (uploadSuccess) {
-    server->send(200, "text/plain", "File uploaded successfully: " + uploadFileName);
-  } else {
-    const String error = uploadError.isEmpty() ? "Unknown error during upload" : uploadError;
-    server->send(400, "text/plain", error);
+  if (server->method() == HTTP_OPTIONS) {
+    server->enableCORS(true);
+    server->send(204, "text/plain", "");
+    return;
   }
+
+  if (server->method() == HTTP_POST) {
+    server->enableCORS(true);
+    if (uploadSuccess) {
+      server->send(200, "text/plain", "File uploaded successfully: " + uploadFileName);
+    } else {
+      const String error = uploadError.isEmpty() ? "Unknown error during upload" : uploadError;
+      server->send(400, "text/plain", error);
+    }
+    return;
+  }
+  
+  server->send(405, "text/plain", "Method Not Allowed");
 }
 
 void CrossPointWebServer::handleCreateFolder() const {
