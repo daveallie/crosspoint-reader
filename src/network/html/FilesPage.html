@@ -52,6 +52,7 @@
     .breadcrumb-inline a {
       color: #3498db;
       text-decoration: none;
+      cursor: pointer;
     }
     .breadcrumb-inline a:hover {
       text-decoration: underline;
@@ -667,7 +668,7 @@
 
 <script>
   // get current path from query parameter
-  const currentPath = decodeURIComponent(new URLSearchParams(window.location.search).get('path') || '/');
+  let currentPath = decodeURIComponent(new URLSearchParams(window.location.search).get('path') || '/');
 
   function escapeHtml(unsafe) {
     return unsafe
@@ -686,32 +687,45 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)).toLocaleString() + ' ' + sizes[i];
   }
 
-  async function hydrate() {
-    // Close modals when clicking overlay
-    document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
-      overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) {
-          overlay.classList.remove('open');
-        }
-      });
-    });
+  async function goToPath(path) {
+    window.history.pushState({}, '', '?path=' + encodeURIComponent(path))
+    currentPath = path;
+    updateBreadcrumbs();
+    fillFilesTable();
+  }
 
+  function reloadContent() {
+    goToPath(currentPath);
+  }
+
+  async function updateBreadcrumbs() {
     const breadcrumbs = document.getElementById('directory-breadcrumbs');
-    const fileTable = document.getElementById('file-table');
 
     let breadcrumbContent = '<span class="sep">/</span>';
     if (currentPath === '/') {
       breadcrumbContent += '<span class="current">🏠</span>';
     } else {
-      breadcrumbContent += '<a href="/files">🏠</a>';
+      breadcrumbContent += `<a onclick="goToPath('/')">🏠</a>`;
       const pathSegments = currentPath.split('/');
       pathSegments.slice(1, pathSegments.length - 1).forEach(function(segment, index) {
-        breadcrumbContent += '<span class="sep">/</span><a href="/files?path=' + encodeURIComponent(pathSegments.slice(0, index + 2).join('/')) + '">' + escapeHtml(segment) + '</a>';
+        breadcrumbContent += `<span class="sep">/</span><a onclick="goToPath('${pathSegments.slice(0, index + 2).join('/')}')">${escapeHtml(segment)}</a>`;
       });
       breadcrumbContent += '<span class="sep">/</span>';
       breadcrumbContent += '<span class="current">' + escapeHtml(pathSegments[pathSegments.length - 1]) + '</span>';
     }
     breadcrumbs.innerHTML = breadcrumbContent;
+  }
+
+  async function fillFilesTable() {
+    const fileTable = document.getElementById('file-table');
+    const folderSummary = document.getElementById('folder-summary');
+
+    folderSummary.innerHTML = "";
+    fileTable.innerHTML = `
+      <div class="loader-container">
+        <span class="loader"></span>
+      </div>
+    `;
 
     let files = [];
     try {
@@ -733,7 +747,7 @@
       totalSize += file.size;
     });
 
-    document.getElementById('folder-summary').innerHTML = `${folderCount} folders, ${files.length - folderCount} files, ${formatFileSize(totalSize)}`;
+    folderSummary.innerHTML = `${folderCount} folders, ${files.length - folderCount} files, ${formatFileSize(totalSize)}`;
 
     if (files.length === 0) {
       fileTable.innerHTML = '<div class="no-files">This folder is empty</div>';
@@ -756,31 +770,57 @@
           if (!folderPath.endsWith("/")) folderPath += "/";
           folderPath += file.name;
 
-          fileTableContent += '<tr class="folder-row">';
-          fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span></td>`;
-          fileTableContent += '<td>Folder</td>';
-          fileTableContent += '<td>-</td>';
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></td>`;
-          fileTableContent += '</tr>';
+          
+          fileTableContent += `
+            <tr class="folder-row">
+              <td>
+                <span class="file-icon">📁</span><a onclick="goToPath('${folderPath}')" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span>
+              </td>
+              <td>Folder</td>
+              <td>-</td>
+              <td class="actions-col">
+                <button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button>
+              </td>
+            </tr>
+          `;
         } else {
           let filePath = currentPath;
           if (!filePath.endsWith("/")) filePath += "/";
           filePath += file.name;
-
-          fileTableContent += `<tr class="${file.isEpub ? 'epub-file' : ''}">`;
-          fileTableContent += `<td><span class="file-icon">${file.isEpub ? '📗' : '📄'}</span>${escapeHtml(file.name)}`;
-          if (file.isEpub) fileTableContent += '<span class="epub-badge">EPUB</span>';
-          fileTableContent += '</td>';
-          fileTableContent += `<td>${file.name.split('.').pop().toUpperCase()}</td>`;
-          fileTableContent += `<td>${formatFileSize(file.size)}</td>`;
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button></td>`;
-          fileTableContent += '</tr>';
+          
+          fileTableContent += `
+            <tr class="${file.isEpub ? 'epub-file' : ''}">
+              <td>
+                <span class="file-icon">${file.isEpub ? '📗' : '📄'}</span>${escapeHtml(file.name)}
+                ${file.isEpub ? '<span class="epub-badge">EPUB</span>' : ''}
+              </td>
+              <td>${file.name.split('.').pop().toUpperCase()}</td>
+              <td>${formatFileSize(file.size)}</td>
+              <td class="actions-col">
+                <button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button>
+              </td>
+            </tr>
+          `;
         }
       });
 
       fileTableContent += '</table>';
       fileTable.innerHTML = fileTableContent;
     }
+  }
+
+  async function hydrate() {
+    // Close modals when clicking overlay
+    document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+        }
+      });
+    });
+
+    await updateBreadcrumbs();
+    await fillFilesTable();
   }
 
   // Modal functions
@@ -845,7 +885,8 @@ function uploadFile() {
         progressText.textContent = 'All uploads complete!';
         setTimeout(() => {
           closeUploadModal();
-          hydrate(); // Refresh file list instead of reloading
+          // hydrate(); // Refresh file list instead of reloading
+          reloadContent();
         }, 1000);
       } else {
         progressFill.style.backgroundColor = '#e74c3c';
@@ -858,7 +899,8 @@ function uploadFile() {
         setTimeout(() => {
           closeUploadModal();
           showFailedUploadsBanner();
-          hydrate(); // Refresh file list to show successfully uploaded files
+          // hydrate(); // Refresh file list to show successfully uploaded files
+          reloadContent();
         }, 2000);
       }
       return;
@@ -871,7 +913,7 @@ function uploadFile() {
     const xhr = new XMLHttpRequest();
     // Include path as query parameter since multipart form data doesn't make
     // form fields available until after file upload completes
-    xhr.open('POST', '/upload?path=' + encodeURIComponent(currentPath), true);
+    xhr.open('POST', '/api/upload?path=' + encodeURIComponent(currentPath), true);
 
     progressFill.style.width = '0%';
     progressFill.style.backgroundColor = '#4caf50';
@@ -1008,11 +1050,12 @@ function retryAllFailedUploads() {
     formData.append('path', currentPath);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/mkdir', true);
+    xhr.open('POST', '/api/mkdir', true);
 
     xhr.onload = function() {
       if (xhr.status === 200) {
-        window.location.reload();
+        reloadContent();
+        closeFolderModal();
       } else {
         alert('Failed to create folder: ' + xhr.responseText);
       }
@@ -1046,15 +1089,15 @@ function retryAllFailedUploads() {
     formData.append('type', itemType);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/delete', true);
+    xhr.open('POST', '/api/delete', true);
 
     xhr.onload = function() {
       if (xhr.status === 200) {
-        window.location.reload();
+        reloadContent();
       } else {
         alert('Failed to delete: ' + xhr.responseText);
-        closeDeleteModal();
       }
+      closeDeleteModal();
     };
 
     xhr.onerror = function() {
