@@ -1,9 +1,9 @@
 #include "EpubReaderActivity.h"
 
 #include <Epub/Page.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <InputManager.h>
-#include <SD.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
@@ -37,8 +37,8 @@ void EpubReaderActivity::onEnter() {
 
   epub->setupCacheDir();
 
-  File f = SD.open((epub->getCachePath() + "/progress.bin").c_str());
-  if (f) {
+  File f;
+  if (FsHelpers::openFileForRead("ERS", epub->getCachePath() + "/progress.bin", f)) {
     uint8_t data[4];
     if (f.read(data, 4) == 4) {
       currentSpineIndex = data[0] + (data[1] << 8);
@@ -282,14 +282,16 @@ void EpubReaderActivity::renderScreen() {
     Serial.printf("[%lu] [ERS] Rendered page in %dms\n", millis(), millis() - start);
   }
 
-  File f = SD.open((epub->getCachePath() + "/progress.bin").c_str(), FILE_WRITE);
-  uint8_t data[4];
-  data[0] = currentSpineIndex & 0xFF;
-  data[1] = (currentSpineIndex >> 8) & 0xFF;
-  data[2] = section->currentPage & 0xFF;
-  data[3] = (section->currentPage >> 8) & 0xFF;
-  f.write(data, 4);
-  f.close();
+  File f;
+  if (FsHelpers::openFileForWrite("ERS", epub->getCachePath() + "/progress.bin", f)) {
+    uint8_t data[4];
+    data[0] = currentSpineIndex & 0xFF;
+    data[1] = (currentSpineIndex >> 8) & 0xFF;
+    data[2] = section->currentPage & 0xFF;
+    data[3] = (section->currentPage >> 8) & 0xFF;
+    f.write(data, 4);
+    f.close();
+  }
 }
 
 void EpubReaderActivity::renderContents(std::unique_ptr<Page> page) {

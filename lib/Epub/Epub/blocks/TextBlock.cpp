@@ -17,27 +17,27 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
   }
 }
 
-void TextBlock::serialize(std::ostream& os) const {
+void TextBlock::serialize(File& file) const {
   // words
   const uint32_t wc = words.size();
-  serialization::writePod(os, wc);
-  for (const auto& w : words) serialization::writeString(os, w);
+  serialization::writePod(file, wc);
+  for (const auto& w : words) serialization::writeString(file, w);
 
   // wordXpos
   const uint32_t xc = wordXpos.size();
-  serialization::writePod(os, xc);
-  for (auto x : wordXpos) serialization::writePod(os, x);
+  serialization::writePod(file, xc);
+  for (auto x : wordXpos) serialization::writePod(file, x);
 
   // wordStyles
   const uint32_t sc = wordStyles.size();
-  serialization::writePod(os, sc);
-  for (auto s : wordStyles) serialization::writePod(os, s);
+  serialization::writePod(file, sc);
+  for (auto s : wordStyles) serialization::writePod(file, s);
 
   // style
-  serialization::writePod(os, style);
+  serialization::writePod(file, style);
 }
 
-std::unique_ptr<TextBlock> TextBlock::deserialize(std::istream& is) {
+std::unique_ptr<TextBlock> TextBlock::deserialize(File& file) {
   uint32_t wc, xc, sc;
   std::list<std::string> words;
   std::list<uint16_t> wordXpos;
@@ -45,22 +45,22 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(std::istream& is) {
   BLOCK_STYLE style;
 
   // words
-  serialization::readPod(is, wc);
+  serialization::readPod(file, wc);
   words.resize(wc);
-  for (auto& w : words) serialization::readString(is, w);
+  for (auto& w : words) serialization::readString(file, w);
 
   // wordXpos
-  serialization::readPod(is, xc);
+  serialization::readPod(file, xc);
   wordXpos.resize(xc);
-  for (auto& x : wordXpos) serialization::readPod(is, x);
+  for (auto& x : wordXpos) serialization::readPod(file, x);
 
   // wordStyles
-  serialization::readPod(is, sc);
+  serialization::readPod(file, sc);
   wordStyles.resize(sc);
-  for (auto& s : wordStyles) serialization::readPod(is, s);
+  for (auto& s : wordStyles) serialization::readPod(file, s);
 
   // style
-  serialization::readPod(is, style);
+  serialization::readPod(file, style);
 
   return std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), style));
 }

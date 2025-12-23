@@ -1,11 +1,11 @@
 #include "Epub.h"
 
+#include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
 #include <SD.h>
 #include <ZipFile.h>
 
-#include "Epub/FsHelpers.h"
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
 #include "Epub/parsers/TocNcxParser.h"
@@ -95,10 +95,15 @@ bool Epub::parseTocNcxFile() const {
   Serial.printf("[%lu] [EBP] Parsing toc ncx file: %s\n", millis(), tocNcxItem.c_str());
 
   const auto tmpNcxPath = getCachePath() + "/toc.ncx";
-  File tempNcxFile = SD.open(tmpNcxPath.c_str(), FILE_WRITE);
+  File tempNcxFile;
+  if (!FsHelpers::openFileForWrite("EBP", tmpNcxPath, tempNcxFile)) {
+    return false;
+  }
   readItemContentsToStream(tocNcxItem, tempNcxFile, 1024);
   tempNcxFile.close();
-  tempNcxFile = SD.open(tmpNcxPath.c_str(), FILE_READ);
+  if (!FsHelpers::openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
+    return false;
+  }
   const auto ncxSize = tempNcxFile.size();
 
   TocNcxParser ncxParser(contentBasePath, ncxSize, spineTocCache.get());
@@ -246,16 +251,28 @@ bool Epub::generateCoverBmp() const {
   if (coverImageItem.substr(coverImageItem.length() - 4) == ".jpg" ||
       coverImageItem.substr(coverImageItem.length() - 5) == ".jpeg") {
     Serial.printf("[%lu] [EBP] Generating BMP from JPG cover image\n", millis());
-    File coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_WRITE, true);
+    const auto coverJpgTempPath = getCachePath() + "/.cover.jpg";
+
+    File coverJpg;
+    if (!FsHelpers::openFileForWrite("EBP", coverJpgTempPath, coverJpg)) {
+      return false;
+    }
     readItemContentsToStream(coverImageItem, coverJpg, 1024);
     coverJpg.close();
 
-    coverJpg = SD.open((getCachePath() + "/.cover.jpg").c_str(), FILE_READ);
-    File coverBmp = SD.open(getCoverBmpPath().c_str(), FILE_WRITE, true);
+    if (!FsHelpers::openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
+      return false;
+    }
+
+    File coverBmp;
+    if (!FsHelpers::openFileForWrite("EBP", getCoverBmpPath(), coverBmp)) {
+      coverJpg.close();
+      return false;
+    }
     const bool success = JpegToBmpConverter::jpegFileToBmpStream(coverJpg, coverBmp);
     coverJpg.close();
     coverBmp.close();
-    SD.remove((getCachePath() + "/.cover.jpg").c_str());
+    SD.remove(coverJpgTempPath.c_str());
 
     if (!success) {
       Serial.printf("[%lu] [EBP] Failed to generate BMP from JPG cover image\n", millis());

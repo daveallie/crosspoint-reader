@@ -15,7 +15,7 @@ class GfxRenderer;
 #define MAX_WORD_SIZE 200
 
 class ChapterHtmlSlimParser {
-  const char* filepath;
+  const std::string& filepath;
   GfxRenderer& renderer;
   std::function<void(std::unique_ptr<Page>)> completePageFn;
   int depth = 0;
@@ -45,7 +45,7 @@ class ChapterHtmlSlimParser {
   static void XMLCALL endElement(void* userData, const XML_Char* name);
 
  public:
-  explicit ChapterHtmlSlimParser(const char* filepath, GfxRenderer& renderer, const int fontId,
+  explicit ChapterHtmlSlimParser(const std::string& filepath, GfxRenderer& renderer, const int fontId,
                                  const float lineCompression, const int marginTop, const int marginRight,
                                  const int marginBottom, const int marginLeft, const bool extraParagraphSpacing,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn)

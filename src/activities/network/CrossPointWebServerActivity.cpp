@@ -1,11 +1,27 @@
 #include "CrossPointWebServerActivity.h"
 
+#include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <InputManager.h>
 #include <WiFi.h>
 
+#include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
 #include "config.h"
+
+namespace {
+// AP Mode configuration
+constexpr const char* AP_SSID = "CrossPoint-Reader";
+constexpr const char* AP_PASSWORD = nullptr;  // Open network for ease of use
+constexpr const char* AP_HOSTNAME = "crosspoint";
+constexpr uint8_t AP_CHANNEL = 1;
+constexpr uint8_t AP_MAX_CONNECTIONS = 4;
+
+// DNS server for captive portal (redirects all DNS queries to our IP)
+DNSServer* dnsServer = nullptr;
+constexpr uint16_t DNS_PORT = 53;
+}  // namespace
 
 void CrossPointWebServerActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CrossPointWebServerActivity*>(param);
@@ -20,7 +36,9 @@ void CrossPointWebServerActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   // Reset state
-  state = WebServerActivityState::WIFI_SELECTION;
+  state = WebServerActivityState::MODE_SELECTION;
+  networkMode = NetworkMode::JOIN_NETWORK;
+  isApMode = false;
   connectedIP.clear();
   connectedSSID.clear();
   lastHandleClientTime = 0;
@@ -33,14 +51,12 @@ void CrossPointWebServerActivity::onEnter() {
               &displayTaskHandle  // Task handle
   );
 
-  // Turn on WiFi immediately
-  Serial.printf("[%lu] [WEBACT] Turning on WiFi...\n", millis());
-  WiFi.mode(WIFI_STA);
-
-  // Launch WiFi selection subactivity
-  Serial.printf("[%lu] [WEBACT] Launching WifiSelectionActivity...\n", millis());
-  enterNewActivity(new WifiSelectionActivity(renderer, inputManager,
-                                             [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  // Launch network mode selection subactivity
+  Serial.printf("[%lu] [WEBACT] Launching NetworkModeSelectionActivity...\n", millis());
+  enterNewActivity(new NetworkModeSelectionActivity(
+      renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+      [this]() { onGoBack(); }  // Cancel goes back to home
+      ));
 }
 
 void CrossPointWebServerActivity::onExit() {
@@ -53,14 +69,30 @@ void CrossPointWebServerActivity::onExit() {
   // Stop the web server first (before disconnecting WiFi)
   stopWebServer();
 
+  // Stop mDNS
+  MDNS.end();
+
+  // Stop DNS server if running (AP mode)
+  if (dnsServer) {
+    Serial.printf("[%lu] [WEBACT] Stopping DNS server...\n", millis());
+    dnsServer->stop();
+    delete dnsServer;
+    dnsServer = nullptr;
+  }
+
   // CRITICAL: Wait for LWIP stack to flush any pending packets
   Serial.printf("[%lu] [WEBACT] Waiting 500ms for network stack to flush pending packets...\n", millis());
   delay(500);
 
   // Disconnect WiFi gracefully
-  Serial.printf("[%lu] [WEBACT] Disconnecting WiFi (graceful)...\n", millis());
-  WiFi.disconnect(false);  // false = don't erase credentials, send disconnect frame
-  delay(100);              // Allow disconnect frame to be sent
+  if (isApMode) {
+    Serial.printf("[%lu] [WEBACT] Stopping WiFi AP...\n", millis());
+    WiFi.softAPdisconnect(true);
+  } else {
+    Serial.printf("[%lu] [WEBACT] Disconnecting WiFi (graceful)...\n", millis());
+    WiFi.disconnect(false);  // false = don't erase credentials, send disconnect frame
+  }
+  delay(100);  // Allow disconnect frame to be sent
 
   Serial.printf("[%lu] [WEBACT] Setting WiFi mode OFF...\n", millis());
   WiFi.mode(WIFI_OFF);
@@ -89,6 +121,33 @@ void CrossPointWebServerActivity::onExit() {
   Serial.printf("[%lu] [WEBACT] [MEM] Free heap at onExit end: %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
+void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) {
+  Serial.printf("[%lu] [WEBACT] Network mode selected: %s\n", millis(),
+                mode == NetworkMode::JOIN_NETWORK ? "Join Network" : "Create Hotspot");
+
+  networkMode = mode;
+  isApMode = (mode == NetworkMode::CREATE_HOTSPOT);
+
+  // Exit mode selection subactivity
+  exitActivity();
+
+  if (mode == NetworkMode::JOIN_NETWORK) {
+    // STA mode - launch WiFi selection
+    Serial.printf("[%lu] [WEBACT] Turning on WiFi (STA mode)...\n", millis());
+    WiFi.mode(WIFI_STA);
+
+    state = WebServerActivityState::WIFI_SELECTION;
+    Serial.printf("[%lu] [WEBACT] Launching WifiSelectionActivity...\n", millis());
+    enterNewActivity(new WifiSelectionActivity(renderer, inputManager,
+                                               [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  } else {
+    // AP mode - start access point
+    state = WebServerActivityState::AP_STARTING;
+    updateRequired = true;
+    startAccessPoint();
+  }
+}
+
 void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) {
   Serial.printf("[%lu] [WEBACT] WifiSelectionActivity completed, connected=%d\n", millis(), connected);
 
@@ -96,15 +155,81 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
     // Get connection info before exiting subactivity
     connectedIP = static_cast<WifiSelectionActivity*>(subActivity.get())->getConnectedIP();
     connectedSSID = WiFi.SSID().c_str();
+    isApMode = false;
 
     exitActivity();
+
+    // Start mDNS for hostname resolution
+    if (MDNS.begin(AP_HOSTNAME)) {
+      Serial.printf("[%lu] [WEBACT] mDNS started: http://%s.local/\n", millis(), AP_HOSTNAME);
+    }
 
     // Start the web server
     startWebServer();
   } else {
-    // User cancelled - go back
-    onGoBack();
+    // User cancelled - go back to mode selection
+    exitActivity();
+    state = WebServerActivityState::MODE_SELECTION;
+    enterNewActivity(new NetworkModeSelectionActivity(
+        renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+        [this]() { onGoBack(); }));
   }
+}
+
+void CrossPointWebServerActivity::startAccessPoint() {
+  Serial.printf("[%lu] [WEBACT] Starting Access Point mode...\n", millis());
+  Serial.printf("[%lu] [WEBACT] [MEM] Free heap before AP start: %d bytes\n", millis(), ESP.getFreeHeap());
+
+  // Configure and start the AP
+  WiFi.mode(WIFI_AP);
+  delay(100);
+
+  // Start soft AP
+  bool apStarted;
+  if (AP_PASSWORD && strlen(AP_PASSWORD) >= 8) {
+    apStarted = WiFi.softAP(AP_SSID, AP_PASSWORD, AP_CHANNEL, false, AP_MAX_CONNECTIONS);
+  } else {
+    // Open network (no password)
+    apStarted = WiFi.softAP(AP_SSID, nullptr, AP_CHANNEL, false, AP_MAX_CONNECTIONS);
+  }
+
+  if (!apStarted) {
+    Serial.printf("[%lu] [WEBACT] ERROR: Failed to start Access Point!\n", millis());
+    onGoBack();
+    return;
+  }
+
+  delay(100);  // Wait for AP to fully initialize
+
+  // Get AP IP address
+  const IPAddress apIP = WiFi.softAPIP();
+  char ipStr[16];
+  snprintf(ipStr, sizeof(ipStr), "%d.%d.%d.%d", apIP[0], apIP[1], apIP[2], apIP[3]);
+  connectedIP = ipStr;
+  connectedSSID = AP_SSID;
+
+  Serial.printf("[%lu] [WEBACT] Access Point started!\n", millis());
+  Serial.printf("[%lu] [WEBACT] SSID: %s\n", millis(), AP_SSID);
+  Serial.printf("[%lu] [WEBACT] IP: %s\n", millis(), connectedIP.c_str());
+
+  // Start mDNS for hostname resolution
+  if (MDNS.begin(AP_HOSTNAME)) {
+    Serial.printf("[%lu] [WEBACT] mDNS started: http://%s.local/\n", millis(), AP_HOSTNAME);
+  } else {
+    Serial.printf("[%lu] [WEBACT] WARNING: mDNS failed to start\n", millis());
+  }
+
+  // Start DNS server for captive portal behavior
+  // This redirects all DNS queries to our IP, making any domain typed resolve to us
+  dnsServer = new DNSServer();
+  dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+  dnsServer->start(DNS_PORT, "*", apIP);
+  Serial.printf("[%lu] [WEBACT] DNS server started for captive portal\n", millis());
+
+  Serial.printf("[%lu] [WEBACT] [MEM] Free heap after AP start: %d bytes\n", millis(), ESP.getFreeHeap());
+
+  // Start the web server
+  startWebServer();
 }
 
 void CrossPointWebServerActivity::startWebServer() {
@@ -150,6 +275,11 @@ void CrossPointWebServerActivity::loop() {
 
   // Handle different states
   if (state == WebServerActivityState::SERVER_RUNNING) {
+    // Handle DNS requests for captive portal (AP mode only)
+    if (isApMode && dnsServer) {
+      dnsServer->processNextRequest();
+    }
+
     // Handle web server requests - call handleClient multiple times per loop
     // to improve responsiveness and upload throughput
     if (webServer && webServer->isRunning()) {
@@ -193,35 +323,71 @@ void CrossPointWebServerActivity::displayTaskLoop() {
 
 void CrossPointWebServerActivity::render() const {
   // Only render our own UI when server is running
-  // WiFi selection handles its own rendering
+  // Subactivities handle their own rendering
   if (state == WebServerActivityState::SERVER_RUNNING) {
     renderer.clearScreen();
     renderServerRunning();
+    renderer.displayBuffer();
+  } else if (state == WebServerActivityState::AP_STARTING) {
+    renderer.clearScreen();
+    const auto pageHeight = renderer.getScreenHeight();
+    renderer.drawCenteredText(READER_FONT_ID, pageHeight / 2 - 20, "Starting Hotspot...", true, BOLD);
     renderer.displayBuffer();
   }
 }
 
 void CrossPointWebServerActivity::renderServerRunning() const {
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
-  const auto top = (pageHeight - height * 5) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 30, "File Transfer", true, BOLD);
+  // Use consistent line spacing
+  constexpr int LINE_SPACING = 28;  // Space between lines
 
-  std::string ssidInfo = "Network: " + connectedSSID;
-  if (ssidInfo.length() > 28) {
-    ssidInfo.replace(25, ssidInfo.length() - 25, "...");
+  renderer.drawCenteredText(READER_FONT_ID, 15, "File Transfer", true, BOLD);
+
+  if (isApMode) {
+    // AP mode display - center the content block
+    const int startY = 55;
+
+    renderer.drawCenteredText(UI_FONT_ID, startY, "Hotspot Mode", true, BOLD);
+
+    std::string ssidInfo = "Network: " + connectedSSID;
+    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING, ssidInfo.c_str(), true, REGULAR);
+
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, "Connect your device to this WiFi network",
+                              true, REGULAR);
+
+    // Show primary URL (hostname)
+    std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
+    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str(), true, BOLD);
+
+    // Show IP address as fallback
+    std::string ipUrl = "or http://" + connectedIP + "/";
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, ipUrl.c_str(), true, REGULAR);
+
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, "Open this URL in your browser", true, REGULAR);
+  } else {
+    // STA mode display (original behavior)
+    const int startY = 65;
+
+    std::string ssidInfo = "Network: " + connectedSSID;
+    if (ssidInfo.length() > 28) {
+      ssidInfo.replace(25, ssidInfo.length() - 25, "...");
+    }
+    renderer.drawCenteredText(UI_FONT_ID, startY, ssidInfo.c_str(), true, REGULAR);
+
+    std::string ipInfo = "IP Address: " + connectedIP;
+    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING, ipInfo.c_str(), true, REGULAR);
+
+    // Show web server URL prominently
+    std::string webInfo = "http://" + connectedIP + "/";
+    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING * 2, webInfo.c_str(), true, BOLD);
+
+    // Also show hostname URL
+    std::string hostnameUrl = std::string("or http://") + AP_HOSTNAME + ".local/";
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str(), true, REGULAR);
+
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, "Open this URL in your browser", true, REGULAR);
   }
-  renderer.drawCenteredText(UI_FONT_ID, top + 10, ssidInfo.c_str(), true, REGULAR);
-
-  std::string ipInfo = "IP Address: " + connectedIP;
-  renderer.drawCenteredText(UI_FONT_ID, top + 40, ipInfo.c_str(), true, REGULAR);
-
-  // Show web server URL prominently
-  std::string webInfo = "http://" + connectedIP + "/";
-  renderer.drawCenteredText(UI_FONT_ID, top + 70, webInfo.c_str(), true, BOLD);
-
-  renderer.drawCenteredText(SMALL_FONT_ID, top + 110, "Open this URL in your browser", true, REGULAR);
 
   renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press BACK to exit", true, REGULAR);
 }
