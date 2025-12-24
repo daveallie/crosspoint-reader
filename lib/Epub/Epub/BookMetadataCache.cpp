@@ -297,11 +297,8 @@ BookMetadataCache::TocEntry BookMetadataCache::getTocEntry(const int index) {
   bookFile.seek(lutOffset + sizeof(size_t) * spineCount + sizeof(size_t) * index);
   size_t tocEntryPos;
   serialization::readPod(bookFile, tocEntryPos);
-
-  Serial.printf("[%lu] [BMC] getTocEntry tocEntryPos: %d\n", millis(), tocEntryPos);
-
   bookFile.seek(tocEntryPos);
-  return readTocEntry(tocFile);
+  return readTocEntry(bookFile);
 }
 
 BookMetadataCache::SpineEntry BookMetadataCache::readSpineEntry(File& file) const {
