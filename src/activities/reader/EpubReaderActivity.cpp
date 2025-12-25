@@ -109,13 +109,15 @@ void EpubReaderActivity::loop() {
     xSemaphoreGive(renderingMutex);
   }
 
-  // Long press (1s+) goes to home, short press goes to file selection
-  if (inputManager.wasReleased(InputManager::BTN_BACK)) {
-    if (inputManager.getHeldTime() >= goHomeMs) {
-      onGoHome();
-    } else {
-      onGoBack();
-    }
+  // Long press BACK (1s+) goes directly to home
+  if (inputManager.isPressed(InputManager::BTN_BACK) && inputManager.getHeldTime() >= goHomeMs) {
+    onGoHome();
+    return;
+  }
+
+  // Short press BACK goes to file selection
+  if (inputManager.wasReleased(InputManager::BTN_BACK) && inputManager.getHeldTime() < goHomeMs) {
+    onGoBack();
     return;
   }
 
