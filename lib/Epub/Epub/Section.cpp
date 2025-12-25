@@ -142,10 +142,9 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
 
   Serial.printf("[%lu] [SCT] Streamed temp HTML to %s\n", millis(), tmpHtmlPath.c_str());
 
-  ChapterHtmlSlimParser visitor(tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom,
-                                marginLeft, extraParagraphSpacing,
-                                [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); },
-                                progressFn);
+  ChapterHtmlSlimParser visitor(
+      tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft,
+      extraParagraphSpacing, [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); }, progressFn);
   success = visitor.parseAndBuildPages();
 
   SD.remove(tmpHtmlPath.c_str());
