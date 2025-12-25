@@ -149,7 +149,7 @@ void FileSelectionActivity::render() const {
   renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
 
   // Help text
-  renderer.drawText(SMALL_FONT_ID, 20, GfxRenderer::getScreenHeight() - 30, "Press BACK for Home");
+  renderer.drawButtonHints(UI_FONT_ID, "« Home", "", "", "");
 
   if (files.empty()) {
     renderer.drawText(UI_FONT_ID, 20, 60, "No EPUBs found");

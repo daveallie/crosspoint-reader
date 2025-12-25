@@ -85,7 +85,6 @@ void HomeActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
   renderer.drawCenteredText(READER_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
 
   // Draw selection
@@ -94,18 +93,7 @@ void HomeActivity::render() const {
   renderer.drawText(UI_FONT_ID, 20, 90, "File transfer", selectorIndex != 1);
   renderer.drawText(UI_FONT_ID, 20, 120, "Settings", selectorIndex != 2);
 
-  renderer.drawRect(25, pageHeight - 40, 106, 40);
-  renderer.drawText(UI_FONT_ID, 25 + (105 - renderer.getTextWidth(UI_FONT_ID, "Back")) / 2, pageHeight - 35, "Back");
-
-  renderer.drawRect(130, pageHeight - 40, 106, 40);
-  renderer.drawText(UI_FONT_ID, 130 + (105 - renderer.getTextWidth(UI_FONT_ID, "Confirm")) / 2, pageHeight - 35,
-                    "Confirm");
-
-  renderer.drawRect(245, pageHeight - 40, 106, 40);
-  renderer.drawText(UI_FONT_ID, 245 + (105 - renderer.getTextWidth(UI_FONT_ID, "Left")) / 2, pageHeight - 35, "Left");
-
-  renderer.drawRect(350, pageHeight - 40, 106, 40);
-  renderer.drawText(UI_FONT_ID, 350 + (105 - renderer.getTextWidth(UI_FONT_ID, "Right")) / 2, pageHeight - 35, "Right");
+  renderer.drawButtonHints(UI_FONT_ID, "Back", "Confirm", "Left", "Right");
 
   renderer.displayBuffer();
 }
