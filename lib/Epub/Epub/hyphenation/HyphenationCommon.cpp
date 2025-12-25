@@ -79,10 +79,6 @@ bool isPunctuation(const uint32_t cp) {
     case '’':
     case '“':
     case '”':
-    case '—':
-    case '-':
-    case '–':
-    case '―':
     case '[':
     case ']':
     case '{':
