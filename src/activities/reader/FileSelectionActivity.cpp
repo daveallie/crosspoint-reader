@@ -1,9 +1,15 @@
 #include "FileSelectionActivity.h"
 
 #include <GfxRenderer.h>
+#include <InputManager.h>
 #include <SD.h>
 
 #include "config.h"
+
+namespace {
+constexpr int PAGE_ITEMS = 23;
+constexpr int SKIP_PAGE_MS = 700;
+}  // namespace
 
 void sortFileList(std::vector<std::string>& strs) {
   std::sort(begin(strs), end(strs), [](const std::string& str1, const std::string& str2) {
@@ -43,6 +49,8 @@ void FileSelectionActivity::loadFiles() {
 }
 
 void FileSelectionActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   basepath = "/";
@@ -61,6 +69,8 @@ void FileSelectionActivity::onEnter() {
 }
 
 void FileSelectionActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -73,10 +83,12 @@ void FileSelectionActivity::onExit() {
 }
 
 void FileSelectionActivity::loop() {
-  const bool prevPressed =
-      inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT);
-  const bool nextPressed =
-      inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT);
+  const bool prevReleased =
+      inputManager.wasReleased(InputManager::BTN_UP) || inputManager.wasReleased(InputManager::BTN_LEFT);
+  const bool nextReleased =
+      inputManager.wasReleased(InputManager::BTN_DOWN) || inputManager.wasReleased(InputManager::BTN_RIGHT);
+
+  const bool skipPage = inputManager.getHeldTime() > SKIP_PAGE_MS;
 
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     if (files.empty()) {
@@ -93,7 +105,7 @@ void FileSelectionActivity::loop() {
     }
   } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
     if (basepath != "/") {
-      basepath = basepath.substr(0, basepath.rfind('/'));
+      basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
       if (basepath.empty()) basepath = "/";
       loadFiles();
       updateRequired = true;
@@ -101,11 +113,19 @@ void FileSelectionActivity::loop() {
       // At root level, go back home
       onGoHome();
     }
-  } else if (prevPressed) {
-    selectorIndex = (selectorIndex + files.size() - 1) % files.size();
+  } else if (prevReleased) {
+    if (skipPage) {
+      selectorIndex = ((selectorIndex / PAGE_ITEMS - 1) * PAGE_ITEMS + files.size()) % files.size();
+    } else {
+      selectorIndex = (selectorIndex + files.size() - 1) % files.size();
+    }
     updateRequired = true;
-  } else if (nextPressed) {
-    selectorIndex = (selectorIndex + 1) % files.size();
+  } else if (nextReleased) {
+    if (skipPage) {
+      selectorIndex = ((selectorIndex / PAGE_ITEMS + 1) * PAGE_ITEMS) % files.size();
+    } else {
+      selectorIndex = (selectorIndex + 1) % files.size();
+    }
     updateRequired = true;
   }
 }
@@ -126,21 +146,27 @@ void FileSelectionActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = GfxRenderer::getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
+  renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
 
   // Help text
   renderer.drawText(SMALL_FONT_ID, 20, GfxRenderer::getScreenHeight() - 30, "Press BACK for Home");
 
   if (files.empty()) {
     renderer.drawText(UI_FONT_ID, 20, 60, "No EPUBs found");
-  } else {
-    // Draw selection
-    renderer.fillRect(0, 60 + selectorIndex * 30 + 2, pageWidth - 1, 30);
+    renderer.displayBuffer();
+    return;
+  }
 
-    for (size_t i = 0; i < files.size(); i++) {
-      const auto file = files[i];
-      renderer.drawText(UI_FONT_ID, 20, 60 + i * 30, file.c_str(), i != selectorIndex);
+  const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
+  renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 + 2, pageWidth - 1, 30);
+  for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
+    auto item = files[i];
+    int itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
+    while (itemWidth > renderer.getScreenWidth() - 40 && item.length() > 8) {
+      item.replace(item.length() - 5, 5, "...");
+      itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
     }
+    renderer.drawText(UI_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
   }
 
   renderer.displayBuffer();

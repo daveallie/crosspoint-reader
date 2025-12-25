@@ -1,11 +1,13 @@
 #include "EpubReaderActivity.h"
 
 #include <Epub/Page.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
-#include <SD.h>
+#include <InputManager.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "config.h"
 
@@ -25,6 +27,8 @@ void EpubReaderActivity::taskTrampoline(void* param) {
 }
 
 void EpubReaderActivity::onEnter() {
+  ActivityWithSubactivity::onEnter();
+
   if (!epub) {
     return;
   }
@@ -33,8 +37,8 @@ void EpubReaderActivity::onEnter() {
 
   epub->setupCacheDir();
 
-  File f = SD.open((epub->getCachePath() + "/progress.bin").c_str());
-  if (f) {
+  File f;
+  if (FsHelpers::openFileForRead("ERS", epub->getCachePath() + "/progress.bin", f)) {
     uint8_t data[4];
     if (f.read(data, 4) == 4) {
       currentSpineIndex = data[0] + (data[1] << 8);
@@ -43,6 +47,10 @@ void EpubReaderActivity::onEnter() {
     }
     f.close();
   }
+
+  // Save current epub as last opened epub
+  APP_STATE.openEpubPath = epub->getPath();
+  APP_STATE.saveToFile();
 
   // Trigger first update
   updateRequired = true;
@@ -56,6 +64,8 @@ void EpubReaderActivity::onEnter() {
 }
 
 void EpubReaderActivity::onExit() {
+  ActivityWithSubactivity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -70,8 +80,8 @@ void EpubReaderActivity::onExit() {
 
 void EpubReaderActivity::loop() {
   // Pass input responsibility to sub activity if exists
-  if (subAcitivity) {
-    subAcitivity->loop();
+  if (subActivity) {
+    subActivity->loop();
     return;
   }
 
@@ -79,11 +89,11 @@ void EpubReaderActivity::loop() {
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     // Don't start activity transition while rendering
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
-    subAcitivity.reset(new EpubReaderChapterSelectionActivity(
+    exitActivity();
+    enterNewActivity(new EpubReaderChapterSelectionActivity(
         this->renderer, this->inputManager, epub, currentSpineIndex,
         [this] {
-          subAcitivity->onExit();
-          subAcitivity.reset();
+          exitActivity();
           updateRequired = true;
         },
         [this](const int newSpineIndex) {
@@ -92,11 +102,9 @@ void EpubReaderActivity::loop() {
             nextPageNumber = 0;
             section.reset();
           }
-          subAcitivity->onExit();
-          subAcitivity.reset();
+          exitActivity();
           updateRequired = true;
         }));
-    subAcitivity->onEnter();
     xSemaphoreGive(renderingMutex);
   }
 
@@ -204,7 +212,7 @@ void EpubReaderActivity::renderScreen() {
   }
 
   if (!section) {
-    const auto filepath = epub->getSpineItem(currentSpineIndex);
+    const auto filepath = epub->getSpineItem(currentSpineIndex).href;
     Serial.printf("[%lu] [ERS] Loading file: %s, index: %d\n", millis(), filepath.c_str(), currentSpineIndex);
     section = std::unique_ptr<Section>(new Section(epub, currentSpineIndex, renderer));
     if (!section->loadCacheMetadata(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom, marginLeft,
@@ -274,14 +282,16 @@ void EpubReaderActivity::renderScreen() {
     Serial.printf("[%lu] [ERS] Rendered page in %dms\n", millis(), millis() - start);
   }
 
-  File f = SD.open((epub->getCachePath() + "/progress.bin").c_str(), FILE_WRITE);
-  uint8_t data[4];
-  data[0] = currentSpineIndex & 0xFF;
-  data[1] = (currentSpineIndex >> 8) & 0xFF;
-  data[2] = section->currentPage & 0xFF;
-  data[3] = (section->currentPage >> 8) & 0xFF;
-  f.write(data, 4);
-  f.close();
+  File f;
+  if (FsHelpers::openFileForWrite("ERS", epub->getCachePath() + "/progress.bin", f)) {
+    uint8_t data[4];
+    data[0] = currentSpineIndex & 0xFF;
+    data[1] = (currentSpineIndex >> 8) & 0xFF;
+    data[2] = section->currentPage & 0xFF;
+    data[3] = (section->currentPage >> 8) & 0xFF;
+    f.write(data, 4);
+    f.close();
+  }
 }
 
 void EpubReaderActivity::renderContents(std::unique_ptr<Page> page) {
@@ -325,8 +335,8 @@ void EpubReaderActivity::renderStatusBar() const {
   constexpr auto textY = 776;
 
   // Calculate progress in book
-  float sectionChapterProg = static_cast<float>(section->currentPage) / section->pageCount;
-  uint8_t bookProgress = epub->calculateProgress(currentSpineIndex, sectionChapterProg);
+  const float sectionChapterProg = static_cast<float>(section->currentPage) / section->pageCount;
+  const uint8_t bookProgress = epub->calculateProgress(currentSpineIndex, sectionChapterProg);
 
   // Right aligned text for progress counter
   const std::string progress = std::to_string(section->currentPage + 1) + "/" + std::to_string(section->pageCount) +
@@ -383,7 +393,7 @@ void EpubReaderActivity::renderStatusBar() const {
     title = tocItem.title;
     titleWidth = renderer.getTextWidth(SMALL_FONT_ID, title.c_str());
     while (titleWidth > availableTextWidth && title.length() > 11) {
-      title = title.substr(0, title.length() - 8) + "...";
+      title.replace(title.length() - 8, 8, "...");
       titleWidth = renderer.getTextWidth(SMALL_FONT_ID, title.c_str());
     }
   }

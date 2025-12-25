@@ -1,6 +1,7 @@
 #include "HomeActivity.h"
 
 #include <GfxRenderer.h>
+#include <InputManager.h>
 #include <SD.h>
 
 #include "config.h"
@@ -15,6 +16,8 @@ void HomeActivity::taskTrampoline(void* param) {
 }
 
 void HomeActivity::onEnter() {
+  Activity::onEnter();
+
   renderingMutex = xSemaphoreCreateMutex();
 
   selectorIndex = 0;
@@ -31,6 +34,8 @@ void HomeActivity::onEnter() {
 }
 
 void HomeActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
@@ -79,8 +84,8 @@ void HomeActivity::displayTaskLoop() {
 void HomeActivity::render() const {
   renderer.clearScreen();
 
-  const auto pageWidth = GfxRenderer::getScreenWidth();
-  const auto pageHeight = GfxRenderer::getScreenHeight();
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
   renderer.drawCenteredText(READER_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
 
   // Draw selection

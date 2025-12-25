@@ -34,7 +34,12 @@ class KeyboardEntryActivity : public Activity {
    * @param isPassword If true, display asterisks instead of actual characters
    */
   KeyboardEntryActivity(GfxRenderer& renderer, InputManager& inputManager, const std::string& title = "Enter Text",
-                        const std::string& initialText = "", size_t maxLength = 0, bool isPassword = false);
+                        const std::string& initialText = "", const size_t maxLength = 0, const bool isPassword = false)
+      : Activity("KeyboardEntry", renderer, inputManager),
+        title(title),
+        text(initialText),
+        maxLength(maxLength),
+        isPassword(isPassword) {}
 
   /**
    * Handle button input. Call this in your main loop.
@@ -85,7 +90,6 @@ class KeyboardEntryActivity : public Activity {
 
   // Activity overrides
   void onEnter() override;
-  void onExit() override;
   void loop() override;
 
  private:

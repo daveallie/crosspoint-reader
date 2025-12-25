@@ -28,7 +28,7 @@ class FileSelectionActivity final : public Activity {
   explicit FileSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
                                  const std::function<void(const std::string&)>& onSelect,
                                  const std::function<void()>& onGoHome)
-      : Activity(renderer, inputManager), onSelect(onSelect), onGoHome(onGoHome) {}
+      : Activity("FileSelection", renderer, inputManager), onSelect(onSelect), onGoHome(onGoHome) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

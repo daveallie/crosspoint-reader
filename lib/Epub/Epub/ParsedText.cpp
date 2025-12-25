@@ -3,11 +3,10 @@
 #include <GfxRenderer.h>
 
 #include <algorithm>
-#include <iterator>
-#include <utility>
+#include <cmath>
+#include <functional>
+#include <limits>
 #include <vector>
-
-#include "hyphenation/Hyphenator.h"
 
 constexpr int MAX_COST = std::numeric_limits<int>::max();
 
@@ -20,183 +19,164 @@ void ParsedText::addWord(std::string word, const EpdFontStyle fontStyle) {
 
 // Consumes data to minimize memory usage
 void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const int horizontalMargin,
-                                       const std::function<void(std::shared_ptr<TextBlock>)>& processLine) {
+                                       const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
+                                       const bool includeLastLine) {
   if (words.empty()) {
     return;
   }
 
-  // horizontalMargin accounts for both left and right gutters, leaving the drawable width.
   const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
-  if (pageWidth <= 0) {
-    words.clear();
-    wordStyles.clear();
-    return;
+  const int spaceWidth = renderer.getSpaceWidth(fontId);
+  const auto wordWidths = calculateWordWidths(renderer, fontId);
+  const auto lineBreakIndices = computeLineBreaks(pageWidth, spaceWidth, wordWidths);
+  const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
+
+  for (size_t i = 0; i < lineCount; ++i) {
+    extractLine(i, pageWidth, spaceWidth, wordWidths, lineBreakIndices, processLine);
+  }
+}
+
+std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {
+  const size_t totalWordCount = words.size();
+
+  std::vector<uint16_t> wordWidths;
+  wordWidths.reserve(totalWordCount);
+
+  // add em-space at the beginning of first word in paragraph to indent
+  if (!extraParagraphSpacing) {
+    std::string& first_word = words.front();
+    first_word.insert(0, "\xe2\x80\x83");
   }
 
-  const int spaceWidth = renderer.getSpaceWidth(fontId);
-  // Maintain classic prose indenting when extra paragraph spacing is disabled.
-  const bool allowIndent = !extraParagraphSpacing && (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN);
-  const bool allowHyphenation = hyphenationEnabled;
-  const int indentWidth = allowIndent ? renderer.getTextWidth(fontId, "m", REGULAR) : 0;
-  const int firstLinePageWidth = allowIndent ? std::max(pageWidth - indentWidth, 0) : pageWidth;
-  auto pageWidthForLine = [&](const bool isFirstLine) -> int { return isFirstLine ? firstLinePageWidth : pageWidth; };
+  auto wordsIt = words.begin();
+  auto wordStylesIt = wordStyles.begin();
 
-  auto wordIt = words.begin();
-  auto styleIt = wordStyles.begin();
-  auto lineStartWordIt = wordIt;
-  auto lineStartStyleIt = styleIt;
+  while (wordsIt != words.end()) {
+    wordWidths.push_back(renderer.getTextWidth(fontId, wordsIt->c_str(), *wordStylesIt));
 
-  int lineWidthWithSpaces = 0;
-  int lineWordWidthSum = 0;
-  size_t lineWordCount = 0;
-  std::vector<uint16_t> lineWordWidths;
-  lineWordWidths.reserve(16);
+    std::advance(wordsIt, 1);
+    std::advance(wordStylesIt, 1);
+  }
 
-  // Guard against malicious/invalid content generating unbounded line counts.
-  size_t producedLines = 0;
+  return wordWidths;
+}
+
+std::vector<size_t> ParsedText::computeLineBreaks(const int pageWidth, const int spaceWidth,
+                                                  const std::vector<uint16_t>& wordWidths) const {
+  const size_t totalWordCount = words.size();
+
+  // DP table to store the minimum badness (cost) of lines starting at index i
+  std::vector<int> dp(totalWordCount);
+  // 'ans[i]' stores the index 'j' of the *last word* in the optimal line starting at 'i'
+  std::vector<size_t> ans(totalWordCount);
+
+  // Base Case
+  dp[totalWordCount - 1] = 0;
+  ans[totalWordCount - 1] = totalWordCount - 1;
+
+  for (int i = totalWordCount - 2; i >= 0; --i) {
+    int currlen = -spaceWidth;
+    dp[i] = MAX_COST;
+
+    for (size_t j = i; j < totalWordCount; ++j) {
+      // Current line length: previous width + space + current word width
+      currlen += wordWidths[j] + spaceWidth;
+
+      if (currlen > pageWidth) {
+        break;
+      }
+
+      int cost;
+      if (j == totalWordCount - 1) {
+        cost = 0;  // Last line
+      } else {
+        const int remainingSpace = pageWidth - currlen;
+        // Use long long for the square to prevent overflow
+        const long long cost_ll = static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
+
+        if (cost_ll > MAX_COST) {
+          cost = MAX_COST;
+        } else {
+          cost = static_cast<int>(cost_ll);
+        }
+      }
+
+      if (cost < dp[i]) {
+        dp[i] = cost;
+        ans[i] = j;  // j is the index of the last word in this optimal line
+      }
+    }
+  }
+
+  // Stores the index of the word that starts the next line (last_word_index + 1)
+  std::vector<size_t> lineBreakIndices;
+  size_t currentWordIndex = 0;
   constexpr size_t MAX_LINES = 1000;
 
-  // commitLine moves buffered words/styles into a TextBlock and delivers it upstream.
-  auto commitLine = [&](const bool isLastLine) {
-    if (lineWordCount == 0) {
-      return;
+  while (currentWordIndex < totalWordCount) {
+    if (lineBreakIndices.size() >= MAX_LINES) {
+      break;
     }
 
-    const bool isFirstLine = producedLines == 0;
-    const int linePageWidth = pageWidthForLine(isFirstLine);
+    size_t nextBreakIndex = ans[currentWordIndex] + 1;
+    lineBreakIndices.push_back(nextBreakIndex);
 
-    std::list<std::string> lineWords;
-    std::list<EpdFontStyle> lineStyles;
-    auto wordEndIt = wordIt;
-    auto styleEndIt = styleIt;
-
-    lineWords.splice(lineWords.begin(), words, lineStartWordIt, wordEndIt);
-    lineStyles.splice(lineStyles.begin(), wordStyles, lineStartStyleIt, styleEndIt);
-
-    const int gaps = lineWordCount > 0 ? static_cast<int>(lineWordCount - 1) : 0;
-    const int baseSpaceTotal = spaceWidth * gaps;
-    const int spaceBudget = linePageWidth - lineWordWidthSum;
-
-    int spacing = spaceWidth;
-    int spacingRemainder = 0;
-    if (style == TextBlock::JUSTIFIED && !isLastLine && gaps > 0) {
-      // Spread the remaining width evenly across the gaps for justification.
-      const int additional = std::max(0, spaceBudget - baseSpaceTotal);
-      spacing = spaceWidth + (gaps > 0 ? additional / gaps : 0);
-      spacingRemainder = (gaps > 0) ? additional % gaps : 0;
-    }
-
-    int renderedWidth = lineWordWidthSum;
-    if (gaps > 0) {
-      renderedWidth += spacing * gaps;
-    }
-
-    uint16_t xpos = 0;
-    if (style == TextBlock::RIGHT_ALIGN) {
-      xpos = renderedWidth < linePageWidth ? linePageWidth - renderedWidth : 0;
-    } else if (style == TextBlock::CENTER_ALIGN) {
-      xpos = renderedWidth < linePageWidth ? (linePageWidth - renderedWidth) / 2 : 0;
-    } else if (allowIndent && isFirstLine) {
-      xpos = indentWidth;
-    }
-
-    // Cache the x positions for each word so TextBlock can render without recomputing layout.
-    std::list<uint16_t> lineXPos;
-    for (size_t idx = 0; idx < lineWordWidths.size(); ++idx) {
-      lineXPos.push_back(xpos);
-      xpos += lineWordWidths[idx];
-      if (idx + 1 < lineWordWidths.size()) {
-        int gap = spacing;
-        if (spacingRemainder > 0) {
-          gap += 1;
-          spacingRemainder--;
-        }
-        xpos += gap;
-      }
-    }
-
-    processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineStyles), style));
-
-    producedLines++;
-    lineWordWidths.clear();
-    lineWordWidthSum = 0;
-    lineWidthWithSpaces = 0;
-    lineWordCount = 0;
-    lineStartWordIt = wordIt;
-    lineStartStyleIt = styleIt;
-  };
-
-  while (wordIt != words.end() && producedLines < MAX_LINES) {
-    const int currentLinePageWidth = pageWidthForLine(producedLines == 0);
-
-    if (lineWordCount == 0) {
-      lineStartWordIt = wordIt;
-      lineStartStyleIt = styleIt;
-    }
-
-    const int wordWidth = renderer.getTextWidth(fontId, wordIt->c_str(), *styleIt);
-    const int gapWidth = (lineWordCount > 0) ? spaceWidth : 0;
-    const int candidateWidth = lineWidthWithSpaces + gapWidth + wordWidth;
-
-    if (candidateWidth <= currentLinePageWidth) {
-      lineWordWidths.push_back(static_cast<uint16_t>(wordWidth));
-      lineWordWidthSum += wordWidth;
-      lineWidthWithSpaces = candidateWidth;
-      lineWordCount++;
-      ++wordIt;
-      ++styleIt;
-      continue;
-    }
-
-    const int availableWidth = currentLinePageWidth - lineWidthWithSpaces - gapWidth;
-    if (lineWordCount > 0 && availableWidth <= 0) {
-      commitLine(false);
-      continue;
-    }
-
-    if (allowHyphenation && lineWordCount > 0 && availableWidth > 0) {
-      // Try hyphenating the next word so the current line stays compact.
-      HyphenationResult split;
-      if (Hyphenator::splitWord(renderer, fontId, *wordIt, *styleIt, availableWidth, &split, false)) {
-        *wordIt = std::move(split.head);
-        auto nextWordIt = std::next(wordIt);
-        auto nextStyleIt = std::next(styleIt);
-        words.insert(nextWordIt, std::move(split.tail));
-        wordStyles.insert(nextStyleIt, *styleIt);
-        continue;
-      }
-    }
-
-    if (lineWordCount == 0) {
-      HyphenationResult split;
-      // Single overlong words get force-split so they can be displayed within the margins.
-      if (Hyphenator::splitWord(renderer, fontId, *wordIt, *styleIt, currentLinePageWidth, &split, true)) {
-        *wordIt = std::move(split.head);
-        auto nextWordIt = std::next(wordIt);
-        auto nextStyleIt = std::next(styleIt);
-        words.insert(nextWordIt, std::move(split.tail));
-        wordStyles.insert(nextStyleIt, *styleIt);
-        continue;
-      }
-
-      lineWordWidths.push_back(static_cast<uint16_t>(wordWidth));
-      lineWordWidthSum += wordWidth;
-      lineWidthWithSpaces = candidateWidth;
-      lineWordCount = 1;
-      ++wordIt;
-      ++styleIt;
-      commitLine(wordIt == words.end());
-      continue;
-    }
-
-    // No more tricks available; flush the collected words and move on.
-    commitLine(false);
+    currentWordIndex = nextBreakIndex;
   }
 
-  if (lineWordCount > 0 && producedLines < MAX_LINES) {
-    commitLine(true);
+  return lineBreakIndices;
+}
+
+void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const int spaceWidth,
+                             const std::vector<uint16_t>& wordWidths, const std::vector<size_t>& lineBreakIndices,
+                             const std::function<void(std::shared_ptr<TextBlock>)>& processLine) {
+  const size_t lineBreak = lineBreakIndices[breakIndex];
+  const size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
+  const size_t lineWordCount = lineBreak - lastBreakAt;
+
+  // Calculate total word width for this line
+  int lineWordWidthSum = 0;
+  for (size_t i = lastBreakAt; i < lineBreak; i++) {
+    lineWordWidthSum += wordWidths[i];
   }
 
-  words.clear();
-  wordStyles.clear();
+  // Calculate spacing
+  const int spareSpace = pageWidth - lineWordWidthSum;
+
+  int spacing = spaceWidth;
+  const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
+
+  if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2) {
+    spacing = spareSpace / (lineWordCount - 1);
+  }
+
+  // Calculate initial x position
+  uint16_t xpos = 0;
+  if (style == TextBlock::RIGHT_ALIGN) {
+    xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
+  } else if (style == TextBlock::CENTER_ALIGN) {
+    xpos = (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
+  }
+
+  // Pre-calculate X positions for words
+  std::list<uint16_t> lineXPos;
+  for (size_t i = lastBreakAt; i < lineBreak; i++) {
+    const uint16_t currentWordWidth = wordWidths[i];
+    lineXPos.push_back(xpos);
+    xpos += currentWordWidth + spacing;
+  }
+
+  // Iterators always start at the beginning as we are moving content with splice below
+  auto wordEndIt = words.begin();
+  auto wordStyleEndIt = wordStyles.begin();
+  std::advance(wordEndIt, lineWordCount);
+  std::advance(wordStyleEndIt, lineWordCount);
+
+  // *** CRITICAL STEP: CONSUME DATA USING SPLICE ***
+  std::list<std::string> lineWords;
+  lineWords.splice(lineWords.begin(), words, words.begin(), wordEndIt);
+  std::list<EpdFontStyle> lineWordStyles;
+  lineWordStyles.splice(lineWordStyles.begin(), wordStyles, wordStyles.begin(), wordStyleEndIt);
+
+  processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), style));
 }

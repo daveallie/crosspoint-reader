@@ -1,12 +1,15 @@
 #include "EpubReaderChapterSelectionActivity.h"
 
 #include <GfxRenderer.h>
+#include <InputManager.h>
 #include <SD.h>
 
 #include "config.h"
 
+namespace {
 constexpr int PAGE_ITEMS = 24;
 constexpr int SKIP_PAGE_MS = 700;
+}  // namespace
 
 void EpubReaderChapterSelectionActivity::taskTrampoline(void* param) {
   auto* self = static_cast<EpubReaderChapterSelectionActivity*>(param);
@@ -14,6 +17,8 @@ void EpubReaderChapterSelectionActivity::taskTrampoline(void* param) {
 }
 
 void EpubReaderChapterSelectionActivity::onEnter() {
+  Activity::onEnter();
+
   if (!epub) {
     return;
   }
@@ -24,7 +29,7 @@ void EpubReaderChapterSelectionActivity::onEnter() {
   // Trigger first update
   updateRequired = true;
   xTaskCreate(&EpubReaderChapterSelectionActivity::taskTrampoline, "EpubReaderChapterSelectionActivityTask",
-              2048,               // Stack size
+              4096,               // Stack size
               this,               // Parameters
               1,                  // Priority
               &displayTaskHandle  // Task handle
@@ -32,6 +37,8 @@ void EpubReaderChapterSelectionActivity::onEnter() {
 }
 
 void EpubReaderChapterSelectionActivity::onExit() {
+  Activity::onExit();
+
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {

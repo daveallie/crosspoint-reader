@@ -136,6 +136,13 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
   auto* outputRow = static_cast<uint8_t*>(malloc(outputRowSize));
   auto* rowBytes = static_cast<uint8_t*>(malloc(bitmap.getRowBytes()));
 
+  if (!outputRow || !rowBytes) {
+    Serial.printf("[%lu] [GFX] !! Failed to allocate BMP row buffers\n", millis());
+    free(outputRow);
+    free(rowBytes);
+    return;
+  }
+
   for (int bmpY = 0; bmpY < bitmap.getHeight(); bmpY++) {
     // The BMP's (0, 0) is the bottom-left corner (if the height is positive, top-left if negative).
     // Screen's (0, 0) is the top-left corner.
@@ -183,6 +190,10 @@ void GfxRenderer::clearScreen(const uint8_t color) const { einkDisplay.clearScre
 
 void GfxRenderer::invertScreen() const {
   uint8_t* buffer = einkDisplay.getFrameBuffer();
+  if (!buffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in invertScreen\n", millis());
+    return;
+  }
   for (int i = 0; i < EInkDisplay::BUFFER_SIZE; i++) {
     buffer[i] = ~buffer[i];
   }
@@ -256,6 +267,10 @@ void GfxRenderer::freeBwBufferChunks() {
  */
 void GfxRenderer::storeBwBuffer() {
   const uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (!frameBuffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in storeBwBuffer\n", millis());
+    return;
+  }
 
   // Allocate and copy each chunk
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
@@ -306,6 +321,12 @@ void GfxRenderer::restoreBwBuffer() {
   }
 
   uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
+  if (!frameBuffer) {
+    Serial.printf("[%lu] [GFX] !! No framebuffer in restoreBwBuffer\n", millis());
+    freeBwBufferChunks();
+    return;
+  }
+
   for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
     // Check if chunk is missing
     if (!bwBufferChunks[i]) {

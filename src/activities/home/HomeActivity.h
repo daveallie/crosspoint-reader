@@ -23,7 +23,7 @@ class HomeActivity final : public Activity {
  public:
   explicit HomeActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onReaderOpen,
                         const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen)
-      : Activity(renderer, inputManager),
+      : Activity("Home", renderer, inputManager),
         onReaderOpen(onReaderOpen),
         onSettingsOpen(onSettingsOpen),
         onFileTransferOpen(onFileTransferOpen) {}

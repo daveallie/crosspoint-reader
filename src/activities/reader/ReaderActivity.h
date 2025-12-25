@@ -17,7 +17,7 @@ class ReaderActivity final : public ActivityWithSubactivity {
  public:
   explicit ReaderActivity(GfxRenderer& renderer, InputManager& inputManager, std::string initialEpubPath,
                           const std::function<void()>& onGoBack)
-      : ActivityWithSubactivity(renderer, inputManager),
+      : ActivityWithSubactivity("Reader", renderer, inputManager),
         initialEpubPath(std::move(initialEpubPath)),
         onGoBack(onGoBack) {}
   void onEnter() override;
