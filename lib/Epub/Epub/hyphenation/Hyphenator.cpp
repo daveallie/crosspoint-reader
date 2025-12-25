@@ -88,25 +88,17 @@ size_t byteOffsetForIndex(const std::vector<CodepointInfo>& cps, const size_t in
 }  // namespace
 
 std::vector<size_t> Hyphenator::breakOffsets(const std::string& word, const bool includeFallback) {
-  std::vector<size_t> byteOffsets;
   if (word.empty()) {
-    return byteOffsets;
+    return {};
   }
 
   auto cps = collectCodepoints(word);
   trimTrailingPunctuation(cps);
   if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
-    return byteOffsets;
+    return {};
   }
 
-  std::vector<size_t> indexes;
-  indexes.reserve(cps.size());
-
-  if (hasOnlyAlphabetic(cps)) {
-    auto dictBreaks = collectBreakIndexes(cps);
-    indexes.insert(indexes.end(), dictBreaks.begin(), dictBreaks.end());
-  }
-
+  std::vector<size_t> indexes = hasOnlyAlphabetic(cps) ? collectBreakIndexes(cps) : std::vector<size_t>();
   if (includeFallback) {
     for (size_t idx = MIN_PREFIX_CP; idx + MIN_SUFFIX_CP <= cps.size(); ++idx) {
       indexes.push_back(idx);
@@ -114,16 +106,16 @@ std::vector<size_t> Hyphenator::breakOffsets(const std::string& word, const bool
   }
 
   if (indexes.empty()) {
-    return byteOffsets;
+    return {};
   }
 
   std::sort(indexes.begin(), indexes.end());
   indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
 
+  std::vector<size_t> byteOffsets;
   byteOffsets.reserve(indexes.size());
   for (const size_t idx : indexes) {
     byteOffsets.push_back(byteOffsetForIndex(cps, idx));
   }
-
   return byteOffsets;
 }
