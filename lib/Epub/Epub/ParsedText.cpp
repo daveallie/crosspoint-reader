@@ -8,11 +8,14 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <unordered_map>
 #include <vector>
 
 constexpr int MAX_COST = std::numeric_limits<int>::max();
 
 namespace {
+
+using PrefixWidthCache = ParsedText::PrefixWidthCache;
 
 struct HyphenSplitDecision {
   size_t byteOffset;
@@ -24,9 +27,24 @@ struct HyphenationGuard {
   size_t tailIndex;
 };
 
+uint16_t cachedPrefixWidth(PrefixWidthCache& cache, const GfxRenderer& renderer, const int fontId,
+                           const std::string& word, const EpdFontStyle style, const size_t prefixBytes) {
+  const void* wordKey = static_cast<const void*>(&word);
+  auto& offsetMap = cache[wordKey];
+  const auto it = offsetMap.find(prefixBytes);
+  if (it != offsetMap.end()) {
+    return it->second;
+  }
+
+  const std::string prefix = word.substr(0, prefixBytes);
+  const uint16_t width = renderer.getTextWidth(fontId, prefix.c_str(), style);
+  offsetMap.emplace(prefixBytes, width);
+  return width;
+}
+
 bool chooseSplitForWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
                          const EpdFontStyle style, const int availableWidth, const bool includeFallback,
-                         HyphenSplitDecision* decision) {
+                         PrefixWidthCache& cache, HyphenSplitDecision* decision) {
   if (!decision || availableWidth <= 0) {
     return false;
   }
@@ -46,8 +64,7 @@ bool chooseSplitForWidth(const GfxRenderer& renderer, const int fontId, const st
   uint16_t chosenWidth = 0;
 
   for (const size_t offset : offsets) {
-    const std::string prefix = word.substr(0, offset);
-    const int prefixWidth = renderer.getTextWidth(fontId, prefix.c_str(), style);
+    const int prefixWidth = cachedPrefixWidth(cache, renderer, fontId, word, style, offset);
     if (prefixWidth <= adjustedWidth) {
       chosenOffset = offset;
       chosenWidth = static_cast<uint16_t>(prefixWidth + hyphenWidth);
@@ -84,8 +101,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
-  auto wordWidths = calculateWordWidths(renderer, fontId, pageWidth);
-  auto lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths);
+  PrefixWidthCache prefixWidthCache;
+  auto wordWidths = calculateWordWidths(renderer, fontId, pageWidth, prefixWidthCache);
+  auto lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths, prefixWidthCache);
   const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
 
   for (size_t i = 0; i < lineCount; ++i) {
@@ -94,7 +112,7 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 }
 
 std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId,
-                                                      const int pageWidth) {
+                                                      const int pageWidth, PrefixWidthCache& cache) {
   const size_t totalWordCount = words.size();
 
   std::vector<uint16_t> wordWidths;
@@ -115,7 +133,7 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
     if (width > pageWidth) {
       // Pre-split oversized tokens so the DP step always has feasible line candidates.
       HyphenSplitDecision decision;
-      if (chooseSplitForWidth(renderer, fontId, *wordsIt, *wordStylesIt, pageWidth, true, &decision)) {
+      if (chooseSplitForWidth(renderer, fontId, *wordsIt, *wordStylesIt, pageWidth, true, cache, &decision)) {
         const std::string originalWord = *wordsIt;
         const std::string tail = originalWord.substr(decision.byteOffset);
         if (tail.empty()) {
@@ -146,12 +164,14 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
 }
 
 std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, const int fontId, const int pageWidth,
-                                                  const int spaceWidth, std::vector<uint16_t>& wordWidths) {
+                                                  const int spaceWidth, std::vector<uint16_t>& wordWidths,
+                                                  PrefixWidthCache& cache) {
   if (words.empty()) {
     return {};
   }
 
   std::vector<HyphenationGuard> guards;
+  std::vector<int> lineWordWidthSums;
 
   auto shiftGuardIndices = [&](size_t insertPos) {
     for (auto& guard : guards) {
@@ -167,8 +187,17 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   auto runDp = [&](std::vector<size_t>& lineBreaks) {
     const size_t totalWordCount = wordWidths.size();
 
+    // DP table to store the minimum badness (cost) of lines starting at index i
     std::vector<int> dp(totalWordCount);
+    // 'ans[i]' stores the index 'j' of the *last word* in the optimal line starting at 'i'
     std::vector<size_t> ans(totalWordCount);
+    lineWordWidthSums.assign(totalWordCount, 0);
+
+    if (!wordWidths.empty()) {
+      lineWordWidthSums.back() = wordWidths.back();
+    }
+
+    // Base Case
 
     dp[totalWordCount - 1] = 0;
     ans[totalWordCount - 1] = totalWordCount - 1;
@@ -178,6 +207,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       dp[i] = MAX_COST;
 
       for (size_t j = i; j < totalWordCount; ++j) {
+        // Current line length: previous width + space + current word width
         currlen += wordWidths[j] + spaceWidth;
 
         if (currlen > pageWidth) {
@@ -200,13 +230,17 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
           cost = 0;
         } else {
           const int remainingSpace = pageWidth - currlen;
+          // Use long long for the square to prevent overflow
           const long long cost_ll = static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
           cost = cost_ll > MAX_COST ? MAX_COST : static_cast<int>(cost_ll);
         }
 
         if (cost < dp[i]) {
           dp[i] = cost;
-          ans[i] = j;
+          ans[i] = j; // j is the index of the last word in this optimal line
+          const size_t wordsInLine = j - i + 1;
+          const int spacesWidth = wordsInLine > 1 ? static_cast<int>(wordsInLine - 1) * spaceWidth : 0;
+          lineWordWidthSums[i] = currlen - spacesWidth;
         }
       }
     }
@@ -239,10 +273,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       const bool isLastLine = lineIdx == lineBreakIndices.size() - 1;
       const size_t lineWordCount = lineBreak - lastBreakAt;
 
-      int lineWordWidthSum = 0;
-      for (size_t idx = lastBreakAt; idx < lineBreak; ++idx) {
-        lineWordWidthSum += wordWidths[idx];
-      }
+      const int lineWordWidthSum = (lastBreakAt < lineWordWidthSums.size()) ? lineWordWidthSums[lastBreakAt] : 0;
       lastBreakAt = lineBreak;
 
       if (isLastLine || lineBreak >= wordWidths.size()) {
@@ -268,7 +299,7 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
       }
 
       HyphenSplitDecision decision;
-      if (!chooseSplitForWidth(renderer, fontId, *nextWordIt, *nextStyleIt, budgetForPrefix, false, &decision)) {
+      if (!chooseSplitForWidth(renderer, fontId, *nextWordIt, *nextStyleIt, budgetForPrefix, false, cache, &decision)) {
         continue;
       }
 
