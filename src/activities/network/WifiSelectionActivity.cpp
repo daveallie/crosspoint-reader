@@ -151,8 +151,9 @@ void WifiSelectionActivity::processWifiScanResults() {
             [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
 
   // Show networks with PW first
-  std::sort(networks.begin(), networks.end(),
-            [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.hasSavedPassword && !b.hasSavedPassword; });
+  std::sort(networks.begin(), networks.end(), [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) {
+    return a.hasSavedPassword && !b.hasSavedPassword;
+  });
 
   WiFi.scanDelete();
   state = WifiSelectionState::NETWORK_LIST;
