@@ -337,8 +337,6 @@ void CrossPointWebServerActivity::render() const {
 }
 
 void CrossPointWebServerActivity::renderServerRunning() const {
-  const auto pageHeight = renderer.getScreenHeight();
-
   // Use consistent line spacing
   constexpr int LINE_SPACING = 28;  // Space between lines
 
