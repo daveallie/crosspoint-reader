@@ -111,16 +111,17 @@ std::vector<size_t> ParsedText::computeLineBreaks(const int pageWidth, const int
   // Stores the index of the word that starts the next line (last_word_index + 1)
   std::vector<size_t> lineBreakIndices;
   size_t currentWordIndex = 0;
-  constexpr size_t MAX_LINES = 1000;
 
   while (currentWordIndex < totalWordCount) {
-    if (lineBreakIndices.size() >= MAX_LINES) {
-      break;
+    size_t nextBreakIndex = ans[currentWordIndex] + 1;
+
+    // Safety check: prevent infinite loop if nextBreakIndex doesn't advance
+    if (nextBreakIndex <= currentWordIndex) {
+      // Force advance by at least one word to avoid infinite loop
+      nextBreakIndex = currentWordIndex + 1;
     }
 
-    size_t nextBreakIndex = ans[currentWordIndex] + 1;
     lineBreakIndices.push_back(nextBreakIndex);
-
     currentWordIndex = nextBreakIndex;
   }
 
