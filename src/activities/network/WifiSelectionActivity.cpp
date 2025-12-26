@@ -150,6 +150,11 @@ void WifiSelectionActivity::processWifiScanResults() {
   std::sort(networks.begin(), networks.end(),
             [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) { return a.rssi > b.rssi; });
 
+  // Show networks with PW first
+  std::sort(networks.begin(), networks.end(), [](const WifiNetworkInfo& a, const WifiNetworkInfo& b) {
+    return a.hasSavedPassword && !b.hasSavedPassword;
+  });
+
   WiFi.scanDelete();
   state = WifiSelectionState::NETWORK_LIST;
   selectedNetworkIndex = 0;
@@ -548,11 +553,12 @@ void WifiSelectionActivity::renderNetworkList() const {
     // Show network count
     char countStr[32];
     snprintf(countStr, sizeof(countStr), "%zu networks found", networks.size());
-    renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 45, countStr);
+    renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 90, countStr);
   }
 
   // Draw help text
-  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "OK: Connect | * = Encrypted | + = Saved");
+  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
+  renderer.drawButtonHints(UI_FONT_ID, "« Back", "Connect", "", "");
 }
 
 void WifiSelectionActivity::renderPasswordEntry() const {
@@ -580,7 +586,7 @@ void WifiSelectionActivity::renderConnecting() const {
   if (state == WifiSelectionState::SCANNING) {
     renderer.drawCenteredText(UI_FONT_ID, top, "Scanning...", true, REGULAR);
   } else {
-    renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connecting...", true, BOLD);
+    renderer.drawCenteredText(READER_FONT_ID, top - 40, "Connecting...", true, BOLD);
 
     std::string ssidInfo = "to " + selectedSSID;
     if (ssidInfo.length() > 25) {

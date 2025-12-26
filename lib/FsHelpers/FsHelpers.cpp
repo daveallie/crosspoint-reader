@@ -4,22 +4,42 @@
 
 #include <vector>
 
-bool FsHelpers::openFileForRead(const char* moduleName, const std::string& path, File& file) {
-  file = SD.open(path.c_str(), FILE_READ);
+bool FsHelpers::openFileForRead(const char* moduleName, const char* path, File& file) {
+  if (!SD.exists(path)) {
+    return false;
+  }
+
+  file = SD.open(path, FILE_READ);
   if (!file) {
-    Serial.printf("[%lu] [%s] Failed to open file for reading: %s\n", millis(), moduleName, path.c_str());
+    Serial.printf("[%lu] [%s] Failed to open file for reading: %s\n", millis(), moduleName, path);
+    return false;
+  }
+  return true;
+}
+
+bool FsHelpers::openFileForRead(const char* moduleName, const std::string& path, File& file) {
+  return openFileForRead(moduleName, path.c_str(), file);
+}
+
+bool FsHelpers::openFileForRead(const char* moduleName, const String& path, File& file) {
+  return openFileForRead(moduleName, path.c_str(), file);
+}
+
+bool FsHelpers::openFileForWrite(const char* moduleName, const char* path, File& file) {
+  file = SD.open(path, FILE_WRITE, true);
+  if (!file) {
+    Serial.printf("[%lu] [%s] Failed to open file for writing: %s\n", millis(), moduleName, path);
     return false;
   }
   return true;
 }
 
 bool FsHelpers::openFileForWrite(const char* moduleName, const std::string& path, File& file) {
-  file = SD.open(path.c_str(), FILE_WRITE, true);
-  if (!file) {
-    Serial.printf("[%lu] [%s] Failed to open file for writing: %s\n", millis(), moduleName, path.c_str());
-    return false;
-  }
-  return true;
+  return openFileForWrite(moduleName, path.c_str(), file);
+}
+
+bool FsHelpers::openFileForWrite(const char* moduleName, const String& path, File& file) {
+  return openFileForWrite(moduleName, path.c_str(), file);
 }
 
 bool FsHelpers::removeDir(const char* path) {

@@ -142,6 +142,7 @@ void onGoToReader(const std::string& initialEpubPath) {
   enterNewActivity(new ReaderActivity(renderer, inputManager, initialEpubPath, onGoHome));
 }
 void onGoToReaderHome() { onGoToReader(std::string()); }
+void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
 void onGoToFileTransfer() {
   exitActivity();
@@ -155,12 +156,27 @@ void onGoToSettings() {
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, inputManager, onGoToReaderHome, onGoToSettings, onGoToFileTransfer));
+  enterNewActivity(new HomeActivity(renderer, inputManager, onContinueReading, onGoToReaderHome, onGoToSettings,
+                                    onGoToFileTransfer));
+}
+
+void setupDisplayAndFonts() {
+  einkDisplay.begin();
+  Serial.printf("[%lu] [   ] Display initialized\n", millis());
+  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
+  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
+  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
+  Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 }
 
 void setup() {
   t1 = millis();
-  Serial.begin(115200);
+
+  // Only start serial if USB connected
+  pinMode(UART0_RXD, INPUT);
+  if (digitalRead(UART0_RXD) == HIGH) {
+    Serial.begin(115200);
+  }
 
   Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
 
@@ -172,8 +188,10 @@ void setup() {
   SPI.begin(EPD_SCLK, SD_SPI_MISO, EPD_MOSI, EPD_CS);
 
   // SD Card Initialization
-  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ)) {
+  // We need 6 open files concurrently when parsing a new chapter
+  if (!SD.begin(SD_SPI_CS, SPI, SPI_FQ, "/sd", 6)) {
     Serial.printf("[%lu] [   ] SD card initialization failed\n", millis());
+    setupDisplayAndFonts();
     exitActivity();
     enterNewActivity(new FullScreenMessageActivity(renderer, inputManager, "SD card error", BOLD));
     return;
@@ -184,14 +202,7 @@ void setup() {
   // verify power button press duration after we've read settings.
   verifyWakeupLongPress();
 
-  // Initialize display
-  einkDisplay.begin();
-  Serial.printf("[%lu] [   ] Display initialized\n", millis());
-
-  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
-  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
-  renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
-  Serial.printf("[%lu] [   ] Fonts setup\n", millis());
+  setupDisplayAndFonts();
 
   exitActivity();
   enterNewActivity(new BootActivity(renderer, inputManager));

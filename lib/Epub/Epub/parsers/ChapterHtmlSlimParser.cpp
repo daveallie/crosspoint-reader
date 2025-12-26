@@ -1,5 +1,6 @@
 #include "ChapterHtmlSlimParser.h"
 
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 #include <expat.h>
@@ -10,13 +11,13 @@
 const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br"};
+const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
-const char* BOLD_TAGS[] = {"b"};
+const char* BOLD_TAGS[] = {"b", "strong"};
 constexpr int NUM_BOLD_TAGS = sizeof(BOLD_TAGS) / sizeof(BOLD_TAGS[0]);
 
-const char* ITALIC_TAGS[] = {"i"};
+const char* ITALIC_TAGS[] = {"i", "em"};
 constexpr int NUM_ITALIC_TAGS = sizeof(ITALIC_TAGS) / sizeof(ITALIC_TAGS[0]);
 
 const char* IMAGE_TAGS[] = {"img"};
@@ -214,9 +215,8 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
     return false;
   }
 
-  FILE* file = fopen(filepath, "r");
-  if (!file) {
-    Serial.printf("[%lu] [EHP] Couldn't open file %s\n", millis(), filepath);
+  File file;
+  if (!FsHelpers::openFileForRead("EHP", filepath, file)) {
     XML_ParserFree(parser);
     return false;
   }
@@ -233,23 +233,23 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
-      fclose(file);
+      file.close();
       return false;
     }
 
-    const size_t len = fread(buf, 1, 1024, file);
+    const size_t len = file.read(static_cast<uint8_t*>(buf), 1024);
 
-    if (ferror(file)) {
+    if (len == 0) {
       Serial.printf("[%lu] [EHP] File read error\n", millis());
       XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
       XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
-      fclose(file);
+      file.close();
       return false;
     }
 
-    done = feof(file);
+    done = file.available() == 0;
 
     if (XML_ParseBuffer(parser, static_cast<int>(len), done) == XML_STATUS_ERROR) {
       Serial.printf("[%lu] [EHP] Parse error at line %lu:\n%s\n", millis(), XML_GetCurrentLineNumber(parser),
@@ -258,7 +258,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
       XML_SetCharacterDataHandler(parser, nullptr);
       XML_ParserFree(parser);
-      fclose(file);
+      file.close();
       return false;
     }
   } while (!done);
@@ -267,7 +267,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
   XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
   XML_SetCharacterDataHandler(parser, nullptr);
   XML_ParserFree(parser);
-  fclose(file);
+  file.close();
 
   // Process last page if there is still text
   if (currentTextBlock) {

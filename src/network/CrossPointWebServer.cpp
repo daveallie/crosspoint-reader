@@ -1,6 +1,7 @@
 #include "CrossPointWebServer.h"
 
 #include <ArduinoJson.h>
+#include <FsHelpers.h>
 #include <SD.h>
 #include <WiFi.h>
 
@@ -339,8 +340,7 @@ void CrossPointWebServer::handleUpload() const {
     }
 
     // Open file for writing
-    uploadFile = SD.open(filePath.c_str(), FILE_WRITE);
-    if (!uploadFile) {
+    if (!FsHelpers::openFileForWrite("WEB", filePath, uploadFile)) {
       uploadError = "Failed to create file on SD card";
       Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to create file: %s\n", millis(), filePath.c_str());
       return;
