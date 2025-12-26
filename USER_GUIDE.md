@@ -67,6 +67,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 - **Extra Paragraph Spacing**: If enabled, vertical space will be added between paragraphs in the book, if disabled,
   paragraphs will not have vertical space between them, but will have first word indentation.
 - **Short Power Button Click**: Whether to trigger the power button on a short press or a long press.
+- **Swap Front Buttons**: Swap the order of the bottom edge buttons from Back/Confirm/Left/Right to Left/Right/Back/Confirm.
 
 ### 3.6 Sleep Screen
 

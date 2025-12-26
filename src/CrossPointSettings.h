@@ -24,6 +24,8 @@ class CrossPointSettings {
   uint8_t extraParagraphSpacing = 1;
   // Duration of the power button press
   uint8_t shortPwrBtn = 0;
+  // Swap the order of the front buttons
+  uint8_t swapFrontButtons = 0;
 
   ~CrossPointSettings() = default;
 

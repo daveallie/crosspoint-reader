@@ -9,12 +9,13 @@
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 4;
+constexpr int settingsCount = 5;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
     {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
+    {"Swap Front Buttons", SettingType::TOGGLE, &CrossPointSettings::swapFrontButtons, {}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };
 }  // namespace
@@ -63,24 +64,26 @@ void SettingsActivity::loop() {
   }
 
   // Handle actions with early return
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     toggleCurrentSetting();
     updateRequired = true;
     return;
   }
 
-  if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
     SETTINGS.saveToFile();
     onGoHome();
     return;
   }
 
   // Handle navigation
-  if (inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT)) {
+  if (inputManager.wasPressed(InputManager::BTN_UP) ||
+      frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous)) {
     // Move selection up (with wrap-around)
     selectedSettingIndex = (selectedSettingIndex > 0) ? (selectedSettingIndex - 1) : (settingsCount - 1);
     updateRequired = true;
-  } else if (inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT)) {
+  } else if (inputManager.wasPressed(InputManager::BTN_DOWN) ||
+             frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next)) {
     // Move selection down
     if (selectedSettingIndex < settingsCount - 1) {
       selectedSettingIndex++;
@@ -169,9 +172,14 @@ void SettingsActivity::render() const {
   }
 
   // Draw help text
-  renderer.drawButtonHints(UI_FONT_ID, "« Save", "Toggle", "", "");
-  renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
-                    pageHeight - 30, CROSSPOINT_VERSION);
+  const auto labels = frontButtonMapper.mapLabels("« Save", "Toggle", "", "");
+  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  if (SETTINGS.swapFrontButtons) {
+    renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, CROSSPOINT_VERSION);
+  } else {
+    renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
+                      pageHeight - 30, CROSSPOINT_VERSION);
+  }
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();
