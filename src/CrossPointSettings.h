@@ -24,6 +24,7 @@ class CrossPointSettings {
   uint8_t extraParagraphSpacing = 1;
   // Duration of the power button press
   uint8_t shortPwrBtn = 0;
+  uint8_t hyphenationEnabled = 0;
 
   ~CrossPointSettings() = default;
 

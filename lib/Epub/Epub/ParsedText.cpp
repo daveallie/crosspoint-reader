@@ -5,10 +5,63 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <vector>
 
+#include "hyphenation/Hyphenator.h"
+
 constexpr int MAX_COST = std::numeric_limits<int>::max();
+
+namespace {
+
+struct HyphenSplitDecision {
+  size_t byteOffset;
+  uint16_t prefixWidth;
+};
+
+bool chooseSplitForWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                         const EpdFontStyle style, const int availableWidth, const bool includeFallback,
+                         HyphenSplitDecision* decision) {
+  if (!decision || availableWidth <= 0) {
+    return false;
+  }
+
+  const int hyphenWidth = renderer.getTextWidth(fontId, "-", style);
+  const int adjustedWidth = availableWidth - hyphenWidth;
+  if (adjustedWidth <= 0) {
+    return false;
+  }
+
+  auto offsets = Hyphenator::breakOffsets(word, includeFallback);
+  if (offsets.empty()) {
+    return false;
+  }
+
+  size_t chosenOffset = std::numeric_limits<size_t>::max();
+  uint16_t chosenWidth = 0;
+
+  for (const size_t offset : offsets) {
+    const std::string prefix = word.substr(0, offset);
+    const int prefixWidth = renderer.getTextWidth(fontId, prefix.c_str(), style);
+    if (prefixWidth <= adjustedWidth) {
+      chosenOffset = offset;
+      chosenWidth = static_cast<uint16_t>(prefixWidth + hyphenWidth);
+    } else {
+      break;
+    }
+  }
+
+  if (chosenOffset == std::numeric_limits<size_t>::max()) {
+    return false;
+  }
+
+  decision->byteOffset = chosenOffset;
+  decision->prefixWidth = chosenWidth;
+  return true;
+}
+
+}  // namespace
 
 void ParsedText::addWord(std::string word, const EpdFontStyle fontStyle) {
   if (word.empty()) return;
@@ -27,8 +80,9 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
-  const auto wordWidths = calculateWordWidths(renderer, fontId);
-  const auto lineBreakIndices = computeLineBreaks(pageWidth, spaceWidth, wordWidths);
+  // Pre-split oversized tokens so the DP step always has feasible line candidates.
+  auto wordWidths = calculateWordWidths(renderer, fontId, pageWidth);
+  auto lineBreakIndices = computeLineBreaks(renderer, fontId, pageWidth, spaceWidth, wordWidths);
   const size_t lineCount = includeLastLine ? lineBreakIndices.size() : lineBreakIndices.size() - 1;
 
   for (size_t i = 0; i < lineCount; ++i) {
@@ -36,7 +90,8 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
   }
 }
 
-std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId) {
+std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& renderer, const int fontId,
+                                                      const int pageWidth) {
   const size_t totalWordCount = words.size();
 
   std::vector<uint16_t> wordWidths;
@@ -52,7 +107,32 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
   auto wordStylesIt = wordStyles.begin();
 
   while (wordsIt != words.end()) {
-    wordWidths.push_back(renderer.getTextWidth(fontId, wordsIt->c_str(), *wordStylesIt));
+    uint16_t width = renderer.getTextWidth(fontId, wordsIt->c_str(), *wordStylesIt);
+
+    if (width > pageWidth) {
+      HyphenSplitDecision decision;
+      if (chooseSplitForWidth(renderer, fontId, *wordsIt, *wordStylesIt, pageWidth, true, &decision)) {
+        const std::string originalWord = *wordsIt;
+        const std::string tail = originalWord.substr(decision.byteOffset);
+        if (tail.empty()) {
+          continue;
+        }
+        const std::string prefix = originalWord.substr(0, decision.byteOffset) + "-";
+
+        *wordsIt = prefix;
+        auto nextWordIt = words.insert(std::next(wordsIt), tail);
+        auto nextStyleIt = wordStyles.insert(std::next(wordStylesIt), *wordStylesIt);
+        // Continue processing the freshly inserted tail so cascading splits still respect the limit.
+
+        wordWidths.push_back(decision.prefixWidth);
+
+        wordsIt = nextWordIt;
+        wordStylesIt = nextStyleIt;
+        continue;
+      }
+    }
+
+    wordWidths.push_back(width);
 
     std::advance(wordsIt, 1);
     std::advance(wordStylesIt, 1);
@@ -61,67 +141,141 @@ std::vector<uint16_t> ParsedText::calculateWordWidths(const GfxRenderer& rendere
   return wordWidths;
 }
 
-std::vector<size_t> ParsedText::computeLineBreaks(const int pageWidth, const int spaceWidth,
-                                                  const std::vector<uint16_t>& wordWidths) const {
-  const size_t totalWordCount = words.size();
+std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, const int fontId, const int pageWidth,
+                                                  const int spaceWidth, std::vector<uint16_t>& wordWidths) {
+  std::vector<size_t> lineBreakIndices;
+  if (words.empty()) {
+    return lineBreakIndices;
+  }
 
-  // DP table to store the minimum badness (cost) of lines starting at index i
-  std::vector<int> dp(totalWordCount);
-  // 'ans[i]' stores the index 'j' of the *last word* in the optimal line starting at 'i'
-  std::vector<size_t> ans(totalWordCount);
+  if (wordWidths.empty()) {
+    return lineBreakIndices;
+  }
 
-  // Base Case
-  dp[totalWordCount - 1] = 0;
-  ans[totalWordCount - 1] = totalWordCount - 1;
+  constexpr size_t MAX_LINES = 1000;
+  const auto appendLineBreak = [&](size_t index) {
+    const size_t clampedIndex = std::min(index, wordWidths.size());
+    lineBreakIndices.push_back(clampedIndex);
+    return lineBreakIndices.size() < MAX_LINES;
+  };
 
-  for (int i = totalWordCount - 2; i >= 0; --i) {
-    int currlen = -spaceWidth;
-    dp[i] = MAX_COST;
+  const auto runDp = [&]() {
+    lineBreakIndices.clear();
+    const size_t totalWordCount = wordWidths.size();
+    if (totalWordCount == 0) {
+      return;
+    }
 
-    for (size_t j = i; j < totalWordCount; ++j) {
-      // Current line length: previous width + space + current word width
-      currlen += wordWidths[j] + spaceWidth;
+    std::vector<int> dp(totalWordCount);
+    std::vector<size_t> ans(totalWordCount);
+    dp[totalWordCount - 1] = 0;
+    ans[totalWordCount - 1] = totalWordCount - 1;
 
-      if (currlen > pageWidth) {
+    for (int i = static_cast<int>(totalWordCount) - 2; i >= 0; --i) {
+      int currlen = -spaceWidth;
+      dp[i] = MAX_COST;
+
+      for (size_t j = i; j < totalWordCount; ++j) {
+        currlen += wordWidths[j] + spaceWidth;
+        if (currlen > pageWidth) {
+          break;
+        }
+
+        int cost;
+        if (j == totalWordCount - 1) {
+          cost = 0;
+        } else {
+          const int remainingSpace = pageWidth - currlen;
+          const long long costLl = static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
+          cost = costLl > MAX_COST ? MAX_COST : static_cast<int>(costLl);
+        }
+
+        if (cost < dp[i]) {
+          dp[i] = cost;
+          ans[i] = j;
+        }
+      }
+    }
+
+    size_t currentWordIndex = 0;
+    while (currentWordIndex < totalWordCount && lineBreakIndices.size() < MAX_LINES) {
+      const size_t nextBreakIndex = ans[currentWordIndex] + 1;
+      if (!appendLineBreak(nextBreakIndex)) {
+        break;
+      }
+      currentWordIndex = nextBreakIndex;
+    }
+  };
+
+  const auto runHyphenatedLayout = [&]() {
+    size_t currentIndex = 0;
+    bool continueLayout = true;
+
+    while (currentIndex < wordWidths.size() && continueLayout) {
+      int lineWidth = 0;
+      size_t wordsOnLine = 0;
+
+      while (currentIndex < wordWidths.size()) {
+        const int interWordSpace = (wordsOnLine == 0) ? 0 : spaceWidth;
+        const int projectedWidth = lineWidth + interWordSpace + wordWidths[currentIndex];
+
+        if (projectedWidth <= pageWidth) {
+          lineWidth = projectedWidth;
+          ++currentIndex;
+          ++wordsOnLine;
+          continue;
+        }
+
+        auto wordNodeIt = words.begin();
+        auto styleNodeIt = wordStyles.begin();
+        std::advance(wordNodeIt, currentIndex);
+        std::advance(styleNodeIt, currentIndex);
+        if (wordNodeIt == words.end()) {
+          break;
+        }
+
+        const int availableWidth = pageWidth - lineWidth - interWordSpace;
+        HyphenSplitDecision decision;
+        if (!chooseSplitForWidth(renderer, fontId, *wordNodeIt, *styleNodeIt, availableWidth, false, &decision)) {
+          break;
+        }
+
+        const std::string originalWord = *wordNodeIt;
+        const std::string tail = originalWord.substr(decision.byteOffset);
+        if (tail.empty()) {
+          break;
+        }
+        const std::string prefix = originalWord.substr(0, decision.byteOffset) + "-";
+
+        const EpdFontStyle styleForSplit = *styleNodeIt;
+        *wordNodeIt = tail;
+        words.insert(wordNodeIt, prefix);
+        wordStyles.insert(styleNodeIt, styleForSplit);
+
+        const uint16_t tailWidth = renderer.getTextWidth(fontId, tail.c_str(), styleForSplit);
+        wordWidths.insert(wordWidths.begin() + currentIndex, decision.prefixWidth);
+        wordWidths[currentIndex + 1] = tailWidth;
+
+        lineWidth += interWordSpace + decision.prefixWidth;
+        ++currentIndex;
+        ++wordsOnLine;
         break;
       }
 
-      int cost;
-      if (j == totalWordCount - 1) {
-        cost = 0;  // Last line
-      } else {
-        const int remainingSpace = pageWidth - currlen;
-        // Use long long for the square to prevent overflow
-        const long long cost_ll = static_cast<long long>(remainingSpace) * remainingSpace + dp[j + 1];
-
-        if (cost_ll > MAX_COST) {
-          cost = MAX_COST;
-        } else {
-          cost = static_cast<int>(cost_ll);
-        }
+      if (wordsOnLine == 0) {
+        ++currentIndex;
       }
 
-      if (cost < dp[i]) {
-        dp[i] = cost;
-        ans[i] = j;  // j is the index of the last word in this optimal line
-      }
+      continueLayout = appendLineBreak(currentIndex);
     }
-  }
+  };
 
-  // Stores the index of the word that starts the next line (last_word_index + 1)
-  std::vector<size_t> lineBreakIndices;
-  size_t currentWordIndex = 0;
-  constexpr size_t MAX_LINES = 1000;
-
-  while (currentWordIndex < totalWordCount) {
-    if (lineBreakIndices.size() >= MAX_LINES) {
-      break;
-    }
-
-    size_t nextBreakIndex = ans[currentWordIndex] + 1;
-    lineBreakIndices.push_back(nextBreakIndex);
-
-    currentWordIndex = nextBreakIndex;
+  if (hyphenationEnabled) {
+    // Simple greedy layout with hyphenation
+    runHyphenatedLayout();
+  } else {
+    // TeX-like optimal layout without hyphenation
+    runDp();
   }
 
   return lineBreakIndices;
@@ -134,23 +288,19 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   const size_t lastBreakAt = breakIndex > 0 ? lineBreakIndices[breakIndex - 1] : 0;
   const size_t lineWordCount = lineBreak - lastBreakAt;
 
-  // Calculate total word width for this line
   int lineWordWidthSum = 0;
-  for (size_t i = lastBreakAt; i < lineBreak; i++) {
-    lineWordWidthSum += wordWidths[i];
+  for (size_t idx = lastBreakAt; idx < lineBreak; ++idx) {
+    lineWordWidthSum += wordWidths[idx];
   }
+  const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
 
-  // Calculate spacing
   const int spareSpace = pageWidth - lineWordWidthSum;
 
   int spacing = spaceWidth;
-  const bool isLastLine = breakIndex == lineBreakIndices.size() - 1;
-
   if (style == TextBlock::JUSTIFIED && !isLastLine && lineWordCount >= 2) {
     spacing = spareSpace / (lineWordCount - 1);
   }
 
-  // Calculate initial x position
   uint16_t xpos = 0;
   if (style == TextBlock::RIGHT_ALIGN) {
     xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
@@ -158,7 +308,6 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos = (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
-  // Pre-calculate X positions for words
   std::list<uint16_t> lineXPos;
   for (size_t i = lastBreakAt; i < lineBreak; i++) {
     const uint16_t currentWordWidth = wordWidths[i];
@@ -166,13 +315,11 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     xpos += currentWordWidth + spacing;
   }
 
-  // Iterators always start at the beginning as we are moving content with splice below
   auto wordEndIt = words.begin();
   auto wordStyleEndIt = wordStyles.begin();
   std::advance(wordEndIt, lineWordCount);
   std::advance(wordStyleEndIt, lineWordCount);
 
-  // *** CRITICAL STEP: CONSUME DATA USING SPLICE ***
   std::list<std::string> lineWords;
   lineWords.splice(lineWords.begin(), words, words.begin(), wordEndIt);
   std::list<EpdFontStyle> lineWordStyles;

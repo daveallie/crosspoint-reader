@@ -8,7 +8,7 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 5;
+constexpr uint8_t SECTION_FILE_VERSION = 6;
 }
 
 void Section::onPageComplete(std::unique_ptr<Page> page) {
@@ -28,7 +28,7 @@ void Section::onPageComplete(std::unique_ptr<Page> page) {
 
 void Section::writeCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                  const int marginRight, const int marginBottom, const int marginLeft,
-                                 const bool extraParagraphSpacing) const {
+                                 const bool extraParagraphSpacing, const bool hyphenationEnabled) const {
   File outputFile;
   if (!FsHelpers::openFileForWrite("SCT", cachePath + "/section.bin", outputFile)) {
     return;
@@ -41,13 +41,14 @@ void Section::writeCacheMetadata(const int fontId, const float lineCompression, 
   serialization::writePod(outputFile, marginBottom);
   serialization::writePod(outputFile, marginLeft);
   serialization::writePod(outputFile, extraParagraphSpacing);
+  serialization::writePod(outputFile, hyphenationEnabled);
   serialization::writePod(outputFile, pageCount);
   outputFile.close();
 }
 
 bool Section::loadCacheMetadata(const int fontId, const float lineCompression, const int marginTop,
                                 const int marginRight, const int marginBottom, const int marginLeft,
-                                const bool extraParagraphSpacing) {
+                                const bool extraParagraphSpacing, const bool hyphenationEnabled) {
   const auto sectionFilePath = cachePath + "/section.bin";
   File inputFile;
   if (!FsHelpers::openFileForRead("SCT", sectionFilePath, inputFile)) {
@@ -68,6 +69,7 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     int fileFontId, fileMarginTop, fileMarginRight, fileMarginBottom, fileMarginLeft;
     float fileLineCompression;
     bool fileExtraParagraphSpacing;
+    bool fileHyphenationEnabled;
     serialization::readPod(inputFile, fileFontId);
     serialization::readPod(inputFile, fileLineCompression);
     serialization::readPod(inputFile, fileMarginTop);
@@ -75,10 +77,11 @@ bool Section::loadCacheMetadata(const int fontId, const float lineCompression, c
     serialization::readPod(inputFile, fileMarginBottom);
     serialization::readPod(inputFile, fileMarginLeft);
     serialization::readPod(inputFile, fileExtraParagraphSpacing);
+    serialization::readPod(inputFile, fileHyphenationEnabled);
 
     if (fontId != fileFontId || lineCompression != fileLineCompression || marginTop != fileMarginTop ||
         marginRight != fileMarginRight || marginBottom != fileMarginBottom || marginLeft != fileMarginLeft ||
-        extraParagraphSpacing != fileExtraParagraphSpacing) {
+        extraParagraphSpacing != fileExtraParagraphSpacing || hyphenationEnabled != fileHyphenationEnabled) {
       inputFile.close();
       Serial.printf("[%lu] [SCT] Deserialization failed: Parameters do not match\n", millis());
       clearCache();
@@ -115,7 +118,7 @@ bool Section::clearCache() const {
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
-                                  const bool extraParagraphSpacing) {
+                                  const bool extraParagraphSpacing, const bool hyphenationEnabled) {
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
   File tmpHtml;
@@ -133,7 +136,7 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
   Serial.printf("[%lu] [SCT] Streamed temp HTML to %s\n", millis(), tmpHtmlPath.c_str());
 
   ChapterHtmlSlimParser visitor(tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom,
-                                marginLeft, extraParagraphSpacing,
+                                marginLeft, extraParagraphSpacing, hyphenationEnabled,
                                 [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); });
   success = visitor.parseAndBuildPages();
 
@@ -143,7 +146,8 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
     return false;
   }
 
-  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft, extraParagraphSpacing);
+  writeCacheMetadata(fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft, extraParagraphSpacing,
+                     hyphenationEnabled);
 
   return true;
 }

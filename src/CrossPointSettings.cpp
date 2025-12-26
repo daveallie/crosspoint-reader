@@ -10,7 +10,7 @@ CrossPointSettings CrossPointSettings::instance;
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
-constexpr uint8_t SETTINGS_COUNT = 3;
+constexpr uint8_t SETTINGS_COUNT = 4;
 constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
 }  // namespace
 
@@ -28,6 +28,7 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, sleepScreen);
   serialization::writePod(outputFile, extraParagraphSpacing);
   serialization::writePod(outputFile, shortPwrBtn);
+  serialization::writePod(outputFile, hyphenationEnabled);
   outputFile.close();
 
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -59,6 +60,8 @@ bool CrossPointSettings::loadFromFile() {
     serialization::readPod(inputFile, extraParagraphSpacing);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, shortPwrBtn);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, hyphenationEnabled);
     if (++settingsRead >= fileSettingsCount) break;
   } while (false);
 
