@@ -1,4 +1,5 @@
 #include "EnglishHyphenator.h"
+#include "HyphenationLiterals.h"
 
 #include <algorithm>
 #include <array>
@@ -47,10 +48,20 @@ bool isEnglishFricativeChar(const char c) {
   }
 }
 
-struct LatinLiteral {
-  const char* text;
-  size_t length;
-};
+using LatinLiteral = HyphenLiteralT<char>;
+
+constexpr std::array<LatinLiteral, 20> ENGLISH_PREFIXES = {{{"anti", 4},  {"auto", 4}, {"counter", 7}, {"de", 2},
+                                                            {"dis", 3},   {"hyper", 5}, {"inter", 5},   {"micro", 5},
+                                                            {"mis", 3},   {"mono", 4},  {"multi", 5},   {"non", 3},
+                                                            {"over", 4},  {"post", 4},  {"pre", 3},     {"pro", 3},
+                                                            {"re", 2},    {"sub", 3},   {"super", 5},   {"trans", 5}}};
+
+constexpr std::array<LatinLiteral, 24> ENGLISH_SUFFIXES = {{{"able", 4}, {"ible", 4}, {"ing", 3},  {"ings", 4},
+                                                            {"ed", 2},   {"er", 2},   {"ers", 3},  {"est", 3},
+                                                            {"ful", 3},  {"hood", 4}, {"less", 4}, {"lessly", 6},
+                                                            {"ly", 2},   {"ment", 4}, {"ments", 5},{"ness", 4},
+                                                            {"ous", 3},  {"tion", 4}, {"sion", 4}, {"ward", 4},
+                                                            {"wards", 5},{"ship", 4}, {"ships", 5},{"y", 1}}};
 
 bool nextToApostrophe(const std::vector<CodepointInfo>& cps, size_t index);
 
@@ -61,21 +72,6 @@ std::string lowercaseLatinWord(const std::vector<CodepointInfo>& cps) {
     lower.push_back(lowerLatinChar(info.value));
   }
   return lower;
-}
-
-bool matchesPatternAt(const std::string& lowerWord, const size_t start, const LatinLiteral& pattern) {
-  if (!pattern.text || pattern.length == 0) {
-    return false;
-  }
-  if (start + pattern.length > lowerWord.size()) {
-    return false;
-  }
-  for (size_t i = 0; i < pattern.length; ++i) {
-    if (lowerWord[start + i] != pattern.text[i]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 bool englishSegmentHasVowel(const std::vector<CodepointInfo>& cps, const size_t start, const size_t end) {
@@ -91,56 +87,32 @@ bool englishSegmentHasVowel(const std::vector<CodepointInfo>& cps, const size_t 
   return false;
 }
 
+bool englishBreakAllowed(const std::vector<CodepointInfo>& cps, const size_t breakIndex) {
+  if (breakIndex == 0 || breakIndex >= cps.size()) {
+    return false;
+  }
+
+  const size_t prefixLen = breakIndex;
+  const size_t suffixLen = cps.size() - breakIndex;
+  if (prefixLen < MIN_PREFIX_CP || suffixLen < MIN_SUFFIX_CP) {
+    return false;
+  }
+
+  if (!englishSegmentHasVowel(cps, 0, breakIndex) || !englishSegmentHasVowel(cps, breakIndex, cps.size())) {
+    return false;
+  }
+
+  if (nextToApostrophe(cps, breakIndex)) {
+    return false;
+  }
+
+  return true;
+}
+
 void appendMorphologyBreaks(const std::vector<CodepointInfo>& cps, const std::string& lowerWord,
                             std::vector<size_t>& indexes) {
-  static constexpr std::array<LatinLiteral, 20> PREFIXES = {
-      {{"anti", 4},  {"auto", 4}, {"counter", 7}, {"de", 2},    {"dis", 3},   {"hyper", 5}, {"inter", 5},
-       {"micro", 5}, {"mis", 3},  {"mono", 4},    {"multi", 5}, {"non", 3},   {"over", 4},  {"post", 4},
-       {"pre", 3},   {"pro", 3},  {"re", 2},      {"sub", 3},   {"super", 5}, {"trans", 5}}};
-
-  static constexpr std::array<LatinLiteral, 24> SUFFIXES = {
-      {{"able", 4}, {"ible", 4}, {"ing", 3},  {"ings", 4},   {"ed", 2},    {"er", 2},   {"ers", 3},   {"est", 3},
-       {"ful", 3},  {"hood", 4}, {"less", 4}, {"lessly", 6}, {"ly", 2},    {"ment", 4}, {"ments", 5}, {"ness", 4},
-       {"ous", 3},  {"tion", 4}, {"sion", 4}, {"ward", 4},   {"wards", 5}, {"ship", 4}, {"ships", 5}, {"y", 1}}};
-
-  const size_t length = cps.size();
-  if (length < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
-    return;
-  }
-
-  const auto tryPush = [&](const size_t breakIndex) {
-    if (breakIndex < MIN_PREFIX_CP || length - breakIndex < MIN_SUFFIX_CP) {
-      return;
-    }
-    if (!englishSegmentHasVowel(cps, 0, breakIndex) || !englishSegmentHasVowel(cps, breakIndex, length)) {
-      return;
-    }
-    if (nextToApostrophe(cps, breakIndex)) {
-      return;
-    }
-    indexes.push_back(breakIndex);
-  };
-
-  for (const auto& prefix : PREFIXES) {
-    if (prefix.length == 0 || prefix.length >= length) {
-      continue;
-    }
-    if (!matchesPatternAt(lowerWord, 0, prefix)) {
-      continue;
-    }
-    tryPush(prefix.length);
-  }
-
-  for (const auto& suffix : SUFFIXES) {
-    if (suffix.length == 0 || suffix.length >= length) {
-      continue;
-    }
-    const size_t breakIndex = length - suffix.length;
-    if (!matchesPatternAt(lowerWord, breakIndex, suffix)) {
-      continue;
-    }
-    tryPush(breakIndex);
-  }
+  appendLiteralBreaks(lowerWord, ENGLISH_PREFIXES, ENGLISH_SUFFIXES,
+                      [&](const size_t breakIndex) { return englishBreakAllowed(cps, breakIndex); }, indexes);
 }
 
 struct CharPair {
@@ -341,8 +313,8 @@ std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t rightVowel = vowelPositions[v + 1];
 
     if (rightVowel - leftVowel == 1) {
-      if (!isEnglishDiphthong(cps[leftVowel].value, cps[rightVowel].value) && rightVowel >= MIN_PREFIX_CP &&
-          cps.size() - rightVowel >= MIN_SUFFIX_CP && !nextToApostrophe(cps, rightVowel)) {
+      if (!isEnglishDiphthong(cps[leftVowel].value, cps[rightVowel].value) &&
+          englishBreakAllowed(cps, rightVowel)) {
         indexes.push_back(rightVowel);
       }
       continue;
@@ -353,10 +325,7 @@ std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t onsetLen = englishOnsetLength(cps, clusterStart, clusterEnd);
     size_t breakIndex = clusterEnd - onsetLen;
 
-    if (breakIndex < MIN_PREFIX_CP || cps.size() - breakIndex < MIN_SUFFIX_CP) {
-      continue;
-    }
-    if (nextToApostrophe(cps, breakIndex)) {
+    if (!englishBreakAllowed(cps, breakIndex)) {
       continue;
     }
     indexes.push_back(breakIndex);

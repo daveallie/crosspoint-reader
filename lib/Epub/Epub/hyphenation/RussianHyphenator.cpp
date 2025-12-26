@@ -1,10 +1,110 @@
 #include "RussianHyphenator.h"
+#include "HyphenationLiterals.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <vector>
 
 namespace {
+
+using CyrillicLiteral = HyphenLiteralT<uint32_t>;
+
+constexpr uint32_t PFX_BEZ[3] = {0x0431, 0x0435, 0x0437};
+constexpr uint32_t PFX_RAZ[3] = {0x0440, 0x0430, 0x0437};
+constexpr uint32_t PFX_POD[3] = {0x043F, 0x043E, 0x0434};
+constexpr uint32_t PFX_NAD[3] = {0x043D, 0x0430, 0x0434};
+constexpr uint32_t PFX_PERE[4] = {0x043F, 0x0435, 0x0440, 0x0435};
+constexpr uint32_t PFX_SVERH[5] = {0x0441, 0x0432, 0x0435, 0x0440, 0x0445};
+constexpr uint32_t PFX_MEZH[3] = {0x043C, 0x0435, 0x0436};
+constexpr uint32_t PFX_SUPER[5] = {0x0441, 0x0443, 0x043F, 0x0435, 0x0440};
+constexpr uint32_t PFX_PRED[4] = {0x043F, 0x0440, 0x0435, 0x0434};
+constexpr uint32_t PFX_SAMO[4] = {0x0441, 0x0430, 0x043C, 0x043E};
+constexpr uint32_t PFX_OBO[3] = {0x043E, 0x0431, 0x043E};
+constexpr uint32_t PFX_PROTIV[6] = {0x043F, 0x0440, 0x043E, 0x0442, 0x0438, 0x0432};
+
+constexpr std::array<CyrillicLiteral, 12> RUSSIAN_PREFIXES = {{{PFX_BEZ, 3},   {PFX_RAZ, 3},  {PFX_POD, 3},
+                                                               {PFX_NAD, 3},   {PFX_PERE, 4}, {PFX_SVERH, 5},
+                                                               {PFX_MEZH, 3},  {PFX_SUPER, 5},{PFX_PRED, 4},
+                                                               {PFX_SAMO, 4},  {PFX_OBO, 3},  {PFX_PROTIV, 6}}};
+
+constexpr uint32_t SFX_NOST[4] = {0x043D, 0x043E, 0x0441, 0x0442};
+constexpr uint32_t SFX_STVO[4] = {0x0441, 0x0442, 0x0432, 0x043E};
+constexpr uint32_t SFX_ENIE[4] = {0x0435, 0x043D, 0x0438, 0x0435};
+constexpr uint32_t SFX_ATION[4] = {0x0430, 0x0446, 0x0438, 0x044F};
+constexpr uint32_t SFX_CHIK[3] = {0x0447, 0x0438, 0x043A};
+constexpr uint32_t SFX_NIK[3] = {0x043D, 0x0438, 0x043A};
+constexpr uint32_t SFX_TEL[4] = {0x0442, 0x0435, 0x043B, 0x044C};
+constexpr uint32_t SFX_SKII[4] = {0x0441, 0x043A, 0x0438, 0x0439};
+constexpr uint32_t SFX_AL[6] = {0x0430, 0x043B, 0x044C, 0x043D, 0x044B, 0x0439};
+constexpr uint32_t SFX_ISM[3] = {0x0438, 0x0437, 0x043C};
+constexpr uint32_t SFX_LIV[5] = {0x043B, 0x0438, 0x0432, 0x044B, 0x0439};
+constexpr uint32_t SFX_OST[4] = {0x043E, 0x0441, 0x0442, 0x044C};
+
+constexpr std::array<CyrillicLiteral, 12> RUSSIAN_SUFFIXES = {{{SFX_NOST, 4}, {SFX_STVO, 4}, {SFX_ENIE, 4},
+                                                               {SFX_ATION, 4}, {SFX_CHIK, 3}, {SFX_NIK, 3},
+                                                               {SFX_TEL, 4},   {SFX_SKII, 4}, {SFX_AL, 6},
+                                                               {SFX_ISM, 3},   {SFX_LIV, 5}, {SFX_OST, 4}}};
+
+std::vector<uint32_t> lowercaseCyrillicWord(const std::vector<CodepointInfo>& cps) {
+  std::vector<uint32_t> lower;
+  lower.reserve(cps.size());
+  for (const auto& info : cps) {
+    lower.push_back(isCyrillicLetter(info.value) ? toLowerCyrillic(info.value) : info.value);
+  }
+  return lower;
+}
+
+bool russianSegmentHasVowel(const std::vector<CodepointInfo>& cps, const size_t start, const size_t end) {
+  if (start >= cps.size()) {
+    return false;
+  }
+  const size_t clampedEnd = std::min(end, cps.size());
+  for (size_t i = start; i < clampedEnd; ++i) {
+    if (isCyrillicVowel(cps[i].value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool exposesLeadingDoubleConsonant(const std::vector<CodepointInfo>& cps, const size_t index) {
+  if (index + 1 >= cps.size()) {
+    return false;
+  }
+  const auto first = cps[index].value;
+  const auto second = cps[index + 1].value;
+  if (!isCyrillicConsonant(first) || !isCyrillicConsonant(second)) {
+    return false;
+  }
+  if (toLowerCyrillic(first) != toLowerCyrillic(second)) {
+    return false;
+  }
+  const bool hasLeftVowel = index > 0 && isCyrillicVowel(cps[index - 1].value);
+  const bool hasRightVowel = (index + 2 < cps.size()) && isCyrillicVowel(cps[index + 2].value);
+  return hasLeftVowel && hasRightVowel;
+}
+
+bool exposesTrailingDoubleConsonant(const std::vector<CodepointInfo>& cps, const size_t index) {
+  if (index < 2) {
+    return false;
+  }
+  const auto last = cps[index - 1].value;
+  const auto prev = cps[index - 2].value;
+  if (!isCyrillicConsonant(last) || !isCyrillicConsonant(prev)) {
+    return false;
+  }
+  if (toLowerCyrillic(last) != toLowerCyrillic(prev)) {
+    return false;
+  }
+  const bool hasLeftVowel = (index >= 3) && isCyrillicVowel(cps[index - 3].value);
+  const bool hasRightVowel = (index < cps.size()) && isCyrillicVowel(cps[index].value);
+  return hasLeftVowel && hasRightVowel;
+}
+
+bool violatesDoubleConsonantRule(const std::vector<CodepointInfo>& cps, const size_t index) {
+  return exposesLeadingDoubleConsonant(cps, index) || exposesTrailingDoubleConsonant(cps, index);
+}
 
 // Checks if the codepoint is the Cyrillic soft sign (ь).
 bool isSoftSign(uint32_t cp) { return toLowerCyrillic(cp) == 0x044C; }
@@ -163,7 +263,15 @@ bool russianBreakAllowed(const std::vector<CodepointInfo>& cps, const size_t bre
     return false;
   }
 
+  if (!russianSegmentHasVowel(cps, 0, breakIndex) || !russianSegmentHasVowel(cps, breakIndex, cps.size())) {
+    return false;
+  }
+
   if (beginsWithForbiddenSuffix(cps, breakIndex)) {
+    return false;
+  }
+
+  if (violatesDoubleConsonantRule(cps, breakIndex)) {
     return false;
   }
 
@@ -198,12 +306,20 @@ bool nextToSoftSign(const std::vector<CodepointInfo>& cps, const size_t index) {
   return isSoftOrHardSign(left) || isSoftOrHardSign(right);
 }
 
+void appendMorphologyBreaks(const std::vector<CodepointInfo>& cps, const std::vector<uint32_t>& lowerWord,
+                            std::vector<size_t>& indexes) {
+  appendLiteralBreaks(lowerWord, RUSSIAN_PREFIXES, RUSSIAN_SUFFIXES,
+                      [&](const size_t breakIndex) { return russianBreakAllowed(cps, breakIndex); }, indexes);
+}
+
 // Produces syllable break indexes tailored to Russian phonotactics.
 std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
   std::vector<size_t> indexes;
   if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
     return indexes;
   }
+
+  const auto lowerWord = lowercaseCyrillicWord(cps);
 
   std::vector<size_t> vowelPositions;
   vowelPositions.reserve(cps.size());
@@ -233,8 +349,8 @@ std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t clusterEnd = rightVowel;
 
     size_t breakIndex = std::numeric_limits<size_t>::max();
-    if (const auto split = doubleConsonantSplit(cps, clusterStart, clusterEnd);
-        split != std::numeric_limits<size_t>::max()) {
+    const auto split = doubleConsonantSplit(cps, clusterStart, clusterEnd);
+    if (split != std::numeric_limits<size_t>::max()) {
       breakIndex = split;
     } else {
       const size_t onsetLen = russianOnsetLength(cps, clusterStart, clusterEnd);
@@ -256,6 +372,8 @@ std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
     }
     indexes.push_back(breakIndex);
   }
+
+  appendMorphologyBreaks(cps, lowerWord, indexes);
 
   std::sort(indexes.begin(), indexes.end());
   indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
