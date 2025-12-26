@@ -85,7 +85,8 @@ void FileSelectionActivity::onExit() {
 
 void FileSelectionActivity::loop() {
   // Long press BACK (1s+) goes to root folder
-  if (inputManager.isPressed(InputManager::BTN_BACK) && inputManager.getHeldTime() >= GO_HOME_MS) {
+  if (frontButtonMapper.isPressed(FrontButtonMapper::Button::Back) &&
+      frontButtonMapper.getAnyButtonHeldTime() >= GO_HOME_MS) {
     if (basepath != "/") {
       basepath = "/";
       loadFiles();
@@ -94,14 +95,14 @@ void FileSelectionActivity::loop() {
     return;
   }
 
-  const bool prevReleased =
-      inputManager.wasReleased(InputManager::BTN_UP) || inputManager.wasReleased(InputManager::BTN_LEFT);
-  const bool nextReleased =
-      inputManager.wasReleased(InputManager::BTN_DOWN) || inputManager.wasReleased(InputManager::BTN_RIGHT);
+  const bool prevReleased = inputManager.wasReleased(InputManager::BTN_UP) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Previous);
+  const bool nextReleased = inputManager.wasReleased(InputManager::BTN_DOWN) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Next);
 
   const bool skipPage = inputManager.getHeldTime() > SKIP_PAGE_MS;
 
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     if (files.empty()) {
       return;
     }
@@ -114,9 +115,9 @@ void FileSelectionActivity::loop() {
     } else {
       onSelect(basepath + files[selectorIndex]);
     }
-  } else if (inputManager.wasReleased(InputManager::BTN_BACK)) {
+  } else if (frontButtonMapper.wasReleased(FrontButtonMapper::Button::Back)) {
     // Short press: go up one directory, or go home if at root
-    if (inputManager.getHeldTime() < GO_HOME_MS) {
+    if (frontButtonMapper.getAnyButtonHeldTime() < GO_HOME_MS) {
       if (basepath != "/") {
         basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
         if (basepath.empty()) basepath = "/";
@@ -162,7 +163,8 @@ void FileSelectionActivity::render() const {
   renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
 
   // Help text
-  renderer.drawButtonHints(UI_FONT_ID, "« Home", "", "", "");
+  const auto labels = frontButtonMapper.mapLabels("« Home", "", "", "");
+  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (files.empty()) {
     renderer.drawText(UI_FONT_ID, 20, 60, "No EPUBs found");

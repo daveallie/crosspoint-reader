@@ -305,7 +305,7 @@ void CrossPointWebServerActivity::loop() {
     }
 
     // Handle exit on Back button
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       onGoBack();
       return;
     }
@@ -428,5 +428,6 @@ void CrossPointWebServerActivity::renderServerRunning() const {
                               REGULAR);
   }
 
-  renderer.drawButtonHints(UI_FONT_ID, "« Exit", "", "", "");
+  const auto labels = frontButtonMapper.mapLabels("« Exit", "", "", "");
+  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

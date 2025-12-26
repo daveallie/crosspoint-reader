@@ -304,17 +304,19 @@ void WifiSelectionActivity::loop() {
 
   // Handle save prompt state
   if (state == WifiSelectionState::SAVE_PROMPT) {
-    if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
+    if (inputManager.wasPressed(InputManager::BTN_UP) ||
+        frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous)) {
       if (savePromptSelection > 0) {
         savePromptSelection--;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) || inputManager.wasPressed(InputManager::BTN_DOWN)) {
+    } else if (inputManager.wasPressed(InputManager::BTN_DOWN) ||
+               frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next)) {
       if (savePromptSelection < 1) {
         savePromptSelection++;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
       if (savePromptSelection == 0) {
         // User chose "Yes" - save the password
         xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -323,7 +325,7 @@ void WifiSelectionActivity::loop() {
       }
       // Complete - parent will start web server
       onComplete(true);
-    } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       // Skip saving, complete anyway
       onComplete(true);
     }
@@ -332,17 +334,19 @@ void WifiSelectionActivity::loop() {
 
   // Handle forget prompt state (connection failed with saved credentials)
   if (state == WifiSelectionState::FORGET_PROMPT) {
-    if (inputManager.wasPressed(InputManager::BTN_LEFT) || inputManager.wasPressed(InputManager::BTN_UP)) {
+    if (inputManager.wasPressed(InputManager::BTN_UP) ||
+        frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous)) {
       if (forgetPromptSelection > 0) {
         forgetPromptSelection--;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_RIGHT) || inputManager.wasPressed(InputManager::BTN_DOWN)) {
+    } else if (inputManager.wasPressed(InputManager::BTN_DOWN) ||
+               frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next)) {
       if (forgetPromptSelection < 1) {
         forgetPromptSelection++;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
       if (forgetPromptSelection == 0) {
         // User chose "Yes" - forget the network
         xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -358,7 +362,7 @@ void WifiSelectionActivity::loop() {
       // Go back to network list
       state = WifiSelectionState::NETWORK_LIST;
       updateRequired = true;
-    } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       // Skip forgetting, go back to network list
       state = WifiSelectionState::NETWORK_LIST;
       updateRequired = true;
@@ -375,7 +379,8 @@ void WifiSelectionActivity::loop() {
 
   // Handle connection failed state
   if (state == WifiSelectionState::CONNECTION_FAILED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK) || inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back) ||
+        frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
       // If we used saved credentials, offer to forget the network
       if (usedSavedPassword) {
         state = WifiSelectionState::FORGET_PROMPT;
@@ -392,13 +397,13 @@ void WifiSelectionActivity::loop() {
   // Handle network list state
   if (state == WifiSelectionState::NETWORK_LIST) {
     // Check for Back button to exit (cancel)
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       onComplete(false);
       return;
     }
 
     // Check for Confirm button to select network or rescan
-    if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
       if (!networks.empty()) {
         selectNetwork(selectedNetworkIndex);
       } else {
@@ -408,12 +413,14 @@ void WifiSelectionActivity::loop() {
     }
 
     // Handle UP/DOWN navigation
-    if (inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT)) {
+    if (inputManager.wasPressed(InputManager::BTN_UP) ||
+        frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous)) {
       if (selectedNetworkIndex > 0) {
         selectedNetworkIndex--;
         updateRequired = true;
       }
-    } else if (inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT)) {
+    } else if (inputManager.wasPressed(InputManager::BTN_DOWN) ||
+               frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next)) {
       if (!networks.empty() && selectedNetworkIndex < static_cast<int>(networks.size()) - 1) {
         selectedNetworkIndex++;
         updateRequired = true;
@@ -558,7 +565,8 @@ void WifiSelectionActivity::renderNetworkList() const {
 
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
-  renderer.drawButtonHints(UI_FONT_ID, "« Back", "Connect", "", "");
+  const auto labels = frontButtonMapper.mapLabels("« Back", "Connect", "", "");
+  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 void WifiSelectionActivity::renderPasswordEntry() const {

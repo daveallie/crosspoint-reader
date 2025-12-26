@@ -87,7 +87,7 @@ void EpubReaderActivity::loop() {
   }
 
   // Enter chapter selection activity
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     // Don't start activity transition while rendering
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     exitActivity();
@@ -110,21 +110,23 @@ void EpubReaderActivity::loop() {
   }
 
   // Long press BACK (1s+) goes directly to home
-  if (inputManager.isPressed(InputManager::BTN_BACK) && inputManager.getHeldTime() >= goHomeMs) {
+  if (frontButtonMapper.isPressed(FrontButtonMapper::Button::Back) &&
+      frontButtonMapper.getAnyButtonHeldTime() >= goHomeMs) {
     onGoHome();
     return;
   }
 
   // Short press BACK goes to file selection
-  if (inputManager.wasReleased(InputManager::BTN_BACK) && inputManager.getHeldTime() < goHomeMs) {
+  if (frontButtonMapper.wasReleased(FrontButtonMapper::Button::Back) &&
+      frontButtonMapper.getAnyButtonHeldTime() < goHomeMs) {
     onGoBack();
     return;
   }
 
-  const bool prevReleased =
-      inputManager.wasReleased(InputManager::BTN_UP) || inputManager.wasReleased(InputManager::BTN_LEFT);
-  const bool nextReleased =
-      inputManager.wasReleased(InputManager::BTN_DOWN) || inputManager.wasReleased(InputManager::BTN_RIGHT);
+  const bool prevReleased = inputManager.wasReleased(InputManager::BTN_UP) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Previous);
+  const bool nextReleased = inputManager.wasReleased(InputManager::BTN_DOWN) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Next);
 
   if (!prevReleased && !nextReleased) {
     return;

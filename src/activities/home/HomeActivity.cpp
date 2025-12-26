@@ -49,14 +49,14 @@ void HomeActivity::onExit() {
 }
 
 void HomeActivity::loop() {
-  const bool prevPressed =
-      inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT);
+  const bool prevPressed = inputManager.wasPressed(InputManager::BTN_UP) ||
+                           frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous);
   const bool nextPressed =
-      inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT);
+      inputManager.wasPressed(InputManager::BTN_DOWN) || frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next);
 
   const int menuCount = getMenuItemCount();
 
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     if (hasContinueReading) {
       // Menu: Continue Reading, Browse, File transfer, Settings
       if (selectorIndex == 0) {
@@ -143,7 +143,8 @@ void HomeActivity::render() const {
 
   renderer.drawText(UI_FONT_ID, 20, menuY, "Settings", selectorIndex != menuIndex);
 
-  renderer.drawButtonHints(UI_FONT_ID, "Back", "Confirm", "Left", "Right");
+  const auto labels = frontButtonMapper.mapLabels("Back", "Confirm", "Left", "Right");
+  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

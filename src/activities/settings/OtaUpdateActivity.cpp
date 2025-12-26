@@ -191,7 +191,7 @@ void OtaUpdateActivity::loop() {
   }
 
   if (state == WAITING_CONFIRMATION) {
-    if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
       Serial.printf("[%lu] [OTA] New update available, starting download...\n", millis());
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = UPDATE_IN_PROGRESS;
@@ -215,7 +215,7 @@ void OtaUpdateActivity::loop() {
       updateRequired = true;
     }
 
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       goBack();
     }
 
@@ -223,14 +223,14 @@ void OtaUpdateActivity::loop() {
   }
 
   if (state == FAILED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       goBack();
     }
     return;
   }
 
   if (state == NO_UPDATE) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
       goBack();
     }
     return;

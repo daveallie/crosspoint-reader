@@ -50,16 +50,16 @@ void EpubReaderChapterSelectionActivity::onExit() {
 }
 
 void EpubReaderChapterSelectionActivity::loop() {
-  const bool prevReleased =
-      inputManager.wasReleased(InputManager::BTN_UP) || inputManager.wasReleased(InputManager::BTN_LEFT);
-  const bool nextReleased =
-      inputManager.wasReleased(InputManager::BTN_DOWN) || inputManager.wasReleased(InputManager::BTN_RIGHT);
+  const bool prevReleased = inputManager.wasReleased(InputManager::BTN_UP) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Previous);
+  const bool nextReleased = inputManager.wasReleased(InputManager::BTN_DOWN) ||
+                            frontButtonMapper.wasReleased(FrontButtonMapper::Button::Next);
 
   const bool skipPage = inputManager.getHeldTime() > SKIP_PAGE_MS;
 
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     onSelectSpineIndex(selectorIndex);
-  } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
     onGoBack();
   } else if (prevReleased) {
     if (skipPage) {

@@ -144,7 +144,7 @@ bool KeyboardEntryActivity::handleInput() {
       if (selectedCol > maxCol) selectedCol = maxCol;
     }
     handled = true;
-  } else if (inputManager.wasPressed(InputManager::BTN_LEFT)) {
+  } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Previous)) {
     if (selectedCol > 0) {
       selectedCol--;
     } else if (selectedRow > 0) {
@@ -153,7 +153,7 @@ bool KeyboardEntryActivity::handleInput() {
       selectedCol = getRowLength(selectedRow) - 1;
     }
     handled = true;
-  } else if (inputManager.wasPressed(InputManager::BTN_RIGHT)) {
+  } else if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Next)) {
     int maxCol = getRowLength(selectedRow) - 1;
     if (selectedCol < maxCol) {
       selectedCol++;
@@ -166,13 +166,13 @@ bool KeyboardEntryActivity::handleInput() {
   }
 
   // Selection
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Confirm)) {
     handleKeyPress();
     handled = true;
   }
 
   // Cancel
-  if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  if (frontButtonMapper.wasPressed(FrontButtonMapper::Button::Back)) {
     cancelled = true;
     if (onCancel) {
       onCancel();
