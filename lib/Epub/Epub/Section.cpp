@@ -115,12 +115,15 @@ bool Section::clearCache() const {
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
-                                  const bool extraParagraphSpacing, const std::function<void(int)>& progressFn) {
+                                  const bool extraParagraphSpacing, const std::function<void()>& progressSetupFn,
+                                  const std::function<void(int)>& progressFn) {
+  constexpr size_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;  // 50KB
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
   // Retry logic for SD card timing issues
   bool success = false;
+  size_t fileSize = 0;
   for (int attempt = 0; attempt < 3 && !success; attempt++) {
     if (attempt > 0) {
       Serial.printf("[%lu] [SCT] Retrying stream (attempt %d)...\n", millis(), attempt + 1);
@@ -137,6 +140,7 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
       continue;
     }
     success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    fileSize = tmpHtml.size();
     tmpHtml.close();
 
     // If streaming failed, remove the incomplete file immediately
@@ -151,7 +155,12 @@ bool Section::persistPageDataToSD(const int fontId, const float lineCompression,
     return false;
   }
 
-  Serial.printf("[%lu] [SCT] Streamed temp HTML to %s\n", millis(), tmpHtmlPath.c_str());
+  Serial.printf("[%lu] [SCT] Streamed temp HTML to %s (%d bytes)\n", millis(), tmpHtmlPath.c_str(), fileSize);
+
+  // Only show progress bar for larger chapters where rendering overhead is worth it
+  if (progressSetupFn && fileSize >= MIN_SIZE_FOR_PROGRESS) {
+    progressSetupFn();
+  }
 
   ChapterHtmlSlimParser visitor(
       tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft,

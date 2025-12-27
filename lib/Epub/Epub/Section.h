@@ -33,6 +33,7 @@ class Section {
   bool clearCache() const;
   bool persistPageDataToSD(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
                            int marginLeft, bool extraParagraphSpacing,
+                           const std::function<void()>& progressSetupFn = nullptr,
                            const std::function<void(int)>& progressFn = nullptr);
   std::unique_ptr<Page> loadPageFromSD() const;
 };
