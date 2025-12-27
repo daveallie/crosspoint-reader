@@ -115,26 +115,56 @@ bool Section::clearCache() const {
 
 bool Section::persistPageDataToSD(const int fontId, const float lineCompression, const int marginTop,
                                   const int marginRight, const int marginBottom, const int marginLeft,
-                                  const bool extraParagraphSpacing) {
+                                  const bool extraParagraphSpacing, const std::function<void()>& progressSetupFn,
+                                  const std::function<void(int)>& progressFn) {
+  constexpr size_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;  // 50KB
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
-  File tmpHtml;
-  if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
-    return false;
+
+  // Retry logic for SD card timing issues
+  bool success = false;
+  size_t fileSize = 0;
+  for (int attempt = 0; attempt < 3 && !success; attempt++) {
+    if (attempt > 0) {
+      Serial.printf("[%lu] [SCT] Retrying stream (attempt %d)...\n", millis(), attempt + 1);
+      delay(50);  // Brief delay before retry
+    }
+
+    // Remove any incomplete file from previous attempt before retrying
+    if (SD.exists(tmpHtmlPath.c_str())) {
+      SD.remove(tmpHtmlPath.c_str());
+    }
+
+    File tmpHtml;
+    if (!FsHelpers::openFileForWrite("SCT", tmpHtmlPath, tmpHtml)) {
+      continue;
+    }
+    success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
+    fileSize = tmpHtml.size();
+    tmpHtml.close();
+
+    // If streaming failed, remove the incomplete file immediately
+    if (!success && SD.exists(tmpHtmlPath.c_str())) {
+      SD.remove(tmpHtmlPath.c_str());
+      Serial.printf("[%lu] [SCT] Removed incomplete temp file after failed attempt\n", millis());
+    }
   }
-  bool success = epub->readItemContentsToStream(localPath, tmpHtml, 1024);
-  tmpHtml.close();
 
   if (!success) {
-    Serial.printf("[%lu] [SCT] Failed to stream item contents to temp file\n", millis());
+    Serial.printf("[%lu] [SCT] Failed to stream item contents to temp file after retries\n", millis());
     return false;
   }
 
-  Serial.printf("[%lu] [SCT] Streamed temp HTML to %s\n", millis(), tmpHtmlPath.c_str());
+  Serial.printf("[%lu] [SCT] Streamed temp HTML to %s (%d bytes)\n", millis(), tmpHtmlPath.c_str(), fileSize);
 
-  ChapterHtmlSlimParser visitor(tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom,
-                                marginLeft, extraParagraphSpacing,
-                                [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); });
+  // Only show progress bar for larger chapters where rendering overhead is worth it
+  if (progressSetupFn && fileSize >= MIN_SIZE_FOR_PROGRESS) {
+    progressSetupFn();
+  }
+
+  ChapterHtmlSlimParser visitor(
+      tmpHtmlPath, renderer, fontId, lineCompression, marginTop, marginRight, marginBottom, marginLeft,
+      extraParagraphSpacing, [this](std::unique_ptr<Page> page) { this->onPageComplete(std::move(page)); }, progressFn);
   success = visitor.parseAndBuildPages();
 
   SD.remove(tmpHtmlPath.c_str());

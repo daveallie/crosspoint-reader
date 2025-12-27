@@ -227,23 +227,51 @@ void EpubReaderActivity::renderScreen() {
                                     SETTINGS.extraParagraphSpacing)) {
       Serial.printf("[%lu] [ERS] Cache not found, building...\n", millis());
 
+      // Progress bar dimensions
+      constexpr int barWidth = 200;
+      constexpr int barHeight = 10;
+      constexpr int boxMargin = 20;
+      const int textWidth = renderer.getTextWidth(READER_FONT_ID, "Indexing...");
+      const int boxWidthWithBar = (barWidth > textWidth ? barWidth : textWidth) + boxMargin * 2;
+      const int boxWidthNoBar = textWidth + boxMargin * 2;
+      const int boxHeightWithBar = renderer.getLineHeight(READER_FONT_ID) + barHeight + boxMargin * 3;
+      const int boxHeightNoBar = renderer.getLineHeight(READER_FONT_ID) + boxMargin * 2;
+      const int boxXWithBar = (GfxRenderer::getScreenWidth() - boxWidthWithBar) / 2;
+      const int boxXNoBar = (GfxRenderer::getScreenWidth() - boxWidthNoBar) / 2;
+      constexpr int boxY = 50;
+      const int barX = boxXWithBar + (boxWidthWithBar - barWidth) / 2;
+      const int barY = boxY + renderer.getLineHeight(READER_FONT_ID) + boxMargin * 2;
+
+      // Always show "Indexing..." text first
       {
-        const int textWidth = renderer.getTextWidth(READER_FONT_ID, "Indexing...");
-        constexpr int margin = 20;
-        const int x = (GfxRenderer::getScreenWidth() - textWidth - margin * 2) / 2;
-        constexpr int y = 50;
-        const int w = textWidth + margin * 2;
-        const int h = renderer.getLineHeight(READER_FONT_ID) + margin * 2;
-        renderer.fillRect(x, y, w, h, false);
-        renderer.drawText(READER_FONT_ID, x + margin, y + margin, "Indexing...");
-        renderer.drawRect(x + 5, y + 5, w - 10, h - 10);
+        renderer.fillRect(boxXNoBar, boxY, boxWidthNoBar, boxHeightNoBar, false);
+        renderer.drawText(READER_FONT_ID, boxXNoBar + boxMargin, boxY + boxMargin, "Indexing...");
+        renderer.drawRect(boxXNoBar + 5, boxY + 5, boxWidthNoBar - 10, boxHeightNoBar - 10);
         renderer.displayBuffer();
         pagesUntilFullRefresh = 0;
       }
 
       section->setupCacheDir();
+
+      // Setup callback - only called for chapters >= 50KB, redraws with progress bar
+      auto progressSetup = [this, boxXWithBar, boxWidthWithBar, boxHeightWithBar, boxMargin, barX, barY, barWidth,
+                            barHeight]() {
+        renderer.fillRect(boxXWithBar, boxY, boxWidthWithBar, boxHeightWithBar, false);
+        renderer.drawText(READER_FONT_ID, boxXWithBar + boxMargin, boxY + boxMargin, "Indexing...");
+        renderer.drawRect(boxXWithBar + 5, boxY + 5, boxWidthWithBar - 10, boxHeightWithBar - 10);
+        renderer.drawRect(barX, barY, barWidth, barHeight);
+        renderer.displayBuffer();
+      };
+
+      // Progress callback to update progress bar
+      auto progressCallback = [this, barX, barY, barWidth, barHeight](int progress) {
+        const int fillWidth = (barWidth - 2) * progress / 100;
+        renderer.fillRect(barX + 1, barY + 1, fillWidth, barHeight - 2, true);
+        renderer.displayBuffer(EInkDisplay::FAST_REFRESH);
+      };
+
       if (!section->persistPageDataToSD(READER_FONT_ID, lineCompression, marginTop, marginRight, marginBottom,
-                                        marginLeft, SETTINGS.extraParagraphSpacing)) {
+                                        marginLeft, SETTINGS.extraParagraphSpacing, progressSetup, progressCallback)) {
         Serial.printf("[%lu] [ERS] Failed to persist page data to SD\n", millis());
         section.reset();
         return;

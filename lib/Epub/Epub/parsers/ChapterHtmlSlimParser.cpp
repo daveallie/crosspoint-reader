@@ -11,6 +11,9 @@
 const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 
+// Minimum file size (in bytes) to show progress bar - smaller chapters don't benefit from it
+constexpr size_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;  // 50KB
+
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
@@ -221,6 +224,11 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
     return false;
   }
 
+  // Get file size for progress calculation
+  const size_t totalSize = file.size();
+  size_t bytesRead = 0;
+  int lastProgress = -1;
+
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, characterData);
@@ -247,6 +255,17 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       XML_ParserFree(parser);
       file.close();
       return false;
+    }
+
+    // Update progress (call every 10% change to avoid too frequent updates)
+    // Only show progress for larger chapters where rendering overhead is worth it
+    bytesRead += len;
+    if (progressFn && totalSize >= MIN_SIZE_FOR_PROGRESS) {
+      const int progress = static_cast<int>((bytesRead * 100) / totalSize);
+      if (lastProgress / 10 != progress / 10) {
+        lastProgress = progress;
+        progressFn(progress);
+      }
     }
 
     done = file.available() == 0;
