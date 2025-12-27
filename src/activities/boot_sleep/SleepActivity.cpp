@@ -4,6 +4,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <SD.h>
+#include <Xtc.h>
 
 #include <vector>
 
@@ -11,6 +12,15 @@
 #include "CrossPointState.h"
 #include "config.h"
 #include "images/CrossLarge.h"
+
+namespace {
+// Check if path has XTC extension
+bool isXtcFile(const std::string& path) {
+  if (path.length() < 4) return false;
+  std::string ext = path.substr(path.length() - 4);
+  return (ext == ".xtc" || ext == ".xtg" || ext == ".xth");
+}
+}  // namespace
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
@@ -176,19 +186,41 @@ void SleepActivity::renderCoverSleepScreen() const {
     return renderDefaultSleepScreen();
   }
 
-  Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
-  if (!lastEpub.load()) {
-    Serial.println("[SLP] Failed to load last epub");
-    return renderDefaultSleepScreen();
-  }
+  std::string coverBmpPath;
 
-  if (!lastEpub.generateCoverBmp()) {
-    Serial.println("[SLP] Failed to generate cover bmp");
-    return renderDefaultSleepScreen();
+  // Check if the current book is XTC or EPUB
+  if (isXtcFile(APP_STATE.openEpubPath)) {
+    // Handle XTC file
+    Xtc lastXtc(APP_STATE.openEpubPath, "/.crosspoint");
+    if (!lastXtc.load()) {
+      Serial.println("[SLP] Failed to load last XTC");
+      return renderDefaultSleepScreen();
+    }
+
+    if (!lastXtc.generateCoverBmp()) {
+      Serial.println("[SLP] Failed to generate XTC cover bmp");
+      return renderDefaultSleepScreen();
+    }
+
+    coverBmpPath = lastXtc.getCoverBmpPath();
+  } else {
+    // Handle EPUB file
+    Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
+    if (!lastEpub.load()) {
+      Serial.println("[SLP] Failed to load last epub");
+      return renderDefaultSleepScreen();
+    }
+
+    if (!lastEpub.generateCoverBmp()) {
+      Serial.println("[SLP] Failed to generate cover bmp");
+      return renderDefaultSleepScreen();
+    }
+
+    coverBmpPath = lastEpub.getCoverBmpPath();
   }
 
   File file;
-  if (FsHelpers::openFileForRead("SLP", lastEpub.getCoverBmpPath(), file)) {
+  if (FsHelpers::openFileForRead("SLP", coverBmpPath, file)) {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       renderBitmapSleepScreen(bitmap);
