@@ -182,7 +182,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     return renderDefaultSleepScreen();
   }
 
-  if (!lastEpub.generateCoverBmp()) {
+  if (!lastEpub.generateCoverBmp(false)) {
     Serial.println("[SLP] Failed to generate cover bmp");
     return renderDefaultSleepScreen();
   }

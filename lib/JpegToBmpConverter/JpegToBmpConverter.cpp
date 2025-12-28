@@ -16,7 +16,6 @@ struct JpegReadContext {
 // ============================================================================
 // IMAGE PROCESSING OPTIONS - Toggle these to test different configurations
 // ============================================================================
-constexpr bool USE_8BIT_OUTPUT = false;  // true: 8-bit grayscale (no quantization), false: 2-bit (4 levels)
 // Dithering method selection (only one should be true, or all false for simple quantization):
 constexpr bool USE_ATKINSON = true;          // Atkinson dithering (cleaner than F-S, less error diffusion)
 constexpr bool USE_FLOYD_STEINBERG = false;  // Floyd-Steinberg error diffusion (can cause "worm" artifacts)
@@ -74,16 +73,41 @@ static inline int adjustPixel(int gray) {
   return gray;
 }
 
-// Simple quantization without dithering - just divide into 4 levels
-static inline uint8_t quantizeSimple(int gray) {
+// Quantize a brightness-adjusted gray value into evenly spaced levels
+static inline uint8_t quantizeAdjustedSimple(int gray, int levelCount) {
+  if (levelCount <= 1) return 0;
+  if (gray < 0) gray = 0;
+  if (gray > 255) gray = 255;
+  int level = (gray * levelCount) >> 8;  // Divide by 256
+  if (level >= levelCount) level = levelCount - 1;
+  return static_cast<uint8_t>(level);
+}
+
+// Quantize adjusted gray and also return the reconstructed 0-255 value
+static inline uint8_t quantizeAdjustedWithValue(int gray, int levelCount, int& quantizedValue) {
+  if (levelCount <= 1) {
+    quantizedValue = 0;
+    return 0;
+  }
+  if (gray < 0) gray = 0;
+  if (gray > 255) gray = 255;
+  int level = (gray * levelCount) >> 8;
+  if (level >= levelCount) level = levelCount - 1;
+  const int denom = levelCount - 1;
+  quantizedValue = denom > 0 ? (level * 255) / denom : 0;
+  return static_cast<uint8_t>(level);
+}
+
+// Simple quantization without dithering - divide into 2^bits levels
+static inline uint8_t quantizeSimple(int gray, int levelCount) {
   gray = adjustPixel(gray);
-  // Simple 2-bit quantization: 0-63=0, 64-127=1, 128-191=2, 192-255=3
-  return static_cast<uint8_t>(gray >> 6);
+  return quantizeAdjustedSimple(gray, levelCount);
 }
 
 // Hash-based noise dithering - survives downsampling without moiré artifacts
 // Uses integer hash to generate pseudo-random threshold per pixel
-static inline uint8_t quantizeNoise(int gray, int x, int y) {
+static inline uint8_t quantizeNoise(int gray, int x, int y, int levelCount) {
+  if (levelCount <= 1) return 0;
   gray = adjustPixel(gray);
 
   // Generate noise threshold using integer hash (no regular pattern to alias)
@@ -91,24 +115,23 @@ static inline uint8_t quantizeNoise(int gray, int x, int y) {
   hash = (hash ^ (hash >> 13)) * 1274126177u;
   const int threshold = static_cast<int>(hash >> 24);  // 0-255
 
-  // Map gray (0-255) to 4 levels with dithering
-  const int scaled = gray * 3;
-
-  if (scaled < 255) {
-    return (scaled + threshold >= 255) ? 1 : 0;
-  } else if (scaled < 510) {
-    return ((scaled - 255) + threshold >= 255) ? 2 : 1;
-  } else {
-    return ((scaled - 510) + threshold >= 255) ? 3 : 2;
+  // Map gray (0-255) to N levels with dithering
+  const int scaled = gray * levelCount;
+  int level = scaled >> 8;
+  if (level >= levelCount) level = levelCount - 1;
+  const int remainder = scaled & 0xFF;
+  if (level < levelCount - 1 && remainder + threshold >= 256) {
+    level++;
   }
+  return static_cast<uint8_t>(level);
 }
 
 // Main quantization function - selects between methods based on config
-static inline uint8_t quantize(int gray, int x, int y) {
+static inline uint8_t quantize(int gray, int x, int y, int levelCount) {
   if (USE_NOISE_DITHERING) {
-    return quantizeNoise(gray, x, y);
+    return quantizeNoise(gray, x, y, levelCount);
   } else {
-    return quantizeSimple(gray);
+    return quantizeSimple(gray, levelCount);
   }
 }
 
@@ -120,7 +143,7 @@ static inline uint8_t quantize(int gray, int x, int y) {
 // Less error buildup = fewer artifacts than Floyd-Steinberg
 class AtkinsonDitherer {
  public:
-  AtkinsonDitherer(int width) : width(width) {
+  AtkinsonDitherer(int width, int levelCount) : width(width), levelCount(levelCount) {
     errorRow0 = new int16_t[width + 4]();  // Current row
     errorRow1 = new int16_t[width + 4]();  // Next row
     errorRow2 = new int16_t[width + 4]();  // Row after next
@@ -142,21 +165,8 @@ class AtkinsonDitherer {
     if (adjusted > 255) adjusted = 255;
 
     // Quantize to 4 levels
-    uint8_t quantized;
-    int quantizedValue;
-    if (adjusted < 43) {
-      quantized = 0;
-      quantizedValue = 0;
-    } else if (adjusted < 128) {
-      quantized = 1;
-      quantizedValue = 85;
-    } else if (adjusted < 213) {
-      quantized = 2;
-      quantizedValue = 170;
-    } else {
-      quantized = 3;
-      quantizedValue = 255;
-    }
+    int quantizedValue = 0;
+    uint8_t quantized = quantizeAdjustedWithValue(adjusted, levelCount, quantizedValue);
 
     // Calculate error (only distribute 6/8 = 75%)
     int error = (adjusted - quantizedValue) >> 3;  // error/8
@@ -188,6 +198,7 @@ class AtkinsonDitherer {
 
  private:
   int width;
+    int levelCount;
   int16_t* errorRow0;
   int16_t* errorRow1;
   int16_t* errorRow2;
@@ -203,7 +214,7 @@ class AtkinsonDitherer {
 //      7/16  X
 class FloydSteinbergDitherer {
  public:
-  FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
+  FloydSteinbergDitherer(int width, int levelCount) : width(width), levelCount(levelCount), rowCount(0) {
     errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
     errorNextRow = new int16_t[width + 2]();
   }
@@ -216,6 +227,7 @@ class FloydSteinbergDitherer {
   // Process a single pixel and return quantized 2-bit value
   // x is the logical x position (0 to width-1), direction handled internally
   uint8_t processPixel(int gray, int x, bool reverseDirection) {
+    gray = adjustPixel(gray);
     // Add accumulated error to this pixel
     int adjusted = gray + errorCurRow[x + 1];
 
@@ -223,22 +235,9 @@ class FloydSteinbergDitherer {
     if (adjusted < 0) adjusted = 0;
     if (adjusted > 255) adjusted = 255;
 
-    // Quantize to 4 levels (0, 85, 170, 255)
-    uint8_t quantized;
-    int quantizedValue;
-    if (adjusted < 43) {
-      quantized = 0;
-      quantizedValue = 0;
-    } else if (adjusted < 128) {
-      quantized = 1;
-      quantizedValue = 85;
-    } else if (adjusted < 213) {
-      quantized = 2;
-      quantizedValue = 170;
-    } else {
-      quantized = 3;
-      quantizedValue = 255;
-    }
+    // Quantize to the requested level count
+    int quantizedValue = 0;
+    uint8_t quantized = quantizeAdjustedWithValue(adjusted, levelCount, quantizedValue);
 
     // Calculate error
     int error = adjusted - quantizedValue;
@@ -292,6 +291,7 @@ class FloydSteinbergDitherer {
 
  private:
   int width;
+    int levelCount;
   int rowCount;
   int16_t* errorCurRow;
   int16_t* errorNextRow;
@@ -316,12 +316,38 @@ inline void write32Signed(Print& out, const int32_t value) {
   out.write((value >> 24) & 0xFF);
 }
 
+inline void writeIndexedPixel(uint8_t* rowBuffer, int x, int bitsPerPixel, uint8_t value) {
+  const int bitPos = x * bitsPerPixel;
+  const int byteIndex = bitPos >> 3;
+  const int bitOffset = 8 - bitsPerPixel - (bitPos & 7);
+  rowBuffer[byteIndex] |= static_cast<uint8_t>(value << bitOffset);
+}
+
+int getBytesPerRow(int width, int bitsPerPixel) {
+  if (bitsPerPixel == 8) {
+    return (width + 3) / 4 * 4;  // 8 bits per pixel, padded
+  } else if (bitsPerPixel == 2) {
+    return (width * 2 + 31) / 32 * 4;  // 2 bits per pixel, round up
+  }
+  return (width + 31) / 32 * 4;  // 1 bit per pixel, round up  
+}
+
+int getColorsUsed(int bitsPerPixel) {
+  if (bitsPerPixel == 8) {
+    return 256;
+  } else if (bitsPerPixel == 2) {
+    return 4;
+  }
+  return 2;
+}
+
 // Helper function: Write BMP header with 8-bit grayscale (256 levels)
-void writeBmpHeader8bit(Print& bmpOut, const int width, const int height) {
+void writeBmpHeader(Print& bmpOut, const int width, const int height, int bitsPerPixel) {
   // Calculate row padding (each row must be multiple of 4 bytes)
-  const int bytesPerRow = (width + 3) / 4 * 4;  // 8 bits per pixel, padded
+  const int bytesPerRow = getBytesPerRow(width, bitsPerPixel);
+  const int colorsUsed = getColorsUsed(bitsPerPixel);
+  const int paletteSize = colorsUsed * 4;  // Size of color palette
   const int imageSize = bytesPerRow * height;
-  const uint32_t paletteSize = 256 * 4;  // 256 colors * 4 bytes (BGRA)
   const uint32_t fileSize = 14 + 40 + paletteSize + imageSize;
 
   // BMP File Header (14 bytes)
@@ -336,60 +362,45 @@ void writeBmpHeader8bit(Print& bmpOut, const int width, const int height) {
   write32Signed(bmpOut, width);
   write32Signed(bmpOut, -height);  // Negative height = top-down bitmap
   write16(bmpOut, 1);              // Color planes
-  write16(bmpOut, 8);              // Bits per pixel (8 bits)
+  write16(bmpOut, bitsPerPixel);              // Bits per pixel (8 bits)
   write32(bmpOut, 0);              // BI_RGB (no compression)
   write32(bmpOut, imageSize);
   write32(bmpOut, 2835);  // xPixelsPerMeter (72 DPI)
   write32(bmpOut, 2835);  // yPixelsPerMeter (72 DPI)
-  write32(bmpOut, 256);   // colorsUsed
-  write32(bmpOut, 256);   // colorsImportant
+  write32(bmpOut, colorsUsed);   // colorsUsed
+  write32(bmpOut, colorsUsed);   // colorsImportant
 
-  // Color Palette (256 grayscale entries x 4 bytes = 1024 bytes)
-  for (int i = 0; i < 256; i++) {
-    bmpOut.write(static_cast<uint8_t>(i));  // Blue
-    bmpOut.write(static_cast<uint8_t>(i));  // Green
-    bmpOut.write(static_cast<uint8_t>(i));  // Red
-    bmpOut.write(static_cast<uint8_t>(0));  // Reserved
-  }
-}
-
-// Helper function: Write BMP header with 2-bit color depth
-void JpegToBmpConverter::writeBmpHeader(Print& bmpOut, const int width, const int height) {
-  // Calculate row padding (each row must be multiple of 4 bytes)
-  const int bytesPerRow = (width * 2 + 31) / 32 * 4;  // 2 bits per pixel, round up
-  const int imageSize = bytesPerRow * height;
-  const uint32_t fileSize = 70 + imageSize;  // 14 (file header) + 40 (DIB header) + 16 (palette) + image
-
-  // BMP File Header (14 bytes)
-  bmpOut.write('B');
-  bmpOut.write('M');
-  write32(bmpOut, fileSize);  // File size
-  write32(bmpOut, 0);         // Reserved
-  write32(bmpOut, 70);        // Offset to pixel data
-
-  // DIB Header (BITMAPINFOHEADER - 40 bytes)
-  write32(bmpOut, 40);
-  write32Signed(bmpOut, width);
-  write32Signed(bmpOut, -height);  // Negative height = top-down bitmap
-  write16(bmpOut, 1);              // Color planes
-  write16(bmpOut, 2);              // Bits per pixel (2 bits)
-  write32(bmpOut, 0);              // BI_RGB (no compression)
-  write32(bmpOut, imageSize);
-  write32(bmpOut, 2835);  // xPixelsPerMeter (72 DPI)
-  write32(bmpOut, 2835);  // yPixelsPerMeter (72 DPI)
-  write32(bmpOut, 4);     // colorsUsed
-  write32(bmpOut, 4);     // colorsImportant
-
-  // Color Palette (4 colors x 4 bytes = 16 bytes)
-  // Format: Blue, Green, Red, Reserved (BGRA)
-  uint8_t palette[16] = {
-      0x00, 0x00, 0x00, 0x00,  // Color 0: Black
-      0x55, 0x55, 0x55, 0x00,  // Color 1: Dark gray (85)
-      0xAA, 0xAA, 0xAA, 0x00,  // Color 2: Light gray (170)
-      0xFF, 0xFF, 0xFF, 0x00   // Color 3: White
-  };
-  for (const uint8_t i : palette) {
-    bmpOut.write(i);
+  if (bitsPerPixel == 8) {
+    // Color Palette (256 grayscale entries x 4 bytes = 1024 bytes)
+    for (int i = 0; i < 256; i++) {
+      bmpOut.write(static_cast<uint8_t>(i));  // Blue
+      bmpOut.write(static_cast<uint8_t>(i));  // Green
+      bmpOut.write(static_cast<uint8_t>(i));  // Red
+      bmpOut.write(static_cast<uint8_t>(0));  // Reserved
+    }
+    return;
+  } else if (bitsPerPixel == 2) {
+    // Color Palette (4 colors x 4 bytes = 16 bytes)
+    // Format: Blue, Green, Red, Reserved (BGRA)
+    uint8_t palette[16] = {
+        0x00, 0x00, 0x00, 0x00,  // Color 0: Black
+        0x55, 0x55, 0x55, 0x00,  // Color 1: Dark gray (85)
+        0xAA, 0xAA, 0xAA, 0x00,  // Color 2: Light gray (170)
+        0xFF, 0xFF, 0xFF, 0x00   // Color 3: White
+    };
+    for (const uint8_t i : palette) {
+      bmpOut.write(i);
+    }
+  } else {
+    // Color Palette (2 colors x 4 bytes = 8 bytes)
+    // Format: Blue, Green, Red, Reserved (BGRA)
+    uint8_t palette[8] = {
+        0x00, 0x00, 0x00, 0x00,  // Color 0: Black
+        0xFF, 0xFF, 0xFF, 0x00   // Color 1: White
+    };
+    for (const uint8_t i : palette) {
+      bmpOut.write(i);
+    }
   }
 }
 
@@ -425,9 +436,18 @@ unsigned char JpegToBmpConverter::jpegReadCallback(unsigned char* pBuf, const un
   return 0;  // Success
 }
 
-// Core function: Convert JPEG file to 2-bit BMP
 bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
+  return jpegFileToBmpStream(jpegFile, bmpOut, 2, TARGET_MAX_WIDTH, TARGET_MAX_HEIGHT);
+}
+
+// Core function: Convert JPEG file to BMP
+bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut, int bitsPerPixel, int targetWidth, int targetHeight) {
   Serial.printf("[%lu] [JPG] Converting JPEG to BMP\n", millis());
+
+  if (bitsPerPixel != 1 && bitsPerPixel != 2 && bitsPerPixel != 8) {
+    Serial.printf("[%lu] [JPG] Unsupported bitsPerPixel: %d\n", millis(), bitsPerPixel);
+    return false;
+  }
 
   // Setup context for picojpeg callback
   JpegReadContext context = {.file = jpegFile, .bufferPos = 0, .bufferFilled = 0};
@@ -462,10 +482,10 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
   uint32_t scaleY_fp = 65536;
   bool needsScaling = false;
 
-  if (USE_PRESCALE && (imageInfo.m_width > TARGET_MAX_WIDTH || imageInfo.m_height > TARGET_MAX_HEIGHT)) {
+  if (USE_PRESCALE && (imageInfo.m_width > targetWidth || imageInfo.m_height > targetHeight)) {
     // Calculate scale to fit within target dimensions while maintaining aspect ratio
-    const float scaleToFitWidth = static_cast<float>(TARGET_MAX_WIDTH) / imageInfo.m_width;
-    const float scaleToFitHeight = static_cast<float>(TARGET_MAX_HEIGHT) / imageInfo.m_height;
+    const float scaleToFitWidth = static_cast<float>(targetWidth) / imageInfo.m_width;
+    const float scaleToFitHeight = static_cast<float>(targetHeight) / imageInfo.m_height;
     const float scale = (scaleToFitWidth < scaleToFitHeight) ? scaleToFitWidth : scaleToFitHeight;
 
     outWidth = static_cast<int>(imageInfo.m_width * scale);
@@ -482,19 +502,15 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
     needsScaling = true;
 
     Serial.printf("[%lu] [JPG] Pre-scaling %dx%d -> %dx%d (fit to %dx%d)\n", millis(), imageInfo.m_width,
-                  imageInfo.m_height, outWidth, outHeight, TARGET_MAX_WIDTH, TARGET_MAX_HEIGHT);
+                  imageInfo.m_height, outWidth, outHeight, targetWidth, targetHeight);
   }
 
   // Write BMP header with output dimensions
-  int bytesPerRow;
-  if (USE_8BIT_OUTPUT) {
-    writeBmpHeader8bit(bmpOut, outWidth, outHeight);
-    bytesPerRow = (outWidth + 3) / 4 * 4;
-  } else {
-    writeBmpHeader(bmpOut, outWidth, outHeight);
-    bytesPerRow = (outWidth * 2 + 31) / 32 * 4;
-  }
-
+  writeBmpHeader(bmpOut, outWidth, outHeight, bitsPerPixel);
+  const int bytesPerRow = getBytesPerRow(outWidth, bitsPerPixel);
+  const int levelCount = 1 << bitsPerPixel;
+  const bool indexedOutput = bitsPerPixel != 8;
+  
   // Allocate row buffer
   auto* rowBuffer = static_cast<uint8_t*>(malloc(bytesPerRow));
   if (!rowBuffer) {
@@ -522,15 +538,15 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
     return false;
   }
 
-  // Create ditherer if enabled (only for 2-bit output)
+  // Create ditherer if enabled (only for indexed output)
   // Use OUTPUT dimensions for dithering (after prescaling)
   AtkinsonDitherer* atkinsonDitherer = nullptr;
   FloydSteinbergDitherer* fsDitherer = nullptr;
-  if (!USE_8BIT_OUTPUT) {
+  if (indexedOutput) {
     if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(outWidth);
+      atkinsonDitherer = new AtkinsonDitherer(outWidth, levelCount);
     } else if (USE_FLOYD_STEINBERG) {
-      fsDitherer = new FloydSteinbergDitherer(outWidth);
+      fsDitherer = new FloydSteinbergDitherer(outWidth, levelCount);
     }
   }
 
@@ -612,7 +628,7 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
         // No scaling - direct output (1:1 mapping)
         memset(rowBuffer, 0, bytesPerRow);
 
-        if (USE_8BIT_OUTPUT) {
+        if (!indexedOutput) {
           for (int x = 0; x < outWidth; x++) {
             const uint8_t gray = mcuRowBuffer[bufferY * imageInfo.m_width + x];
             rowBuffer[x] = adjustPixel(gray);
@@ -620,17 +636,15 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
         } else {
           for (int x = 0; x < outWidth; x++) {
             const uint8_t gray = mcuRowBuffer[bufferY * imageInfo.m_width + x];
-            uint8_t twoBit;
+            uint8_t indexedValue;
             if (atkinsonDitherer) {
-              twoBit = atkinsonDitherer->processPixel(gray, x);
+              indexedValue = atkinsonDitherer->processPixel(gray, x);
             } else if (fsDitherer) {
-              twoBit = fsDitherer->processPixel(gray, x, fsDitherer->isReverseRow());
+              indexedValue = fsDitherer->processPixel(gray, x, fsDitherer->isReverseRow());
             } else {
-              twoBit = quantize(gray, x, y);
+              indexedValue = quantize(gray, x, y, levelCount);
             }
-            const int byteIndex = (x * 2) / 8;
-            const int bitOffset = 6 - ((x * 2) % 8);
-            rowBuffer[byteIndex] |= (twoBit << bitOffset);
+            writeIndexedPixel(rowBuffer, x, bitsPerPixel, indexedValue);
           }
           if (atkinsonDitherer)
             atkinsonDitherer->nextRow();
@@ -675,7 +689,7 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
         if (srcY_fp >= nextOutY_srcStart && currentOutY < outHeight) {
           memset(rowBuffer, 0, bytesPerRow);
 
-          if (USE_8BIT_OUTPUT) {
+          if (!indexedOutput) {
             for (int x = 0; x < outWidth; x++) {
               const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
               rowBuffer[x] = adjustPixel(gray);
@@ -683,17 +697,15 @@ bool JpegToBmpConverter::jpegFileToBmpStream(File& jpegFile, Print& bmpOut) {
           } else {
             for (int x = 0; x < outWidth; x++) {
               const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
-              uint8_t twoBit;
+              uint8_t indexedValue;
               if (atkinsonDitherer) {
-                twoBit = atkinsonDitherer->processPixel(gray, x);
+                indexedValue = atkinsonDitherer->processPixel(gray, x);
               } else if (fsDitherer) {
-                twoBit = fsDitherer->processPixel(gray, x, fsDitherer->isReverseRow());
+                indexedValue = fsDitherer->processPixel(gray, x, fsDitherer->isReverseRow());
               } else {
-                twoBit = quantize(gray, x, currentOutY);
+                indexedValue = quantize(gray, x, currentOutY, levelCount);
               }
-              const int byteIndex = (x * 2) / 8;
-              const int bitOffset = 6 - ((x * 2) % 8);
-              rowBuffer[byteIndex] |= (twoBit << bitOffset);
+              writeIndexedPixel(rowBuffer, x, bitsPerPixel, indexedValue);
             }
             if (atkinsonDitherer)
               atkinsonDitherer->nextRow();

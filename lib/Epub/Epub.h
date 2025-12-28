@@ -39,8 +39,9 @@ class Epub {
   const std::string& getCachePath() const;
   const std::string& getPath() const;
   const std::string& getTitle() const;
+  std::string getThumbBmpPath() const;
   std::string getCoverBmpPath() const;
-  bool generateCoverBmp() const;
+  bool generateCoverBmp(bool thumb) const;
   uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr,
                                    bool trailingNullByte = false) const;
   bool readItemContentsToStream(const std::string& itemHref, Print& out, size_t chunkSize) const;
