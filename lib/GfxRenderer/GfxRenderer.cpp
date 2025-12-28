@@ -85,7 +85,7 @@ void GfxRenderer::drawCenteredText(const int fontId, const int y, const char* te
 
 void GfxRenderer::drawText(const int fontId, const int x, const int y, const char* text, const bool black,
                            const EpdFontStyle style) const {
-  const int yPos = y + getLineHeight(fontId);
+  const int yPos = y + getFontAscenderSize(fontId);
   int xpos = x;
 
   // cannot draw a NULL / empty string
@@ -274,6 +274,15 @@ int GfxRenderer::getSpaceWidth(const int fontId) const {
   }
 
   return fontMap.at(fontId).getGlyph(' ', REGULAR)->advanceX;
+}
+
+int GfxRenderer::getFontAscenderSize(const int fontId) const {
+  if (fontMap.count(fontId) == 0) {
+    Serial.printf("[%lu] [GFX] Font %d not found\n", millis(), fontId);
+    return 0;
+  }
+
+  return fontMap.at(fontId).getData(REGULAR)->ascender;
 }
 
 int GfxRenderer::getLineHeight(const int fontId) const {
