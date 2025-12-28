@@ -3,7 +3,6 @@
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <Serialization.h>
-#include <ZipFile.h>
 
 #include "../BookMetadataCache.h"
 

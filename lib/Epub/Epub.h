@@ -24,7 +24,6 @@ class Epub {
   bool findContentOpfFile(std::string* contentOpfFile) const;
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
   bool parseTocNcxFile() const;
-  static bool getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size);
 
  public:
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
@@ -54,5 +53,5 @@ class Epub {
   size_t getCumulativeSpineItemSize(int spineIndex) const;
 
   size_t getBookSize() const;
-  uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead) const;
+  uint8_t calculateProgress(int currentSpineIndex, float currentSpineRead) const;
 };

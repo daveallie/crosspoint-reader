@@ -60,9 +60,6 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
   }
 
   ContentOpfParser opfParser(getCachePath(), getBasePath(), contentOpfSize, bookMetadataCache.get());
-  Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes\n", millis(), ESP.getFreeHeap(),
-                ESP.getHeapSize(), ESP.getMinFreeHeap());
-
   if (!opfParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup content.opf parser\n", millis());
     return false;
@@ -321,10 +318,9 @@ bool Epub::generateCoverBmp() const {
 }
 
 uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, const bool trailingNullByte) const {
-  const ZipFile zip("/sd" + filepath);
   const std::string path = FsHelpers::normalisePath(itemHref);
 
-  const auto content = zip.readFileToMemory(path.c_str(), size, trailingNullByte);
+  const auto content = ZipFile("/sd" + filepath).readFileToMemory(path.c_str(), size, trailingNullByte);
   if (!content) {
     Serial.printf("[%lu] [EBP] Failed to read item %s\n", millis(), path.c_str());
     return nullptr;
@@ -334,20 +330,13 @@ uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size
 }
 
 bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, const size_t chunkSize) const {
-  const ZipFile zip("/sd" + filepath);
   const std::string path = FsHelpers::normalisePath(itemHref);
-
-  return zip.readFileToStream(path.c_str(), out, chunkSize);
+  return ZipFile("/sd" + filepath).readFileToStream(path.c_str(), out, chunkSize);
 }
 
 bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
-  const ZipFile zip("/sd" + filepath);
-  return getItemSize(zip, itemHref, size);
-}
-
-bool Epub::getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size) {
   const std::string path = FsHelpers::normalisePath(itemHref);
-  return zip.getInflatedFileSize(path.c_str(), size);
+  return ZipFile("/sd" + filepath).getInflatedFileSize(path.c_str(), size);
 }
 
 int Epub::getSpineItemsCount() const {

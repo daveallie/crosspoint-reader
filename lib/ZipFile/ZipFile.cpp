@@ -27,27 +27,35 @@ bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t*
   return true;
 }
 
-ZipFile::ZipFile(std::string filePath) : filePath(std::move(filePath)) {
-  const bool status = mz_zip_reader_init_file(&zipArchive, this->filePath.c_str(), 0);
-
-  if (!status) {
-    Serial.printf("[%lu] [ZIP] mz_zip_reader_init_file() failed for %s! Error: %s\n", millis(), this->filePath.c_str(),
-                  mz_zip_get_error_string(zipArchive.m_last_error));
+bool ZipFile::loadFileStat(const char* filename, mz_zip_archive_file_stat* fileStat) {
+  const bool wasOpen = isOpen();
+  if (!wasOpen) {
+    if (!open()) {
+      return false;
+    }
   }
-}
 
-bool ZipFile::loadFileStat(const char* filename, mz_zip_archive_file_stat* fileStat) const {
   // find the file
   mz_uint32 fileIndex = 0;
-  if (!mz_zip_reader_locate_file_v2(&zipArchive, filename, nullptr, 0, &fileIndex)) {
+  if (!mz_zip_reader_locate_file_v2(zipArchivePtr.get(), filename, nullptr, 0, &fileIndex)) {
     Serial.printf("[%lu] [ZIP] Could not find file %s\n", millis(), filename);
+    if (!wasOpen) {
+      close();
+    }
     return false;
   }
 
-  if (!mz_zip_reader_file_stat(&zipArchive, fileIndex, fileStat)) {
+  if (!mz_zip_reader_file_stat(zipArchivePtr.get(), fileIndex, fileStat)) {
     Serial.printf("[%lu] [ZIP] mz_zip_reader_file_stat() failed! Error: %s\n", millis(),
-                  mz_zip_get_error_string(zipArchive.m_last_error));
+                  mz_zip_get_error_string(zipArchivePtr->m_last_error));
+    if (!wasOpen) {
+      close();
+    }
     return false;
+  }
+
+  if (!wasOpen) {
+    close();
   }
   return true;
 }
@@ -83,8 +91,31 @@ long ZipFile::getDataOffset(const mz_zip_archive_file_stat& fileStat) const {
   return fileOffset + localHeaderSize + filenameLength + extraOffset;
 }
 
-bool ZipFile::getInflatedFileSize(const char* filename, size_t* size) const {
-  mz_zip_archive_file_stat fileStat;
+bool ZipFile::open() {
+  zipArchivePtr.reset(new mz_zip_archive);
+  mz_zip_zero_struct(zipArchivePtr.get());
+  const bool status =
+      mz_zip_reader_init_file(zipArchivePtr.get(), filePath.c_str(), MZ_ZIP_FLAG_DO_NOT_SORT_CENTRAL_DIRECTORY);
+
+  if (!status) {
+    Serial.printf("[%lu] [ZIP] mz_zip_reader_init_file() failed for %s! Error: %s\n", millis(), filePath.c_str(),
+                  mz_zip_get_error_string(zipArchivePtr->m_last_error));
+    zipArchivePtr.reset();
+    return false;
+  }
+  return true;
+}
+
+bool ZipFile::close() {
+  if (zipArchivePtr) {
+    mz_zip_reader_end(zipArchivePtr.get());
+    zipArchivePtr.reset();
+  }
+  return true;
+}
+
+bool ZipFile::getInflatedFileSize(const char* filename, size_t* size) {
+  mz_zip_archive_file_stat fileStat = {};
   if (!loadFileStat(filename, &fileStat)) {
     return false;
   }
@@ -93,7 +124,7 @@ bool ZipFile::getInflatedFileSize(const char* filename, size_t* size) const {
   return true;
 }
 
-uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const bool trailingNullByte) const {
+uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const bool trailingNullByte) {
   mz_zip_archive_file_stat fileStat;
   if (!loadFileStat(filename, &fileStat)) {
     return nullptr;
@@ -173,7 +204,7 @@ uint8_t* ZipFile::readFileToMemory(const char* filename, size_t* size, const boo
   return data;
 }
 
-bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t chunkSize) const {
+bool ZipFile::readFileToStream(const char* filename, Print& out, const size_t chunkSize) {
   mz_zip_archive_file_stat fileStat;
   if (!loadFileStat(filename, &fileStat)) {
     return false;
