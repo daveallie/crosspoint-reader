@@ -57,9 +57,9 @@ void EpubReaderChapterSelectionActivity::loop() {
 
   const bool skipPage = inputManager.getHeldTime() > SKIP_PAGE_MS;
 
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (inputManager.wasReleased(InputManager::BTN_CONFIRM)) {
     onSelectSpineIndex(selectorIndex);
-  } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  } else if (inputManager.wasReleased(InputManager::BTN_BACK)) {
     onGoBack();
   } else if (prevReleased) {
     if (skipPage) {
