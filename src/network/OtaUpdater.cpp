@@ -27,7 +27,12 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   }
 
   JsonDocument doc;
-  const DeserializationError error = deserializeJson(doc, *client);
+  JsonDocument filter;
+  filter["tag_name"] = true;
+  filter["assets"][0]["name"] = true;
+  filter["assets"][0]["browser_download_url"] = true;
+  filter["assets"][0]["size"] = true;
+  const DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
   http.end();
   if (error) {
     Serial.printf("[%lu] [OTA] JSON parse failed: %s\n", millis(), error.c_str());
