@@ -35,14 +35,21 @@ void EpubReaderActivity::onEnter() {
   }
 
   // Configure screen orientation based on settings
-  if (SETTINGS.landscapeReading) {
-    if (SETTINGS.landscapeFlipped) {
-      GfxRenderer::setOrientation(GfxRenderer::Orientation::LandscapeFlipped);
-    } else {
-      GfxRenderer::setOrientation(GfxRenderer::Orientation::LandscapeNormal);
-    }
-  } else {
-    GfxRenderer::setOrientation(GfxRenderer::Orientation::Portrait);
+  switch (SETTINGS.orientation) {
+    case CrossPointSettings::ORIENTATION::PORTRAIT:
+      renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+      break;
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CW:
+      renderer.setOrientation(GfxRenderer::Orientation::LandscapeClockwise);
+      break;
+    case CrossPointSettings::ORIENTATION::INVERTED:
+      renderer.setOrientation(GfxRenderer::Orientation::PortraitInverted);
+      break;
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CCW:
+      renderer.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
+      break;
+    default:
+      break;
   }
 
   renderingMutex = xSemaphoreCreateMutex();

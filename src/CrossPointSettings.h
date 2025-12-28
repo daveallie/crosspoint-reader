@@ -21,6 +21,13 @@ class CrossPointSettings {
   // Status bar display type enum
   enum STATUS_BAR_MODE { NONE = 0, NO_PROGRESS = 1, FULL = 2 };
 
+  enum ORIENTATION {
+    PORTRAIT = 0,      // 480x800 logical coordinates (current default)
+    LANDSCAPE_CW = 1,  // 800x480 logical coordinates, rotated 180° (swap top/bottom)
+    INVERTED = 2,      // 480x800 logical coordinates, inverted
+    LANDSCAPE_CCW = 3  // 800x480 logical coordinates, native panel orientation
+  };
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Status bar settings
@@ -30,10 +37,8 @@ class CrossPointSettings {
   // Duration of the power button press
   uint8_t shortPwrBtn = 0;
   // EPUB reading orientation settings
-  // 0 = portrait (default), 1 = landscape
-  uint8_t landscapeReading = 0;
-  // When in landscape mode: 0 = normal, 1 = flipped (swap top/bottom)
-  uint8_t landscapeFlipped = 0;
+  // 0 = portrait (default), 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
+  uint8_t orientation = PORTRAIT;
 
   ~CrossPointSettings() = default;
 

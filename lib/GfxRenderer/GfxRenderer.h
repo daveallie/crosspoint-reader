@@ -13,10 +13,11 @@ class GfxRenderer {
   enum RenderMode { BW, GRAYSCALE_LSB, GRAYSCALE_MSB };
 
   // Logical screen orientation from the perspective of callers
-  enum class Orientation {
-    Portrait,         // 480x800 logical coordinates (current default)
-    LandscapeNormal,  // 800x480 logical coordinates, native panel orientation
-    LandscapeFlipped  // 800x480 logical coordinates, rotated 180° (swap top/bottom)
+  enum Orientation {
+    Portrait,                  // 480x800 logical coordinates (current default)
+    LandscapeClockwise,        // 800x480 logical coordinates, rotated 180° (swap top/bottom)
+    PortraitInverted,          // 480x800 logical coordinates, inverted
+    LandscapeCounterClockwise  // 800x480 logical coordinates, native panel orientation
   };
 
  private:
@@ -35,6 +36,7 @@ class GfxRenderer {
   void renderChar(const EpdFontFamily& fontFamily, uint32_t cp, int* x, const int* y, bool pixelState,
                   EpdFontStyle style) const;
   void freeBwBufferChunks();
+  void rotateCoordinates(int x, int y, int *rotatedX, int *rotatedY) const;
 
  public:
   explicit GfxRenderer(EInkDisplay& einkDisplay) : einkDisplay(einkDisplay), renderMode(BW) {}

@@ -16,8 +16,10 @@ const SettingInfo settingsList[settingsCount] = {
     {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
     {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
-    {"Landscape Reading", SettingType::TOGGLE, &CrossPointSettings::landscapeReading},
-    {"Flip Landscape (swap top/bottom)", SettingType::TOGGLE, &CrossPointSettings::landscapeFlipped},
+    {"Reading Orientation",
+     SettingType::ENUM,
+     &CrossPointSettings::orientation,
+     {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };
 }  // namespace
