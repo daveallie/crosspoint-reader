@@ -12,36 +12,50 @@ const char* const KeyboardEntryActivity::keyboard[NUM_ROWS] = {
 const char* const KeyboardEntryActivity::keyboardShift[NUM_ROWS] = {"~!@#$%^&*()_+", "QWERTYUIOP{}|", "ASDFGHJKL:\"",
                                                                     "ZXCVBNM<>?", "SPECIAL ROW"};
 
-void KeyboardEntryActivity::setText(const std::string& newText) {
-  text = newText;
-  if (maxLength > 0 && text.length() > maxLength) {
-    text.resize(maxLength);
-  }
+void KeyboardEntryActivity::taskTrampoline(void* param) {
+  auto* self = static_cast<KeyboardEntryActivity*>(param);
+  self->displayTaskLoop();
 }
 
-void KeyboardEntryActivity::reset(const std::string& newTitle, const std::string& newInitialText) {
-  if (!newTitle.empty()) {
-    title = newTitle;
+void KeyboardEntryActivity::displayTaskLoop() {
+  while (true) {
+    if (updateRequired) {
+      updateRequired = false;
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      render();
+      xSemaphoreGive(renderingMutex);
+    }
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
-  text = newInitialText;
-  selectedRow = 0;
-  selectedCol = 0;
-  shiftActive = false;
-  complete = false;
-  cancelled = false;
 }
 
 void KeyboardEntryActivity::onEnter() {
   Activity::onEnter();
 
-  // Reset state when entering the activity
-  complete = false;
-  cancelled = false;
+  renderingMutex = xSemaphoreCreateMutex();
+
+  // Trigger first update
+  updateRequired = true;
+
+  xTaskCreate(&KeyboardEntryActivity::taskTrampoline, "KeyboardEntryActivity",
+              2048,               // Stack size
+              this,               // Parameters
+              1,                  // Priority
+              &displayTaskHandle  // Task handle
+  );
 }
 
-void KeyboardEntryActivity::loop() {
-  handleInput();
-  render(10);
+void KeyboardEntryActivity::onExit() {
+  Activity::onExit();
+
+  // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
+  xSemaphoreTake(renderingMutex, portMAX_DELAY);
+  if (displayTaskHandle) {
+    vTaskDelete(displayTaskHandle);
+    displayTaskHandle = nullptr;
+  }
+  vSemaphoreDelete(renderingMutex);
+  renderingMutex = nullptr;
 }
 
 int KeyboardEntryActivity::getRowLength(const int row) const {
@@ -100,7 +114,6 @@ void KeyboardEntryActivity::handleKeyPress() {
 
     if (selectedCol >= DONE_COL) {
       // Done button
-      complete = true;
       if (onComplete) {
         onComplete(text);
       }
@@ -123,11 +136,7 @@ void KeyboardEntryActivity::handleKeyPress() {
   }
 }
 
-bool KeyboardEntryActivity::handleInput() {
-  if (complete || cancelled) {
-    return false;
-  }
-
+void KeyboardEntryActivity::loop() {
   // Navigation
   if (inputManager.wasPressed(InputManager::BTN_UP)) {
     if (selectedRow > 0) {
@@ -136,7 +145,7 @@ bool KeyboardEntryActivity::handleInput() {
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
     }
-    return true;
+    updateRequired = true;
   }
 
   if (inputManager.wasPressed(InputManager::BTN_DOWN)) {
@@ -145,11 +154,10 @@ bool KeyboardEntryActivity::handleInput() {
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
     }
-    return true;
+    updateRequired = true;
   }
 
   if (inputManager.wasPressed(InputManager::BTN_LEFT)) {
-
     // Special bottom row case
     if (selectedRow == SPECIAL_ROW) {
       // Bottom row has special key widths
@@ -165,7 +173,8 @@ bool KeyboardEntryActivity::handleInput() {
         // At done button, move to backspace
         selectedCol = BACKSPACE_COL;
       }
-      return true;
+      updateRequired = true;
+      return;
     }
 
     if (selectedCol > 0) {
@@ -175,7 +184,7 @@ bool KeyboardEntryActivity::handleInput() {
       selectedRow--;
       selectedCol = getRowLength(selectedRow) - 1;
     }
-    return true;
+    updateRequired = true;
   }
 
   if (inputManager.wasPressed(InputManager::BTN_RIGHT)) {
@@ -196,7 +205,8 @@ bool KeyboardEntryActivity::handleInput() {
       } else if (selectedCol >= DONE_COL) {
         // At done button, do nothing
       }
-      return true;
+      updateRequired = true;
+      return;
     }
 
     if (selectedCol < maxCol) {
@@ -206,29 +216,28 @@ bool KeyboardEntryActivity::handleInput() {
       selectedRow++;
       selectedCol = 0;
     }
-    return true;
+    updateRequired = true;
   }
 
   // Selection
   if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
     handleKeyPress();
-    return true;
+    updateRequired = true;
   }
 
   // Cancel
   if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-    cancelled = true;
     if (onCancel) {
       onCancel();
     }
-    return true;
+    updateRequired = true;
   }
-
-  return false;
 }
 
-void KeyboardEntryActivity::render(const int startY) const {
+void KeyboardEntryActivity::render() const {
   const auto pageWidth = GfxRenderer::getScreenWidth();
+
+  renderer.clearScreen();
 
   // Draw title
   renderer.drawCenteredText(UI_FONT_ID, startY, title.c_str(), true, REGULAR);
@@ -322,6 +331,7 @@ void KeyboardEntryActivity::render(const int startY) const {
   // Draw help text at absolute bottom of screen (consistent with other screens)
   const auto pageHeight = GfxRenderer::getScreenHeight();
   renderer.drawText(SMALL_FONT_ID, 10, pageHeight - 30, "Navigate: D-pad | Select: OK | Cancel: BACK");
+  renderer.displayBuffer();
 }
 
 void KeyboardEntryActivity::renderItemWithSelector(const int x, const int y, const char* item,

@@ -187,11 +187,21 @@ void WifiSelectionActivity::selectNetwork(const int index) {
   if (selectedRequiresPassword) {
     // Show password entry
     state = WifiSelectionState::PASSWORD_ENTRY;
-    enterNewActivity(new KeyboardEntryActivity(renderer, inputManager, "Enter WiFi Password",
-                                               "",    // No initial text
-                                               64,    // Max password length
-                                               false  // Show password by default (hard keyboard to use)
-                                               ));
+    enterNewActivity(new KeyboardEntryActivity(
+        renderer, inputManager, "Enter WiFi Password",
+        "",     // No initial text
+        50,     // Y position
+        64,     // Max password length
+        false,  // Show password by default (hard keyboard to use)
+        [this](const std::string& text) {
+          enteredPassword = text;
+          exitActivity();
+        },
+        [this] {
+          state = WifiSelectionState::NETWORK_LIST;
+          updateRequired = true;
+          exitActivity();
+        }));
     updateRequired = true;
   } else {
     // Connect directly for open networks
@@ -207,11 +217,6 @@ void WifiSelectionActivity::attemptConnection() {
   updateRequired = true;
 
   WiFi.mode(WIFI_STA);
-
-  // Get password from keyboard if we just entered it
-  if (subActivity && !usedSavedPassword) {
-    enteredPassword = static_cast<KeyboardEntryActivity*>(subActivity.get())->getText();
-  }
 
   if (selectedRequiresPassword && !enteredPassword.empty()) {
     WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str());
@@ -269,6 +274,11 @@ void WifiSelectionActivity::checkConnectionStatus() {
 }
 
 void WifiSelectionActivity::loop() {
+  if (subActivity) {
+    subActivity->loop();
+    return;
+  }
+
   // Check scan progress
   if (state == WifiSelectionState::SCANNING) {
     processWifiScanResults();
@@ -281,24 +291,9 @@ void WifiSelectionActivity::loop() {
     return;
   }
 
-  // Handle password entry state
-  if (state == WifiSelectionState::PASSWORD_ENTRY && subActivity) {
-    const auto keyboard = static_cast<KeyboardEntryActivity*>(subActivity.get());
-    keyboard->handleInput();
-
-    if (keyboard->isComplete()) {
-      attemptConnection();
-      return;
-    }
-
-    if (keyboard->isCancelled()) {
-      state = WifiSelectionState::NETWORK_LIST;
-      exitActivity();
-      updateRequired = true;
-      return;
-    }
-
-    updateRequired = true;
+  if (state == WifiSelectionState::PASSWORD_ENTRY) {
+    // Reach here once password entry finished in subactivity
+    attemptConnection();
     return;
   }
 
@@ -441,6 +436,10 @@ std::string WifiSelectionActivity::getSignalStrengthIndicator(const int32_t rssi
 
 void WifiSelectionActivity::displayTaskLoop() {
   while (true) {
+    if (subActivity) {
+      return;
+    }
+
     if (updateRequired) {
       updateRequired = false;
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -460,9 +459,6 @@ void WifiSelectionActivity::render() const {
       break;
     case WifiSelectionState::NETWORK_LIST:
       renderNetworkList();
-      break;
-    case WifiSelectionState::PASSWORD_ENTRY:
-      renderPasswordEntry();
       break;
     case WifiSelectionState::CONNECTING:
       renderConnecting();
@@ -559,23 +555,6 @@ void WifiSelectionActivity::renderNetworkList() const {
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
   renderer.drawButtonHints(UI_FONT_ID, "« Back", "Connect", "", "");
-}
-
-void WifiSelectionActivity::renderPasswordEntry() const {
-  // Draw header
-  renderer.drawCenteredText(READER_FONT_ID, 5, "WiFi Password", true, BOLD);
-
-  // Draw network name with good spacing from header
-  std::string networkInfo = "Network: " + selectedSSID;
-  if (networkInfo.length() > 30) {
-    networkInfo.replace(27, networkInfo.length() - 27, "...");
-  }
-  renderer.drawCenteredText(UI_FONT_ID, 38, networkInfo.c_str(), true, REGULAR);
-
-  // Draw keyboard
-  if (subActivity) {
-    static_cast<KeyboardEntryActivity*>(subActivity.get())->render(58);
-  }
 }
 
 void WifiSelectionActivity::renderConnecting() const {
