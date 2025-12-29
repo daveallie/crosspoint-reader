@@ -180,7 +180,6 @@ void setup() {
     Serial.begin(115200);
   }
 
-
   inputManager.begin();
   // Initialize pins
   pinMode(BAT_GPIO0, INPUT);
