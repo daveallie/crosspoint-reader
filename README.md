@@ -98,9 +98,9 @@ CrossPoint Reader is pretty aggressive about caching data down to the SD card to
 has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based
 on this constraint.
 
-### EPUB caching
+### Data caching
 
-The first time chapters of an EPUB are loaded, they are cached to the SD card. Subsequent loads are served from the 
+The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the 
 cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
 
 
@@ -108,25 +108,22 @@ cache. This cache directory exists at `.crosspoint` on the SD card. The structur
 .crosspoint/
 ├── epub_12471232/       # Each EPUB is cached to a subdirectory named `epub_<hash>`
 │   ├── progress.bin     # Stores reading progress (chapter, page, etc.)
-│   ├── 0/               # Each chapter is stored in a subdirectory named by its index (based on the spine order)
-│   │   ├── section.bin  # Section metadata (page count)
-│   │   ├── page_0.bin   # Each page is stored in a separate file, it
-│   │   ├── page_1.bin   #   contains the position (x, y) and text for each word
-│   │   └── ...
-│   ├── 1/
-│   │   ├── section.bin
-│   │   ├── page_0.bin
-│   │   ├── page_1.bin
-│   │   └── ...
-│   └── ...
+│   ├── cover.bmp        # Book cover image (once generated)
+│   ├── book.bin         # Book metadata (title, author, spine, table of contents, etc.)
+│   └── sections/        # All chapter data is stored in the sections subdirectory
+│       ├── 0.bin        # Chapter data (screen count, all text layout info, etc.)
+│       ├── 1.bin        #     files are named by their index in the spine
+│       └── ...
 │
 └── epub_189013891/
 ```
 
-Deleting the `.crosspoint` directory will clear the cache. 
+Deleting the `.crosspoint` directory will clear the entire cache. 
 
-Due the way it's currently implemented, the cache is not automatically cleared when the EPUB is deleted and moving an 
-EPUB file will reset the reading progress.
+Due the way it's currently implemented, the cache is not automatically cleared when a book is deleted and moving a book
+file will use a new cache directory, resetting the reading progress.
+
+For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
 
 ## Contributing
 

@@ -11,7 +11,7 @@ class Section {
   std::shared_ptr<Epub> epub;
   const int spineIndex;
   GfxRenderer& renderer;
-  std::string cachePath;
+  std::string filePath;
   File file;
 
   void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, int viewportWidth,
@@ -26,11 +26,10 @@ class Section {
       : epub(epub),
         spineIndex(spineIndex),
         renderer(renderer),
-        cachePath(epub->getCachePath() + "/" + std::to_string(spineIndex)) {}
+        filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
   ~Section() = default;
   bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, int viewportWidth,
                        int viewportHeight);
-  void setupCacheDir() const;
   bool clearCache() const;
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, int viewportWidth,
                          int viewportHeight, const std::function<void()>& progressSetupFn = nullptr,

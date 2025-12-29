@@ -11,7 +11,6 @@ namespace {
 constexpr uint8_t SECTION_FILE_VERSION = 7;
 constexpr size_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(int) +
                                sizeof(int) + sizeof(int) + sizeof(size_t);
-constexpr char sectionFileName[] = "/section.bin";
 }  // namespace
 
 size_t Section::onPageComplete(std::unique_ptr<Page> page) {
@@ -43,13 +42,13 @@ void Section::writeSectionFileHeader(const int fontId, const float lineCompressi
   serialization::writePod(file, extraParagraphSpacing);
   serialization::writePod(file, viewportWidth);
   serialization::writePod(file, viewportHeight);
-  serialization::writePod(file, pageCount); // Placeholder for page count (will be initially 0 when written)
+  serialization::writePod(file, pageCount);  // Placeholder for page count (will be initially 0 when written)
   serialization::writePod(file, static_cast<size_t>(0));  // Placeholder for LUT offset
 }
 
 bool Section::loadSectionFile(const int fontId, const float lineCompression, const bool extraParagraphSpacing,
                               const int viewportWidth, const int viewportHeight) {
-  if (!FsHelpers::openFileForRead("SCT", cachePath + sectionFileName, file)) {
+  if (!FsHelpers::openFileForRead("SCT", filePath, file)) {
     return false;
   }
 
@@ -89,19 +88,14 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
   return true;
 }
 
-void Section::setupCacheDir() const {
-  epub->setupCacheDir();
-  SD.mkdir(cachePath.c_str());
-}
-
 // Your updated class method (assuming you are using the 'SD' object, which is a wrapper for a specific filesystem)
 bool Section::clearCache() const {
-  if (!SD.exists(cachePath.c_str())) {
+  if (!SD.exists(filePath.c_str())) {
     Serial.printf("[%lu] [SCT] Cache does not exist, no action needed\n", millis());
     return true;
   }
 
-  if (!FsHelpers::removeDir(cachePath.c_str())) {
+  if (!SD.remove(filePath.c_str())) {
     Serial.printf("[%lu] [SCT] Failed to clear cache\n", millis());
     return false;
   }
@@ -159,7 +153,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
     progressSetupFn();
   }
 
-  if (!FsHelpers::openFileForWrite("SCT", cachePath + sectionFileName, file)) {
+  if (!FsHelpers::openFileForWrite("SCT", filePath, file)) {
     return false;
   }
   writeSectionFileHeader(fontId, lineCompression, extraParagraphSpacing, viewportWidth, viewportHeight);
@@ -175,7 +169,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   if (!success) {
     Serial.printf("[%lu] [SCT] Failed to parse XML and build pages\n", millis());
     file.close();
-    SD.remove((cachePath + sectionFileName).c_str());
+    SD.remove(filePath.c_str());
     return false;
   }
 
@@ -193,7 +187,7 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
 }
 
 std::unique_ptr<Page> Section::loadPageFromSectionFile() {
-  if (!FsHelpers::openFileForRead("SCT", cachePath + sectionFileName, file)) {
+  if (!FsHelpers::openFileForRead("SCT", filePath, file)) {
     return nullptr;
   }
 

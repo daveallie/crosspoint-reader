@@ -282,8 +282,6 @@ void EpubReaderActivity::renderScreen() {
         pagesUntilFullRefresh = 0;
       }
 
-      section->setupCacheDir();
-
       // Setup callback - only called for chapters >= 50KB, redraws with progress bar
       auto progressSetup = [this, boxXWithBar, boxWidthWithBar, boxHeightWithBar, barX, barY] {
         renderer.fillRect(boxXWithBar, boxY, boxWidthWithBar, boxHeightWithBar, false);
