@@ -171,15 +171,16 @@ void SettingsActivity::render() const {
     renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name, i != selectedSettingIndex);
 
     // Draw value based on setting type
+    std::string valueText = "";
     if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
       const bool value = SETTINGS.*(settingsList[i].valuePtr);
-      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF", i != selectedSettingIndex);
+      valueText = value ? "ON" : "OFF";
     } else if (settingsList[i].type == SettingType::ENUM && settingsList[i].valuePtr != nullptr) {
       const uint8_t value = SETTINGS.*(settingsList[i].valuePtr);
-      auto valueText = settingsList[i].enumValues[value];
-      const auto width = renderer.getTextWidth(UI_FONT_ID, valueText.c_str());
-      renderer.drawText(UI_FONT_ID, pageWidth - 50 - width, settingY, valueText.c_str(), i != selectedSettingIndex);
+      valueText = settingsList[i].enumValues[value];
     }
+    const auto width = renderer.getTextWidth(UI_FONT_ID, valueText.c_str());
+    renderer.drawText(UI_FONT_ID, pageWidth - 20 - width, settingY, valueText.c_str(), i != selectedSettingIndex);
   }
 
   // Draw version text above button hints
