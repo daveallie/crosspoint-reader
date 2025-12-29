@@ -1,8 +1,8 @@
 #pragma once
 #include <FS.h>
 
-#include <map>
 #include <string>
+#include <unordered_map>
 
 class ZipFile {
  public:
@@ -23,7 +23,7 @@ class ZipFile {
   const std::string& filePath;
   File file;
   ZipDetails zipDetails = {0, 0, false};
-  std::map<std::string, uint32_t> localHeaderOffsets;
+  std::unordered_map<std::string, uint32_t> localHeaderOffsets;
   bool loadLocalHeaderOffset(const char* filename, uint32_t* localHeaderOffset);
 
   bool loadFileStatSlim(const char* filename, FileStatSlim* fileStat);

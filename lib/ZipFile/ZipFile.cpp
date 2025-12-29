@@ -47,6 +47,9 @@ bool ZipFile::loadAllLocalHeaderOffsets() {
   uint32_t sig;
   char itemName[256];
 
+  localHeaderOffsets.clear();
+  localHeaderOffsets.reserve(zipDetails.totalEntries);
+
   while (file.available()) {
     file.read(reinterpret_cast<uint8_t*>(&sig), 4);
     if (sig != 0x02014b50) break;  // End of list
@@ -77,11 +80,14 @@ bool ZipFile::loadAllLocalHeaderOffsets() {
 }
 
 bool ZipFile::loadLocalHeaderOffset(const char* filename, uint32_t* localHeaderOffset) {
-  if (localHeaderOffsets.count(filename) > 0) {
-    *localHeaderOffset = localHeaderOffsets.at(filename);
-    Serial.printf("[%lu] [ZIP] Found cached local header offset for file: %s (LHO: %lu)\n", millis(), filename,
-                  static_cast<unsigned long>(*localHeaderOffset));
-    return true;
+  // If we have saved any offset, assume they're all loaded
+  if (!localHeaderOffsets.empty()) {
+    if (localHeaderOffsets.count(filename) > 0) {
+      *localHeaderOffset = localHeaderOffsets.at(filename);
+      return true;
+    }
+
+    return false;
   }
 
   const bool wasOpen = isOpen();

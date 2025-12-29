@@ -182,6 +182,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
         if (strcmp(atts[i], "idref") == 0) {
           const std::string idref = atts[i + 1];
           // Resolve the idref to href using items map
+          // TODO: This lookup is slow as need to scan through all items each time.
+          //       It can take up to 200ms per item when getting to 1500 items.
           self->tempItemStore.seek(0);
           std::string itemId;
           std::string href;
