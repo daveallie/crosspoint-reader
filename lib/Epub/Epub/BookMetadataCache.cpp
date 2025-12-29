@@ -85,10 +85,10 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     return false;
   }
 
-  constexpr uint32_t headerASize =
+  constexpr size_t headerASize =
       sizeof(BOOK_CACHE_VERSION) + /* LUT Offset */ sizeof(uint32_t) + sizeof(spineCount) + sizeof(tocCount);
   const uint32_t metadataSize =
-      metadata.title.size() + metadata.author.size() + metadata.coverItemHref.size() + sizeof(uint32_t) * 3;
+      metadata.title.size() + metadata.author.size() + metadata.coverItemHref.size() + metadata.textReferenceHref.size() + sizeof(uint32_t) * 4;
   const uint32_t lutSize = sizeof(uint32_t) * spineCount + sizeof(uint32_t) * tocCount;
   const uint32_t lutOffset = headerASize + metadataSize;
 
