@@ -254,8 +254,8 @@ void EpubReaderActivity::renderScreen() {
     const auto viewportWidth = renderer.getScreenWidth() - orientedMarginLeft - orientedMarginRight;
     const auto viewportHeight = renderer.getScreenHeight() - orientedMarginTop - orientedMarginBottom;
 
-    if (!section->loadCacheMetadata(READER_FONT_ID, lineCompression, SETTINGS.extraParagraphSpacing, viewportWidth,
-                                    viewportHeight)) {
+    if (!section->loadSectionFile(READER_FONT_ID, lineCompression, SETTINGS.extraParagraphSpacing, viewportWidth,
+                                  viewportHeight)) {
       Serial.printf("[%lu] [ERS] Cache not found, building...\n", millis());
 
       // Progress bar dimensions
@@ -300,8 +300,8 @@ void EpubReaderActivity::renderScreen() {
         renderer.displayBuffer(EInkDisplay::FAST_REFRESH);
       };
 
-      if (!section->persistPageDataToSD(READER_FONT_ID, lineCompression, SETTINGS.extraParagraphSpacing, viewportWidth,
-                                        viewportHeight, progressSetup, progressCallback)) {
+      if (!section->createSectionFile(READER_FONT_ID, lineCompression, SETTINGS.extraParagraphSpacing, viewportWidth,
+                                      viewportHeight, progressSetup, progressCallback)) {
         Serial.printf("[%lu] [ERS] Failed to persist page data to SD\n", millis());
         section.reset();
         return;
@@ -336,7 +336,7 @@ void EpubReaderActivity::renderScreen() {
   }
 
   {
-    auto p = section->loadPageFromSD();
+    auto p = section->loadPageFromSectionFile();
     if (!p) {
       Serial.printf("[%lu] [ERS] Failed to load page from SD - clearing section cache\n", millis());
       section->clearCache();

@@ -3,10 +3,6 @@
 #include <HardwareSerial.h>
 #include <Serialization.h>
 
-namespace {
-constexpr uint8_t PAGE_FILE_VERSION = 3;
-}
-
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
@@ -36,8 +32,6 @@ void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, co
 }
 
 void Page::serialize(File& file) const {
-  serialization::writePod(file, PAGE_FILE_VERSION);
-
   const uint32_t count = elements.size();
   serialization::writePod(file, count);
 
@@ -49,13 +43,6 @@ void Page::serialize(File& file) const {
 }
 
 std::unique_ptr<Page> Page::deserialize(File& file) {
-  uint8_t version;
-  serialization::readPod(file, version);
-  if (version != PAGE_FILE_VERSION) {
-    Serial.printf("[%lu] [PGE] Deserialization failed: Unknown version %u\n", millis(), version);
-    return nullptr;
-  }
-
   auto page = std::unique_ptr<Page>(new Page());
 
   uint32_t count;
