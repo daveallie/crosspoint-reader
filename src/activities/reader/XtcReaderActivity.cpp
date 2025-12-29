@@ -13,6 +13,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "XtcReaderChapterSelectionActivity.h"
 #include "config.h"
 
 namespace {
@@ -27,7 +28,7 @@ void XtcReaderActivity::taskTrampoline(void* param) {
 }
 
 void XtcReaderActivity::onEnter() {
-  Activity::onEnter();
+  ActivityWithSubactivity::onEnter();
 
   if (!xtc) {
     return;
@@ -56,7 +57,7 @@ void XtcReaderActivity::onEnter() {
 }
 
 void XtcReaderActivity::onExit() {
-  Activity::onExit();
+  ActivityWithSubactivity::onExit();
 
   // Wait until not rendering to delete task
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -70,6 +71,32 @@ void XtcReaderActivity::onExit() {
 }
 
 void XtcReaderActivity::loop() {
+  // Pass input responsibility to sub activity if exists
+  if (subActivity) {
+    subActivity->loop();
+    return;
+  }
+
+  // Enter chapter selection activity
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    if (xtc && xtc->hasChapters() && !xtc->getChapters().empty()) {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      exitActivity();
+      enterNewActivity(new XtcReaderChapterSelectionActivity(
+          this->renderer, this->mappedInput, xtc, currentPage,
+          [this] {
+            exitActivity();
+            updateRequired = true;
+          },
+          [this](const uint32_t newPage) {
+            currentPage = newPage;
+            exitActivity();
+            updateRequired = true;
+          }));
+      xSemaphoreGive(renderingMutex);
+    }
+  }
+
   // Long press BACK (1s+) goes directly to home
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= goHomeMs) {
     onGoHome();

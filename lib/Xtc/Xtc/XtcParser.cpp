@@ -19,6 +19,7 @@ XtcParser::XtcParser()
       m_defaultWidth(DISPLAY_WIDTH),
       m_defaultHeight(DISPLAY_HEIGHT),
       m_bitDepth(1),
+      m_hasChapters(false),
       m_lastError(XtcError::OK) {
   memset(&m_header, 0, sizeof(m_header));
 }
@@ -56,6 +57,14 @@ XtcError XtcParser::open(const char* filepath) {
     return m_lastError;
   }
 
+  // Read chapters if present
+  m_lastError = readChapters();
+  if (m_lastError != XtcError::OK) {
+    Serial.printf("[%lu] [XTC] Failed to read chapters: %s\n", millis(), errorToString(m_lastError));
+    m_file.close();
+    return m_lastError;
+  }
+
   m_isOpen = true;
   Serial.printf("[%lu] [XTC] Opened file: %s (%u pages, %dx%d)\n", millis(), filepath, m_header.pageCount,
                 m_defaultWidth, m_defaultHeight);
@@ -68,7 +77,9 @@ void XtcParser::close() {
     m_isOpen = false;
   }
   m_pageTable.clear();
+  m_chapters.clear();
   m_title.clear();
+  m_hasChapters = false;
   memset(&m_header, 0, sizeof(m_header));
 }
 
@@ -162,6 +173,112 @@ XtcError XtcParser::readPageTable() {
   }
 
   Serial.printf("[%lu] [XTC] Read %u page table entries\n", millis(), m_header.pageCount);
+  return XtcError::OK;
+}
+
+XtcError XtcParser::readChapters() {
+  m_hasChapters = false;
+  m_chapters.clear();
+
+  uint8_t hasChaptersFlag = 0;
+  if (!m_file.seek(0x0B)) {
+    return XtcError::READ_ERROR;
+  }
+  if (m_file.read(&hasChaptersFlag, sizeof(hasChaptersFlag)) != sizeof(hasChaptersFlag)) {
+    return XtcError::READ_ERROR;
+  }
+
+  if (hasChaptersFlag != 1) {
+    return XtcError::OK;
+  }
+
+  uint64_t chapterOffset = 0;
+  if (!m_file.seek(0x30)) {
+    return XtcError::READ_ERROR;
+  }
+  if (m_file.read(reinterpret_cast<uint8_t*>(&chapterOffset), sizeof(chapterOffset)) != sizeof(chapterOffset)) {
+    return XtcError::READ_ERROR;
+  }
+
+  if (chapterOffset == 0) {
+    return XtcError::OK;
+  }
+
+  const uint64_t fileSize = m_file.size();
+  if (chapterOffset < sizeof(XtcHeader) || chapterOffset >= fileSize || chapterOffset + 96 > fileSize) {
+    return XtcError::OK;
+  }
+
+  uint64_t maxOffset = 0;
+  if (m_header.pageTableOffset > chapterOffset) {
+    maxOffset = m_header.pageTableOffset;
+  } else if (m_header.dataOffset > chapterOffset) {
+    maxOffset = m_header.dataOffset;
+  } else {
+    maxOffset = fileSize;
+  }
+
+  if (maxOffset <= chapterOffset) {
+    return XtcError::OK;
+  }
+
+  constexpr size_t chapterSize = 96;
+  const uint64_t available = maxOffset - chapterOffset;
+  const size_t chapterCount = static_cast<size_t>(available / chapterSize);
+  if (chapterCount == 0) {
+    return XtcError::OK;
+  }
+
+  if (!m_file.seek(chapterOffset)) {
+    return XtcError::READ_ERROR;
+  }
+
+  std::vector<uint8_t> chapterBuf(chapterSize);
+  for (size_t i = 0; i < chapterCount; i++) {
+    if (m_file.read(chapterBuf.data(), chapterSize) != chapterSize) {
+      return XtcError::READ_ERROR;
+    }
+
+    char nameBuf[81];
+    memcpy(nameBuf, chapterBuf.data(), 80);
+    nameBuf[80] = '\0';
+    const size_t nameLen = strnlen(nameBuf, 80);
+    std::string name(nameBuf, nameLen);
+
+    uint16_t startPage = 0;
+    uint16_t endPage = 0;
+    memcpy(&startPage, chapterBuf.data() + 0x50, sizeof(startPage));
+    memcpy(&endPage, chapterBuf.data() + 0x52, sizeof(endPage));
+
+    if (name.empty() && startPage == 0 && endPage == 0) {
+      break;
+    }
+
+    if (startPage > 0) {
+      startPage--;
+    }
+    if (endPage > 0) {
+      endPage--;
+    }
+
+    if (startPage >= m_header.pageCount) {
+      continue;
+    }
+
+    if (endPage >= m_header.pageCount) {
+      endPage = m_header.pageCount - 1;
+    }
+
+    if (startPage > endPage) {
+      continue;
+    }
+
+    ChapterInfo chapter{std::move(name), startPage, endPage};
+    m_chapters.push_back(std::move(chapter));
+  }
+
+  m_hasChapters = !m_chapters.empty();
+  Serial.printf("[%lu] [XTC] Chapters: %u\n", millis(), static_cast<unsigned int>(m_chapters.size()));
   return XtcError::OK;
 }
 

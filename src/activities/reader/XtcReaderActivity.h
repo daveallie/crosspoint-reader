@@ -12,9 +12,9 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-#include "activities/Activity.h"
+#include "activities/ActivityWithSubactivity.h"
 
-class XtcReaderActivity final : public Activity {
+class XtcReaderActivity final : public ActivityWithSubactivity {
   std::shared_ptr<Xtc> xtc;
   TaskHandle_t displayTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
@@ -34,7 +34,10 @@ class XtcReaderActivity final : public Activity {
  public:
   explicit XtcReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Xtc> xtc,
                              const std::function<void()>& onGoBack, const std::function<void()>& onGoHome)
-      : Activity("XtcReader", renderer, mappedInput), xtc(std::move(xtc)), onGoBack(onGoBack), onGoHome(onGoHome) {}
+      : ActivityWithSubactivity("XtcReader", renderer, mappedInput),
+        xtc(std::move(xtc)),
+        onGoBack(onGoBack),
+        onGoHome(onGoHome) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
