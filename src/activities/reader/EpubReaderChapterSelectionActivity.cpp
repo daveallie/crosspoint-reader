@@ -39,7 +39,10 @@ void EpubReaderChapterSelectionActivity::onEnter() {
   }
 
   renderingMutex = xSemaphoreCreateMutex();
-  selectorIndex = currentSpineIndex;
+  selectorIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
+  if (selectorIndex == -1) {
+    selectorIndex = 0;
+  }
 
   // Trigger first update
   updateRequired = true;
@@ -74,22 +77,27 @@ void EpubReaderChapterSelectionActivity::loop() {
   const int pageItems = getPageItems();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    onSelectSpineIndex(selectorIndex);
+    const auto newSpineIndex = epub->getSpineIndexForTocIndex(selectorIndex);
+    if (newSpineIndex == -1) {
+      onGoBack();
+    } else {
+      onSelectSpineIndex(newSpineIndex);
+    }
   } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     onGoBack();
   } else if (prevReleased) {
     if (skipPage) {
       selectorIndex =
-          ((selectorIndex / pageItems - 1) * pageItems + epub->getSpineItemsCount()) % epub->getSpineItemsCount();
+          ((selectorIndex / pageItems - 1) * pageItems + epub->getTocItemsCount()) % epub->getTocItemsCount();
     } else {
-      selectorIndex = (selectorIndex + epub->getSpineItemsCount() - 1) % epub->getSpineItemsCount();
+      selectorIndex = (selectorIndex + epub->getTocItemsCount() - 1) % epub->getTocItemsCount();
     }
     updateRequired = true;
   } else if (nextReleased) {
     if (skipPage) {
-      selectorIndex = ((selectorIndex / pageItems + 1) * pageItems) % epub->getSpineItemsCount();
+      selectorIndex = ((selectorIndex / pageItems + 1) * pageItems) % epub->getTocItemsCount();
     } else {
-      selectorIndex = (selectorIndex + 1) % epub->getSpineItemsCount();
+      selectorIndex = (selectorIndex + 1) % epub->getTocItemsCount();
     }
     updateRequired = true;
   }
@@ -116,15 +124,10 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
   renderer.fillRect(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30);
-  for (int i = pageStartIndex; i < epub->getSpineItemsCount() && i < pageStartIndex + pageItems; i++) {
-    const int tocIndex = epub->getTocIndexForSpineIndex(i);
-    if (tocIndex == -1) {
-      renderer.drawText(UI_FONT_ID, 20, 60 + (i % pageItems) * 30, "Unnamed", i != selectorIndex);
-    } else {
-      auto item = epub->getTocItem(tocIndex);
-      renderer.drawText(UI_FONT_ID, 20 + (item.level - 1) * 15, 60 + (i % pageItems) * 30, item.title.c_str(),
-                        i != selectorIndex);
-    }
+  for (int tocIndex = pageStartIndex; tocIndex < epub->getTocItemsCount() && tocIndex < pageStartIndex + pageItems; tocIndex++) {
+    auto item = epub->getTocItem(tocIndex);
+    renderer.drawText(UI_FONT_ID, 20 + (item.level - 1) * 15, 60 + (tocIndex % pageItems) * 30, item.title.c_str(),
+                      tocIndex != selectorIndex);
   }
 
   renderer.displayBuffer();
