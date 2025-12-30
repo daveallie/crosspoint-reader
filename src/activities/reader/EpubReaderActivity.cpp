@@ -10,7 +10,7 @@
 #include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int pagesPerRefresh = 15;
@@ -234,7 +234,7 @@ void EpubReaderActivity::renderScreen() {
   // Show end of book screen
   if (currentSpineIndex == epub->getSpineItemsCount()) {
     renderer.clearScreen();
-    renderer.drawCenteredText(READER_FONT_ID, 300, "End of book", true, BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, 300, "End of book", true, BOLD);
     renderer.displayBuffer();
     return;
   }
@@ -263,21 +263,21 @@ void EpubReaderActivity::renderScreen() {
       constexpr int barWidth = 200;
       constexpr int barHeight = 10;
       constexpr int boxMargin = 20;
-      const int textWidth = renderer.getTextWidth(READER_FONT_ID, "Indexing...");
+      const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, "Indexing...");
       const int boxWidthWithBar = (barWidth > textWidth ? barWidth : textWidth) + boxMargin * 2;
       const int boxWidthNoBar = textWidth + boxMargin * 2;
-      const int boxHeightWithBar = renderer.getLineHeight(READER_FONT_ID) + barHeight + boxMargin * 3;
-      const int boxHeightNoBar = renderer.getLineHeight(READER_FONT_ID) + boxMargin * 2;
+      const int boxHeightWithBar = renderer.getLineHeight(UI_12_FONT_ID) + barHeight + boxMargin * 3;
+      const int boxHeightNoBar = renderer.getLineHeight(UI_12_FONT_ID) + boxMargin * 2;
       const int boxXWithBar = (renderer.getScreenWidth() - boxWidthWithBar) / 2;
       const int boxXNoBar = (renderer.getScreenWidth() - boxWidthNoBar) / 2;
       constexpr int boxY = 50;
       const int barX = boxXWithBar + (boxWidthWithBar - barWidth) / 2;
-      const int barY = boxY + renderer.getLineHeight(READER_FONT_ID) + boxMargin * 2;
+      const int barY = boxY + renderer.getLineHeight(UI_12_FONT_ID) + boxMargin * 2;
 
       // Always show "Indexing..." text first
       {
         renderer.fillRect(boxXNoBar, boxY, boxWidthNoBar, boxHeightNoBar, false);
-        renderer.drawText(READER_FONT_ID, boxXNoBar + boxMargin, boxY + boxMargin, "Indexing...");
+        renderer.drawText(UI_12_FONT_ID, boxXNoBar + boxMargin, boxY + boxMargin, "Indexing...");
         renderer.drawRect(boxXNoBar + 5, boxY + 5, boxWidthNoBar - 10, boxHeightNoBar - 10);
         renderer.displayBuffer();
         pagesUntilFullRefresh = 0;
@@ -286,7 +286,7 @@ void EpubReaderActivity::renderScreen() {
       // Setup callback - only called for chapters >= 50KB, redraws with progress bar
       auto progressSetup = [this, boxXWithBar, boxWidthWithBar, boxHeightWithBar, barX, barY] {
         renderer.fillRect(boxXWithBar, boxY, boxWidthWithBar, boxHeightWithBar, false);
-        renderer.drawText(READER_FONT_ID, boxXWithBar + boxMargin, boxY + boxMargin, "Indexing...");
+        renderer.drawText(UI_12_FONT_ID, boxXWithBar + boxMargin, boxY + boxMargin, "Indexing...");
         renderer.drawRect(boxXWithBar + 5, boxY + 5, boxWidthWithBar - 10, boxHeightWithBar - 10);
         renderer.drawRect(barX, barY, barWidth, barHeight);
         renderer.displayBuffer();
@@ -320,7 +320,7 @@ void EpubReaderActivity::renderScreen() {
 
   if (section->pageCount == 0) {
     Serial.printf("[%lu] [ERS] No pages to render\n", millis());
-    renderer.drawCenteredText(READER_FONT_ID, 300, "Empty chapter", true, BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, 300, "Empty chapter", true, BOLD);
     renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     renderer.displayBuffer();
     return;
@@ -328,7 +328,7 @@ void EpubReaderActivity::renderScreen() {
 
   if (section->currentPage < 0 || section->currentPage >= section->pageCount) {
     Serial.printf("[%lu] [ERS] Page out of bounds: %d (max %d)\n", millis(), section->currentPage, section->pageCount);
-    renderer.drawCenteredText(READER_FONT_ID, 300, "Out of bounds", true, BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, 300, "Out of bounds", true, BOLD);
     renderStatusBar(orientedMarginRight, orientedMarginBottom, orientedMarginLeft);
     renderer.displayBuffer();
     return;

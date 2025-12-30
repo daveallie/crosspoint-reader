@@ -5,13 +5,15 @@
 #include <InputManager.h>
 #include <SDCardManager.h>
 #include <SPI.h>
-#include <builtinFonts/bookerly_2b.h>
-#include <builtinFonts/bookerly_bold_2b.h>
-#include <builtinFonts/bookerly_bold_italic_2b.h>
-#include <builtinFonts/bookerly_italic_2b.h>
+#include <builtinFonts/aleo_14_bold.h>
+#include <builtinFonts/aleo_14_bolditalic.h>
+#include <builtinFonts/aleo_14_italic.h>
+#include <builtinFonts/aleo_14_regular.h>
 #include <builtinFonts/pixelarial14.h>
-#include <builtinFonts/ubuntu_10.h>
-#include <builtinFonts/ubuntu_bold_10.h>
+#include <builtinFonts/ubuntu_10_regular.h>
+#include <builtinFonts/ubuntu_10_bold.h>
+#include <builtinFonts/ubuntu_12_regular.h>
+#include <builtinFonts/ubuntu_12_bold.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
@@ -24,7 +26,7 @@
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
-#include "config.h"
+#include "fontIds.h"
 
 #define SPI_FQ 40000000
 // Display SPI pins (custom pins for XteinkX4, not hardware SPI defaults)
@@ -46,18 +48,22 @@ GfxRenderer renderer(einkDisplay);
 Activity* currentActivity;
 
 // Fonts
-EpdFont bookerlyFont(&bookerly_2b);
-EpdFont bookerlyBoldFont(&bookerly_bold_2b);
-EpdFont bookerlyItalicFont(&bookerly_italic_2b);
-EpdFont bookerlyBoldItalicFont(&bookerly_bold_italic_2b);
-EpdFontFamily bookerlyFontFamily(&bookerlyFont, &bookerlyBoldFont, &bookerlyItalicFont, &bookerlyBoldItalicFont);
+EpdFont aleo14RegularFont(&aleo_14_regular);
+EpdFont aleo14BoldFont(&aleo_14_bold);
+EpdFont aleo14ItalicFont(&aleo_14_italic);
+EpdFont aleo14BoldItalicFont(&aleo_14_bolditalic);
+EpdFontFamily aleo14FontFamily(&aleo14RegularFont, &aleo14BoldFont, &aleo14ItalicFont, &aleo14BoldItalicFont);
 
 EpdFont smallFont(&pixelarial14);
 EpdFontFamily smallFontFamily(&smallFont);
 
-EpdFont ubuntu10Font(&ubuntu_10);
-EpdFont ubuntuBold10Font(&ubuntu_bold_10);
-EpdFontFamily ubuntuFontFamily(&ubuntu10Font, &ubuntuBold10Font);
+EpdFont ui10RegularFont(&ubuntu_10_regular);
+EpdFont ui10BoldFont(&ubuntu_10_bold);
+EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
+
+EpdFont ui12RegularFont(&ubuntu_12_regular);
+EpdFont ui12BoldFont(&ubuntu_12_bold);
+EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 // Auto-sleep timeout (10 minutes of inactivity)
 constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
@@ -164,8 +170,9 @@ void onGoHome() {
 void setupDisplayAndFonts() {
   einkDisplay.begin();
   Serial.printf("[%lu] [   ] Display initialized\n", millis());
-  renderer.insertFont(READER_FONT_ID, bookerlyFontFamily);
-  renderer.insertFont(UI_FONT_ID, ubuntuFontFamily);
+  renderer.insertFont(READER_FONT_ID, aleo14FontFamily);
+  renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);
+  renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
   renderer.insertFont(SMALL_FONT_ID, smallFontFamily);
   Serial.printf("[%lu] [   ] Fonts setup\n", millis());
 }

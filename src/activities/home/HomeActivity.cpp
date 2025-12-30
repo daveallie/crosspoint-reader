@@ -5,7 +5,7 @@
 
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 void HomeActivity::taskTrampoline(void* param) {
   auto* self = static_cast<HomeActivity*>(param);
@@ -103,7 +103,7 @@ void HomeActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "CrossPoint Reader", true, BOLD);
 
   // Draw selection
   renderer.fillRect(0, 60 + selectorIndex * 30 - 2, pageWidth - 1, 30);
@@ -125,30 +125,30 @@ void HomeActivity::render() const {
 
     // Truncate if too long
     std::string continueLabel = "Continue: " + bookName;
-    int itemWidth = renderer.getTextWidth(UI_FONT_ID, continueLabel.c_str());
+    int itemWidth = renderer.getTextWidth(UI_10_FONT_ID, continueLabel.c_str());
     while (itemWidth > renderer.getScreenWidth() - 40 && continueLabel.length() > 8) {
       continueLabel.replace(continueLabel.length() - 5, 5, "...");
-      itemWidth = renderer.getTextWidth(UI_FONT_ID, continueLabel.c_str());
+      itemWidth = renderer.getTextWidth(UI_10_FONT_ID, continueLabel.c_str());
       Serial.printf("[%lu] [HOM] width: %lu, pageWidth: %lu\n", millis(), itemWidth, pageWidth);
     }
 
-    renderer.drawText(UI_FONT_ID, 20, menuY, continueLabel.c_str(), selectorIndex != menuIndex);
+    renderer.drawText(UI_10_FONT_ID, 20, menuY, continueLabel.c_str(), selectorIndex != menuIndex);
     menuY += 30;
     menuIndex++;
   }
 
-  renderer.drawText(UI_FONT_ID, 20, menuY, "Browse", selectorIndex != menuIndex);
+  renderer.drawText(UI_10_FONT_ID, 20, menuY, "Browse", selectorIndex != menuIndex);
   menuY += 30;
   menuIndex++;
 
-  renderer.drawText(UI_FONT_ID, 20, menuY, "File transfer", selectorIndex != menuIndex);
+  renderer.drawText(UI_10_FONT_ID, 20, menuY, "File transfer", selectorIndex != menuIndex);
   menuY += 30;
   menuIndex++;
 
-  renderer.drawText(UI_FONT_ID, 20, menuY, "Settings", selectorIndex != menuIndex);
+  renderer.drawText(UI_10_FONT_ID, 20, menuY, "Settings", selectorIndex != menuIndex);
 
   const auto labels = mappedInput.mapLabels("Back", "Confirm", "Left", "Right");
-  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

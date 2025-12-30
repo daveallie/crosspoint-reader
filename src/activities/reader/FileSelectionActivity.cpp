@@ -4,7 +4,7 @@
 #include <SDCardManager.h>
 
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
@@ -165,14 +165,14 @@ void FileSelectionActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "Books", true, BOLD);
 
   // Help text
   const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
-  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (files.empty()) {
-    renderer.drawText(UI_FONT_ID, 20, 60, "No books found");
+    renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
     renderer.displayBuffer();
     return;
   }
@@ -181,12 +181,12 @@ void FileSelectionActivity::render() const {
   renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
   for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
     auto item = files[i];
-    int itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
+    int itemWidth = renderer.getTextWidth(UI_10_FONT_ID, item.c_str());
     while (itemWidth > renderer.getScreenWidth() - 40 && item.length() > 8) {
       item.replace(item.length() - 5, 5, "...");
-      itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
+      itemWidth = renderer.getTextWidth(UI_10_FONT_ID, item.c_str());
     }
-    renderer.drawText(UI_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
+    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
   }
 
   renderer.displayBuffer();

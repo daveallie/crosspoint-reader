@@ -3,7 +3,7 @@
 #include <GfxRenderer.h>
 
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int SKIP_PAGE_MS = 700;
@@ -130,11 +130,11 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Select Chapter", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "Select Chapter", true, BOLD);
 
   const auto& chapters = xtc->getChapters();
   if (chapters.empty()) {
-    renderer.drawCenteredText(UI_FONT_ID, 120, "No chapters", true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, 120, "No chapters");
     renderer.displayBuffer();
     return;
   }
@@ -144,7 +144,7 @@ void XtcReaderChapterSelectionActivity::renderScreen() {
   for (int i = pageStartIndex; i < static_cast<int>(chapters.size()) && i < pageStartIndex + pageItems; i++) {
     const auto& chapter = chapters[i];
     const char* title = chapter.name.empty() ? "Unnamed" : chapter.name.c_str();
-    renderer.drawText(UI_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
+    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % pageItems) * 30, title, i != selectorIndex);
   }
 
   renderer.displayBuffer();

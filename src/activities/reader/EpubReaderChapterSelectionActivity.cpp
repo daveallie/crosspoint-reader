@@ -3,7 +3,7 @@
 #include <GfxRenderer.h>
 
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 // Time threshold for treating a long press as a page-up/page-down
@@ -112,17 +112,17 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Select Chapter", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "Select Chapter", true, BOLD);
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
   renderer.fillRect(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30);
   for (int i = pageStartIndex; i < epub->getSpineItemsCount() && i < pageStartIndex + pageItems; i++) {
     const int tocIndex = epub->getTocIndexForSpineIndex(i);
     if (tocIndex == -1) {
-      renderer.drawText(UI_FONT_ID, 20, 60 + (i % pageItems) * 30, "Unnamed", i != selectorIndex);
+      renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % pageItems) * 30, "Unnamed", i != selectorIndex);
     } else {
       auto item = epub->getTocItem(tocIndex);
-      renderer.drawText(UI_FONT_ID, 20 + (item.level - 1) * 15, 60 + (i % pageItems) * 30, item.title.c_str(),
+      renderer.drawText(UI_10_FONT_ID, 20 + (item.level - 1) * 15, 60 + (i % pageItems) * 30, item.title.c_str(),
                         i != selectorIndex);
     }
   }

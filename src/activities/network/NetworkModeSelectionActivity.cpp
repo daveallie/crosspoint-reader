@@ -3,7 +3,7 @@
 #include <GfxRenderer.h>
 
 #include "MappedInputManager.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int MENU_ITEM_COUNT = 2;
@@ -97,10 +97,10 @@ void NetworkModeSelectionActivity::render() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(READER_FONT_ID, 10, "File Transfer", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "File Transfer", true, BOLD);
 
   // Draw subtitle
-  renderer.drawCenteredText(UI_FONT_ID, 50, "How would you like to connect?", true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, 50, "How would you like to connect?");
 
   // Draw menu items centered on screen
   constexpr int itemHeight = 50;  // Height for each menu item (including description)
@@ -117,13 +117,13 @@ void NetworkModeSelectionActivity::render() const {
 
     // Draw text: black=false (white text) when selected (on black background)
     //            black=true (black text) when not selected (on white background)
-    renderer.drawText(UI_FONT_ID, 30, itemY, MENU_ITEMS[i], /*black=*/!isSelected);
+    renderer.drawText(UI_10_FONT_ID, 30, itemY, MENU_ITEMS[i], /*black=*/!isSelected);
     renderer.drawText(SMALL_FONT_ID, 30, itemY + 22, MENU_DESCRIPTIONS[i], /*black=*/!isSelected);
   }
 
   // Draw help text at bottom
   const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
-  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

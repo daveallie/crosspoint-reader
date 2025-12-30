@@ -8,7 +8,7 @@
 #include "MappedInputManager.h"
 #include "WifiCredentialStore.h"
 #include "activities/util/KeyboardEntryActivity.h"
-#include "config.h"
+#include "fontIds.h"
 
 void WifiSelectionActivity::taskTrampoline(void* param) {
   auto* self = static_cast<WifiSelectionActivity*>(param);
@@ -496,14 +496,14 @@ void WifiSelectionActivity::renderNetworkList() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(READER_FONT_ID, 10, "WiFi Networks", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 10, "WiFi Networks", true, BOLD);
 
   if (networks.empty()) {
     // No networks found or scan failed
-    const auto height = renderer.getLineHeight(UI_FONT_ID);
+    const auto height = renderer.getLineHeight(UI_10_FONT_ID);
     const auto top = (pageHeight - height) / 2;
-    renderer.drawCenteredText(UI_FONT_ID, top, "No networks found", true, REGULAR);
-    renderer.drawCenteredText(SMALL_FONT_ID, top + height + 10, "Press OK to scan again", true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, top, "No networks found");
+    renderer.drawCenteredText(SMALL_FONT_ID, top + height + 10, "Press OK to scan again");
   } else {
     // Calculate how many networks we can display
     constexpr int startY = 60;
@@ -524,7 +524,7 @@ void WifiSelectionActivity::renderNetworkList() const {
 
       // Draw selection indicator
       if (static_cast<int>(i) == selectedNetworkIndex) {
-        renderer.drawText(UI_FONT_ID, 5, networkY, ">");
+        renderer.drawText(UI_10_FONT_ID, 5, networkY, ">");
       }
 
       // Draw network name (truncate if too long)
@@ -532,20 +532,20 @@ void WifiSelectionActivity::renderNetworkList() const {
       if (displayName.length() > 16) {
         displayName.replace(13, displayName.length() - 13, "...");
       }
-      renderer.drawText(UI_FONT_ID, 20, networkY, displayName.c_str());
+      renderer.drawText(UI_10_FONT_ID, 20, networkY, displayName.c_str());
 
       // Draw signal strength indicator
       std::string signalStr = getSignalStrengthIndicator(network.rssi);
-      renderer.drawText(UI_FONT_ID, pageWidth - 90, networkY, signalStr.c_str());
+      renderer.drawText(UI_10_FONT_ID, pageWidth - 90, networkY, signalStr.c_str());
 
       // Draw saved indicator (checkmark) for networks with saved passwords
       if (network.hasSavedPassword) {
-        renderer.drawText(UI_FONT_ID, pageWidth - 50, networkY, "+");
+        renderer.drawText(UI_10_FONT_ID, pageWidth - 50, networkY, "+");
       }
 
       // Draw lock icon for encrypted networks
       if (network.isEncrypted) {
-        renderer.drawText(UI_FONT_ID, pageWidth - 30, networkY, "*");
+        renderer.drawText(UI_10_FONT_ID, pageWidth - 30, networkY, "*");
       }
     }
 
@@ -566,61 +566,61 @@ void WifiSelectionActivity::renderNetworkList() const {
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
   const auto labels = mappedInput.mapLabels("« Back", "Connect", "", "");
-  renderer.drawButtonHints(UI_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
 
 void WifiSelectionActivity::renderConnecting() const {
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height) / 2;
 
   if (state == WifiSelectionState::SCANNING) {
-    renderer.drawCenteredText(UI_FONT_ID, top, "Scanning...", true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, top, "Scanning...");
   } else {
-    renderer.drawCenteredText(READER_FONT_ID, top - 40, "Connecting...", true, BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connecting...", true, BOLD);
 
     std::string ssidInfo = "to " + selectedSSID;
     if (ssidInfo.length() > 25) {
       ssidInfo.replace(22, ssidInfo.length() - 22, "...");
     }
-    renderer.drawCenteredText(UI_FONT_ID, top, ssidInfo.c_str(), true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
   }
 }
 
 void WifiSelectionActivity::renderConnected() const {
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 4) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 30, "Connected!", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 30, "Connected!", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
     ssidInfo.replace(25, ssidInfo.length() - 25, "...");
   }
-  renderer.drawCenteredText(UI_FONT_ID, top + 10, ssidInfo.c_str(), true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 10, ssidInfo.c_str());
 
   const std::string ipInfo = "IP Address: " + connectedIP;
-  renderer.drawCenteredText(UI_FONT_ID, top + 40, ipInfo.c_str(), true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, ipInfo.c_str());
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
 }
 
 void WifiSelectionActivity::renderSavePrompt() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 40, "Connected!", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Connected!", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
     ssidInfo.replace(25, ssidInfo.length() - 25, "...");
   }
-  renderer.drawCenteredText(UI_FONT_ID, top, ssidInfo.c_str(), true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
 
-  renderer.drawCenteredText(UI_FONT_ID, top + 40, "Save password for next time?", true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Save password for next time?");
 
   // Draw Yes/No buttons
   const int buttonY = top + 80;
@@ -631,46 +631,46 @@ void WifiSelectionActivity::renderSavePrompt() const {
 
   // Draw "Yes" button
   if (savePromptSelection == 0) {
-    renderer.drawText(UI_FONT_ID, startX, buttonY, "[Yes]");
+    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
   } else {
-    renderer.drawText(UI_FONT_ID, startX + 4, buttonY, "Yes");
+    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
   }
 
   // Draw "No" button
   if (savePromptSelection == 1) {
-    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
   } else {
-    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
   }
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
 }
 
 void WifiSelectionActivity::renderConnectionFailed() const {
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 2) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 20, "Connection Failed", true, BOLD);
-  renderer.drawCenteredText(UI_FONT_ID, top + 20, connectionError.c_str(), true, REGULAR);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue", true, REGULAR);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 20, "Connection Failed", true, BOLD);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 20, connectionError.c_str());
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press any button to continue");
 }
 
 void WifiSelectionActivity::renderForgetPrompt() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
-  const auto height = renderer.getLineHeight(UI_FONT_ID);
+  const auto height = renderer.getLineHeight(UI_10_FONT_ID);
   const auto top = (pageHeight - height * 3) / 2;
 
-  renderer.drawCenteredText(READER_FONT_ID, top - 40, "Forget Network?", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, top - 40, "Forget Network?", true, BOLD);
 
   std::string ssidInfo = "Network: " + selectedSSID;
   if (ssidInfo.length() > 28) {
     ssidInfo.replace(25, ssidInfo.length() - 25, "...");
   }
-  renderer.drawCenteredText(UI_FONT_ID, top, ssidInfo.c_str(), true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top, ssidInfo.c_str());
 
-  renderer.drawCenteredText(UI_FONT_ID, top + 40, "Remove saved password?", true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, top + 40, "Remove saved password?");
 
   // Draw Yes/No buttons
   const int buttonY = top + 80;
@@ -681,17 +681,17 @@ void WifiSelectionActivity::renderForgetPrompt() const {
 
   // Draw "Yes" button
   if (forgetPromptSelection == 0) {
-    renderer.drawText(UI_FONT_ID, startX, buttonY, "[Yes]");
+    renderer.drawText(UI_10_FONT_ID, startX, buttonY, "[Yes]");
   } else {
-    renderer.drawText(UI_FONT_ID, startX + 4, buttonY, "Yes");
+    renderer.drawText(UI_10_FONT_ID, startX + 4, buttonY, "Yes");
   }
 
   // Draw "No" button
   if (forgetPromptSelection == 1) {
-    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing, buttonY, "[No]");
   } else {
-    renderer.drawText(UI_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
+    renderer.drawText(UI_10_FONT_ID, startX + buttonWidth + buttonSpacing + 4, buttonY, "No");
   }
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm", true, REGULAR);
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "LEFT/RIGHT: Select | OK: Confirm");
 }
