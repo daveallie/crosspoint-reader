@@ -101,10 +101,12 @@ XtcError XtcParser::readHeader() {
   m_bitDepth = (m_header.magic == XTCH_MAGIC) ? 2 : 1;
 
   // Check version
-  // Currently, version 1 is the only valid version, however some generators are using big endian for the version code
-  // so we also accept version 256 (0x0100)
-  if (m_header.version != 1 && m_header.version != 256) {
-    Serial.printf("[%lu] [XTC] Unsupported version: %d\n", millis(), m_header.version);
+  // Currently, version 1.0 is the only valid version, however some generators are swapping the bytes around, so we
+  // accept both 1.0 and 0.1 for compatibility
+  const bool validVersion = m_header.versionMajor == 1 && m_header.versionMinor == 0 ||
+                            m_header.versionMajor == 0 && m_header.versionMinor == 1;
+  if (!validVersion) {
+    Serial.printf("[%lu] [XTC] Unsupported version: %u.%u\n", millis(), m_header.versionMajor, m_header.versionMinor);
     return XtcError::INVALID_VERSION;
   }
 
@@ -113,8 +115,9 @@ XtcError XtcParser::readHeader() {
     return XtcError::CORRUPTED_HEADER;
   }
 
-  Serial.printf("[%lu] [XTC] Header: magic=0x%08X (%s), ver=%u, pages=%u, bitDepth=%u\n", millis(), m_header.magic,
-                (m_header.magic == XTCH_MAGIC) ? "XTCH" : "XTC", m_header.version, m_header.pageCount, m_bitDepth);
+  Serial.printf("[%lu] [XTC] Header: magic=0x%08X (%s), ver=%u.%u, pages=%u, bitDepth=%u\n", millis(), m_header.magic,
+                (m_header.magic == XTCH_MAGIC) ? "XTCH" : "XTC", m_header.versionMajor, m_header.versionMinor,
+                m_header.pageCount, m_bitDepth);
 
   return XtcError::OK;
 }

@@ -35,7 +35,8 @@ constexpr uint16_t DISPLAY_HEIGHT = 800;
 #pragma pack(push, 1)
 struct XtcHeader {
   uint32_t magic;            // 0x00: Magic number "XTC\0" (0x00435458)
-  uint16_t version;          // 0x04: Format version (typically 1)
+  uint8_t versionMajor;      // 0x04: Format version major (typically 1) (together with minor = 1.0)
+  uint8_t versionMinor;      // 0x05: Format version minor (typically 0)
   uint16_t pageCount;        // 0x06: Total page count
   uint32_t flags;            // 0x08: Flags/reserved
   uint32_t headerSize;       // 0x0C: Size of header section (typically 88)
