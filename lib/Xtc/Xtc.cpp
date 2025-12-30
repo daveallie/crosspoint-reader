@@ -87,6 +87,21 @@ std::string Xtc::getTitle() const {
   return filepath.substr(lastSlash, lastDot - lastSlash);
 }
 
+bool Xtc::hasChapters() const {
+  if (!loaded || !parser) {
+    return false;
+  }
+  return parser->hasChapters();
+}
+
+const std::vector<xtc::ChapterInfo>& Xtc::getChapters() const {
+  static const std::vector<xtc::ChapterInfo> kEmpty;
+  if (!loaded || !parser) {
+    return kEmpty;
+  }
+  return parser->getChapters();
+}
+
 std::string Xtc::getCoverBmpPath() const { return cachePath + "/cover.bmp"; }
 
 bool Xtc::generateCoverBmp() const {

@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace xtc {
 
@@ -91,6 +92,12 @@ struct PageInfo {
   uint8_t bitDepth;  // 1 = XTG (1-bit), 2 = XTH (2-bit grayscale)
   uint8_t padding;   // Alignment padding
 };  // 16 bytes total
+
+struct ChapterInfo {
+  std::string name;
+  uint16_t startPage;
+  uint16_t endPage;
+};
 
 // Error codes
 enum class XtcError {

@@ -84,7 +84,7 @@ void verifyWakeupLongPress() {
   const auto start = millis();
   bool abort = false;
   // It takes us some time to wake up from deep sleep, so we need to subtract that from the duration
-  uint16_t calibration = 25;
+  uint16_t calibration = 29;
   uint16_t calibratedPressDuration =
       (calibration < SETTINGS.getPowerButtonDuration()) ? SETTINGS.getPowerButtonDuration() - calibration : 1;
 
@@ -179,8 +179,6 @@ void setup() {
     Serial.begin(115200);
   }
 
-  Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
-
   inputManager.begin();
   // Initialize pins
   pinMode(BAT_GPIO0, INPUT);
@@ -202,6 +200,9 @@ void setup() {
 
   // verify power button press duration after we've read settings.
   verifyWakeupLongPress();
+
+  // First serial output only here to avoid timing inconsistencies for power button press duration verification
+  Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
 
   setupDisplayAndFonts();
 

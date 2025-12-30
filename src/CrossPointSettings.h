@@ -59,7 +59,7 @@ class CrossPointSettings {
   // Get singleton instance
   static CrossPointSettings& getInstance() { return instance; }
 
-  uint16_t getPowerButtonDuration() const { return shortPwrBtn ? 10 : 500; }
+  uint16_t getPowerButtonDuration() const { return shortPwrBtn ? 10 : 400; }
 
   bool saveToFile() const;
   bool loadFromFile();

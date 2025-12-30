@@ -122,12 +122,16 @@ void HomeActivity::render() const {
     if (bookName.length() > 5 && bookName.substr(bookName.length() - 5) == ".epub") {
       bookName.resize(bookName.length() - 5);
     }
+
     // Truncate if too long
-    if (bookName.length() > 25) {
-      bookName.resize(22);
-      bookName += "...";
-    }
     std::string continueLabel = "Continue: " + bookName;
+    int itemWidth = renderer.getTextWidth(UI_FONT_ID, continueLabel.c_str());
+    while (itemWidth > renderer.getScreenWidth() - 40 && continueLabel.length() > 8) {
+      continueLabel.replace(continueLabel.length() - 5, 5, "...");
+      itemWidth = renderer.getTextWidth(UI_FONT_ID, continueLabel.c_str());
+      Serial.printf("[%lu] [HOM] width: %lu, pageWidth: %lu\n", millis(), itemWidth, pageWidth);
+    }
+
     renderer.drawText(UI_FONT_ID, 20, menuY, continueLabel.c_str(), selectorIndex != menuIndex);
     menuY += 30;
     menuIndex++;

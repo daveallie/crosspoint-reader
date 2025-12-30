@@ -2,8 +2,6 @@
 
 #include <InputManager.h>
 
-#include "CrossPointSettings.h"
-
 class MappedInputManager {
  public:
   enum class Button { Back, Confirm, Left, Right, Up, Down, Power, PageBack, PageForward };

@@ -1,5 +1,7 @@
 #include "MappedInputManager.h"
 
+#include "CrossPointSettings.h"
+
 decltype(InputManager::BTN_BACK) MappedInputManager::mapButton(const Button button) const {
   const auto frontLayout = static_cast<CrossPointSettings::FRONT_BUTTON_LAYOUT>(SETTINGS.frontButtonLayout);
   const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
