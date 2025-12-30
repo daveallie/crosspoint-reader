@@ -12,7 +12,7 @@ CrossPointSettings CrossPointSettings::instance;
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
 // Increment this when adding new persisted settings fields
-constexpr uint8_t SETTINGS_COUNT = 9;
+constexpr uint8_t SETTINGS_COUNT = 10;
 constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
 }  // namespace
 
@@ -36,6 +36,7 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, sideButtonLayout);
   serialization::writePod(outputFile, fontFamily);
   serialization::writePod(outputFile, fontSize);
+  serialization::writePod(outputFile, lineSpacing);
   outputFile.close();
 
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -80,11 +81,49 @@ bool CrossPointSettings::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, fontSize);
     if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, lineSpacing);
+    if (++settingsRead >= fileSettingsCount) break;
   } while (false);
 
   inputFile.close();
   Serial.printf("[%lu] [CPS] Settings loaded from file\n", millis());
   return true;
+}
+
+float CrossPointSettings::getReaderLineCompression() const {
+  switch (fontFamily) {
+    case ALEO:
+    default:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.95f;
+        case NORMAL:
+        default:
+          return 1.0f;
+        case WIDE:
+          return 1.1f;
+      }
+    case NOTOSANS:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
+    case OPENDYSLEXIC:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
+  }
 }
 
 int CrossPointSettings::getReaderFontId() const {
