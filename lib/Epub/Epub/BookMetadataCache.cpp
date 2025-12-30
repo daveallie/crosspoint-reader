@@ -9,7 +9,7 @@
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = 1;
+constexpr uint8_t BOOK_CACHE_VERSION = 2;
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
@@ -143,6 +143,7 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
   }
   uint32_t cumSize = 0;
   spineFile.seek(0);
+  int lastSpineTocIndex = -1;
   for (int i = 0; i < spineCount; i++) {
     auto spineEntry = readSpineEntry(spineFile);
 
@@ -158,9 +159,12 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     // Not a huge deal if we don't fine a TOC entry for the spine entry, this is expected behaviour for EPUBs
     // Logging here is for debugging
     if (spineEntry.tocIndex == -1) {
-      Serial.printf("[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s\n", millis(), i,
-                    spineEntry.href.c_str());
+      Serial.printf(
+          "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
+          millis(), i, spineEntry.href.c_str());
+      spineEntry.tocIndex = lastSpineTocIndex;
     }
+    lastSpineTocIndex = spineEntry.tocIndex;
 
     // Calculate size for cumulative size
     size_t itemSize = 0;
