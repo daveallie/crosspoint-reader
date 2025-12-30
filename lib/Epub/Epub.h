@@ -34,7 +34,7 @@ class Epub {
   }
   ~Epub() = default;
   std::string& getBasePath() { return contentBasePath; }
-  bool load();
+  bool load(bool buildIfMissing = true);
   bool clearCache() const;
   void setupCacheDir() const;
   const std::string& getCachePath() const;
@@ -54,6 +54,7 @@ class Epub {
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
   size_t getCumulativeSpineItemSize(int spineIndex) const;
+  int getSpineIndexForTextReference() const;
 
   size_t getBookSize() const;
   uint8_t calculateProgress(int currentSpineIndex, float currentSpineRead) const;

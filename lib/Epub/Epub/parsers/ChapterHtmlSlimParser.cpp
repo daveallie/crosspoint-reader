@@ -57,7 +57,6 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::BLOCK_STYLE style
 
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-  (void)atts;
 
   // Middle of skip
   if (self->skipUntilDepth < self->depth) {
@@ -111,7 +110,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
-    self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
+    self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
     if (strcmp(name, "br") == 0) {
       self->startNewTextBlock(self->currentTextBlock->getStyle());
@@ -119,9 +118,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->startNewTextBlock(TextBlock::JUSTIFIED);
     }
   } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
-    self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
+    self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
   } else if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
-    self->italicUntilDepth = min(self->italicUntilDepth, self->depth);
+    self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
   }
 
   self->depth += 1;
@@ -180,7 +179,6 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-  (void)name;
 
   if (self->partWordBufferIndex > 0) {
     // Only flush out part word buffer if we're closing a block tag or are at the top of the HTML file.
@@ -263,9 +261,9 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       return false;
     }
 
-    const size_t len = file.read(static_cast<uint8_t*>(buf), 1024);
+    const size_t len = file.read(buf, 1024);
 
-    if (len == 0) {
+    if (len == 0 && file.available() > 0) {
       Serial.printf("[%lu] [EHP] File read error\n", millis());
       XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
       XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks

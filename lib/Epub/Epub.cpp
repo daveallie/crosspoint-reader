@@ -74,6 +74,7 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
   bookMetadata.title = opfParser.title;
   bookMetadata.author = opfParser.author;
   bookMetadata.coverItemHref = opfParser.coverItemHref;
+  bookMetadata.textReferenceHref = opfParser.textReferenceHref;
 
   if (!opfParser.tocNcxPath.empty()) {
     tocNcxItem = opfParser.tocNcxPath;
@@ -108,17 +109,20 @@ bool Epub::parseTocNcxFile() const {
 
   if (!ncxParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup toc ncx parser\n", millis());
+    tempNcxFile.close();
     return false;
   }
 
   const auto ncxBuffer = static_cast<uint8_t*>(malloc(1024));
   if (!ncxBuffer) {
     Serial.printf("[%lu] [EBP] Could not allocate memory for toc ncx parser\n", millis());
+    tempNcxFile.close();
     return false;
   }
 
   while (tempNcxFile.available()) {
     const auto readSize = tempNcxFile.read(ncxBuffer, 1024);
+    if (readSize == 0) break;
     const auto processedSize = ncxParser.write(ncxBuffer, readSize);
 
     if (processedSize != readSize) {
@@ -138,7 +142,7 @@ bool Epub::parseTocNcxFile() const {
 }
 
 // load in the meta data for the epub file
-bool Epub::load() {
+bool Epub::load(const bool buildIfMissing) {
   Serial.printf("[%lu] [EBP] Loading ePub: %s\n", millis(), filepath.c_str());
 
   // Initialize spine/TOC cache
@@ -148,6 +152,11 @@ bool Epub::load() {
   if (bookMetadataCache->load()) {
     Serial.printf("[%lu] [EBP] Loaded ePub: %s\n", millis(), filepath.c_str());
     return true;
+  }
+
+  // If we didn't load from cache above and we aren't allowed to build, fail now
+  if (!buildIfMissing) {
+    return false;
   }
 
   // Cache doesn't exist or is invalid, build it
@@ -424,6 +433,35 @@ size_t Epub::getBookSize() const {
     return 0;
   }
   return getCumulativeSpineItemSize(getSpineItemsCount() - 1);
+}
+
+int Epub::getSpineIndexForTextReference() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getSpineIndexForTextReference called but cache not loaded\n", millis());
+    return 0;
+  }
+  Serial.printf("[%lu] [ERS] Core Metadata: cover(%d)=%s, textReference(%d)=%s\n", millis(),
+                bookMetadataCache->coreMetadata.coverItemHref.size(),
+                bookMetadataCache->coreMetadata.coverItemHref.c_str(),
+                bookMetadataCache->coreMetadata.textReferenceHref.size(),
+                bookMetadataCache->coreMetadata.textReferenceHref.c_str());
+
+  if (bookMetadataCache->coreMetadata.textReferenceHref.empty()) {
+    // there was no textReference in epub, so we return 0 (the first chapter)
+    return 0;
+  }
+
+  // loop through spine items to get the correct index matching the text href
+  for (size_t i = 0; i < getSpineItemsCount(); i++) {
+    if (getSpineItem(i).href == bookMetadataCache->coreMetadata.textReferenceHref) {
+      Serial.printf("[%lu] [ERS] Text reference %s found at index %d\n", millis(),
+                    bookMetadataCache->coreMetadata.textReferenceHref.c_str(), i);
+      return i;
+    }
+  }
+  // This should not happen, as we checked for empty textReferenceHref earlier
+  Serial.printf("[%lu] [EBP] Section not found for text reference\n", millis());
+  return 0;
 }
 
 // Calculate progress in book

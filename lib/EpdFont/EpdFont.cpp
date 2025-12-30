@@ -2,8 +2,7 @@
 
 #include <Utf8.h>
 
-inline int min(const int a, const int b) { return a < b ? a : b; }
-inline int max(const int a, const int b) { return a < b ? b : a; }
+#include <algorithm>
 
 void EpdFont::getTextBounds(const char* string, const int startX, const int startY, int* minX, int* minY, int* maxX,
                             int* maxY) const {
@@ -32,10 +31,10 @@ void EpdFont::getTextBounds(const char* string, const int startX, const int star
       continue;
     }
 
-    *minX = min(*minX, cursorX + glyph->left);
-    *maxX = max(*maxX, cursorX + glyph->left + glyph->width);
-    *minY = min(*minY, cursorY + glyph->top - glyph->height);
-    *maxY = max(*maxY, cursorY + glyph->top);
+    *minX = std::min(*minX, cursorX + glyph->left);
+    *maxX = std::max(*maxX, cursorX + glyph->left + glyph->width);
+    *minY = std::min(*minY, cursorY + glyph->top - glyph->height);
+    *maxY = std::max(*maxY, cursorY + glyph->top);
     cursorX += glyph->advanceX;
   }
 }

@@ -37,7 +37,7 @@ class GfxRenderer {
 
  public:
   explicit GfxRenderer(EInkDisplay& einkDisplay) : einkDisplay(einkDisplay), renderMode(BW), orientation(Portrait) {}
-  ~GfxRenderer() = default;
+  ~GfxRenderer() { freeBwBufferChunks(); }
 
   static constexpr int VIEWABLE_MARGIN_TOP = 9;
   static constexpr int VIEWABLE_MARGIN_RIGHT = 3;

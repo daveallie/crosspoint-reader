@@ -50,6 +50,14 @@ void CrossPointWebServer::begin() {
 
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server.reset(new WebServer(port));
+
+  // Disable WiFi sleep to improve responsiveness and prevent 'unreachable' errors.
+  // This is critical for reliable web server operation on ESP32.
+  WiFi.setSleep(false);
+
+  // Note: WebServer class doesn't have setNoDelay() in the standard ESP32 library.
+  // We rely on disabling WiFi sleep for responsiveness.
+
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
 
   if (!server) {
@@ -157,15 +165,16 @@ void CrossPointWebServer::handleStatus() const {
   // Get correct IP based on AP vs STA mode
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 
-  String json = "{";
-  json += "\"version\":\"" + String(CROSSPOINT_VERSION) + "\",";
-  json += "\"ip\":\"" + ipAddr + "\",";
-  json += "\"mode\":\"" + String(apMode ? "AP" : "STA") + "\",";
-  json += "\"rssi\":" + String(apMode ? 0 : WiFi.RSSI()) + ",";  // RSSI not applicable in AP mode
-  json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
-  json += "\"uptime\":" + String(millis() / 1000);
-  json += "}";
+  JsonDocument doc;
+  doc["version"] = CROSSPOINT_VERSION;
+  doc["ip"] = ipAddr;
+  doc["mode"] = apMode ? "AP" : "STA";
+  doc["rssi"] = apMode ? 0 : WiFi.RSSI();
+  doc["freeHeap"] = ESP.getFreeHeap();
+  doc["uptime"] = millis() / 1000;
 
+  String json;
+  serializeJson(doc, json);
   server->send(200, "application/json", json);
 }
 
@@ -220,6 +229,7 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
     }
 
     file.close();
+    yield();  // Yield to allow WiFi and other tasks to process during long scans
     file = root.openNextFile();
   }
   root.close();
@@ -254,12 +264,15 @@ void CrossPointWebServer::handleFileListData() const {
   char output[512];
   constexpr size_t outputSize = sizeof(output);
   bool seenFirst = false;
-  scanFiles(currentPath.c_str(), [this, &output, seenFirst](const FileInfo& info) mutable {
-    JsonDocument doc;
+  JsonDocument doc;
+
+  scanFiles(currentPath.c_str(), [this, &output, &doc, seenFirst](const FileInfo& info) mutable {
+    doc.clear();
     doc["name"] = info.name;
     doc["size"] = info.size;
     doc["isDirectory"] = info.isDirectory;
     doc["isEpub"] = info.isEpub;
+
     const size_t written = serializeJson(doc, output, outputSize);
     if (written >= outputSize) {
       // JSON output truncated; skip this entry to avoid sending malformed JSON

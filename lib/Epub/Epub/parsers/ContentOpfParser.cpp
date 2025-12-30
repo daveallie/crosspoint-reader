@@ -127,6 +127,18 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     return;
   }
 
+  if (self->state == IN_PACKAGE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
+    self->state = IN_GUIDE;
+    // TODO Remove print
+    Serial.printf("[%lu] [COF] Entering guide state.\n", millis());
+    if (!SdMan.openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+      Serial.printf(
+          "[%lu] [COF] Couldn't open temp items file for reading. This is probably going to be a fatal error.\n",
+          millis());
+    }
+    return;
+  }
+
   if (self->state == IN_METADATA && (strcmp(name, "meta") == 0 || strcmp(name, "opf:meta") == 0)) {
     bool isCover = false;
     std::string coverItemId;
@@ -205,6 +217,29 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       return;
     }
   }
+  // parse the guide
+  if (self->state == IN_GUIDE && (strcmp(name, "reference") == 0 || strcmp(name, "opf:reference") == 0)) {
+    std::string type;
+    std::string textHref;
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "type") == 0) {
+        type = atts[i + 1];
+        if (type == "text" || type == "start") {
+          continue;
+        } else {
+          Serial.printf("[%lu] [COF] Skipping non-text reference in guide: %s\n", millis(), type.c_str());
+          break;
+        }
+      } else if (strcmp(atts[i], "href") == 0) {
+        textHref = self->baseContentPath + atts[i + 1];
+      }
+    }
+    if ((type == "text" || (type == "start" && !self->textReferenceHref.empty())) && (textHref.length() > 0)) {
+      Serial.printf("[%lu] [COF] Found %s reference in guide: %s.\n", millis(), type.c_str(), textHref.c_str());
+      self->textReferenceHref = textHref;
+    }
+    return;
+  }
 }
 
 void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, const int len) {
@@ -226,6 +261,12 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
   (void)name;
 
   if (self->state == IN_SPINE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
+    self->state = IN_PACKAGE;
+    self->tempItemStore.close();
+    return;
+  }
+
+  if (self->state == IN_GUIDE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
     self->state = IN_PACKAGE;
     self->tempItemStore.close();
     return;
