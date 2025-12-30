@@ -13,6 +13,8 @@ class HomeActivity final : public Activity {
   int selectorIndex = 0;
   bool updateRequired = false;
   bool hasContinueReading = false;
+  std::string lastBookTitle;
+  std::string lastBookAuthor;
   const std::function<void()> onContinueReading;
   const std::function<void()> onReaderOpen;
   const std::function<void()> onSettingsOpen;

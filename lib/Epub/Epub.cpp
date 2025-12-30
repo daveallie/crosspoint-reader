@@ -138,7 +138,7 @@ bool Epub::parseTocNcxFile() const {
 }
 
 // load in the meta data for the epub file
-bool Epub::load() {
+bool Epub::load(const bool buildIfMissing) {
   Serial.printf("[%lu] [EBP] Loading ePub: %s\n", millis(), filepath.c_str());
 
   // Initialize spine/TOC cache
@@ -148,6 +148,11 @@ bool Epub::load() {
   if (bookMetadataCache->load()) {
     Serial.printf("[%lu] [EBP] Loaded ePub: %s\n", millis(), filepath.c_str());
     return true;
+  }
+
+  // If we didn't load from cache above and we aren't allowed to build, fail now
+  if (!buildIfMissing) {
+    return false;
   }
 
   // Cache doesn't exist or is invalid, build it
