@@ -11,6 +11,8 @@ decltype(InputManager::BTN_BACK) MappedInputManager::mapButton(const Button butt
       switch (frontLayout) {
         case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
           return InputManager::BTN_LEFT;
+        case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
+          return InputManager::BTN_CONFIRM;
         case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
         default:
           return InputManager::BTN_BACK;
@@ -19,6 +21,8 @@ decltype(InputManager::BTN_BACK) MappedInputManager::mapButton(const Button butt
       switch (frontLayout) {
         case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
           return InputManager::BTN_RIGHT;
+        case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
+          return InputManager::BTN_LEFT;
         case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
         default:
           return InputManager::BTN_CONFIRM;
@@ -26,6 +30,7 @@ decltype(InputManager::BTN_BACK) MappedInputManager::mapButton(const Button butt
     case Button::Left:
       switch (frontLayout) {
         case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
+        case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
           return InputManager::BTN_BACK;
         case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
         default:
@@ -36,6 +41,7 @@ decltype(InputManager::BTN_BACK) MappedInputManager::mapButton(const Button butt
         case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
           return InputManager::BTN_CONFIRM;
         case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
+        case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
         default:
           return InputManager::BTN_RIGHT;
       }
@@ -85,6 +91,8 @@ MappedInputManager::Labels MappedInputManager::mapLabels(const char* back, const
   switch (layout) {
     case CrossPointSettings::LEFT_RIGHT_BACK_CONFIRM:
       return {previous, next, back, confirm};
+    case CrossPointSettings::LEFT_BACK_CONFIRM_RIGHT:
+      return {previous, back, confirm, next};
     case CrossPointSettings::BACK_CONFIRM_LEFT_RIGHT:
     default:
       return {back, confirm, previous, next};

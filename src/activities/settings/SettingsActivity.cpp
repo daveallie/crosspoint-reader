@@ -23,7 +23,7 @@ const SettingInfo settingsList[settingsCount] = {
     {"Front Button Layout",
      SettingType::ENUM,
      &CrossPointSettings::frontButtonLayout,
-     {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm"}},
+     {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}},
     {"Side Button Layout (reader)",
      SettingType::ENUM,
      &CrossPointSettings::sideButtonLayout,
@@ -171,11 +171,6 @@ void SettingsActivity::render() const {
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
     const int settingY = 60 + i * 30;  // 30 pixels between settings
-
-    // Draw selection indicator for the selected setting
-    if (i == selectedSettingIndex) {
-      renderer.drawText(UI_10_FONT_ID, 5, settingY, ">");
-    }
 
     // Draw setting name
     renderer.drawText(UI_10_FONT_ID, 20, settingY, settingsList[i].name, i != selectedSettingIndex);
