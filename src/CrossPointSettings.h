@@ -42,6 +42,7 @@ class CrossPointSettings {
   enum FONT_FAMILY { ALEO = 0, NOTOSANS = 1, OPENDYSLEXIC = 2 };
   // Font size options
   enum FONT_SIZE { SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3 };
+  enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
@@ -54,14 +55,13 @@ class CrossPointSettings {
   // EPUB reading orientation settings
   // 0 = portrait (default), 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
   uint8_t orientation = PORTRAIT;
-  // Front button layout
+  // Button layouts
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
-  // Side button layout
   uint8_t sideButtonLayout = PREV_NEXT;
-  // Font family
+  // Reader font settings
   uint8_t fontFamily = ALEO;
-  // Font size
   uint8_t fontSize = MEDIUM;
+  uint8_t lineSpacing = NORMAL;
 
   ~CrossPointSettings() = default;
 
@@ -73,6 +73,8 @@ class CrossPointSettings {
 
   bool saveToFile() const;
   bool loadFromFile();
+
+  float getReaderLineCompression() const;
 };
 
 // Helper macro to access settings
