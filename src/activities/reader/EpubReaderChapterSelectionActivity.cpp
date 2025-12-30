@@ -124,7 +124,8 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
 
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
   renderer.fillRect(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30);
-  for (int tocIndex = pageStartIndex; tocIndex < epub->getTocItemsCount() && tocIndex < pageStartIndex + pageItems; tocIndex++) {
+  for (int tocIndex = pageStartIndex; tocIndex < epub->getTocItemsCount() && tocIndex < pageStartIndex + pageItems;
+       tocIndex++) {
     auto item = epub->getTocItem(tocIndex);
     renderer.drawText(UI_FONT_ID, 20 + (item.level - 1) * 15, 60 + (tocIndex % pageItems) * 30, item.title.c_str(),
                       tocIndex != selectorIndex);

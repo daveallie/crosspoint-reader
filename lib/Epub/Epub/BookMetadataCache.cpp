@@ -159,8 +159,9 @@ bool BookMetadataCache::buildBookBin(const std::string& epubPath, const BookMeta
     // Not a huge deal if we don't fine a TOC entry for the spine entry, this is expected behaviour for EPUBs
     // Logging here is for debugging
     if (spineEntry.tocIndex == -1) {
-      Serial.printf("[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n", millis(), i,
-                    spineEntry.href.c_str());
+      Serial.printf(
+          "[%lu] [BMC] Warning: Could not find TOC entry for spine item %d: %s, using title from last section\n",
+          millis(), i, spineEntry.href.c_str());
       spineEntry.tocIndex = lastSpineTocIndex;
     }
     lastSpineTocIndex = spineEntry.tocIndex;
