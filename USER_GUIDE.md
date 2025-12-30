@@ -5,7 +5,7 @@ the device.
 
 ## 1. Hardware Overview
 
-The device utilises the standard buttons on the Xtink X4 in the same layout:
+The device utilises the standard buttons on the Xtink X4 (in the same layout as the manufacturer firmware, by default):
 
 ### Button Layout
 | Location        | Buttons                                    |
@@ -13,20 +13,23 @@ The device utilises the standard buttons on the Xtink X4 in the same layout:
 | **Bottom Edge** | **Back**, **Confirm**, **Left**, **Right** |
 | **Right Side**  | **Power**, **Volume Up**, **Volume Down**  |
 
+Button layout can be customized in **[Settings](#35-settings)**.
+
 ---
 
 ## 2. Power & Startup
 
 ### Power On / Off
 
-To turn the device on or off, **press and hold the Power button for half a second**. In **Settings** you can configure
+To turn the device on or off, **press and hold the Power button for half a second**. In **[Settings](#35-settings)** you can configure
 the power button to trigger on a short press instead of a long one.
 
 ### First Launch
 
-Upon turning the device on for the first time, you will be placed on the **Home** screen.
+Upon turning the device on for the first time, you will be placed on the **[Home](#31-home-screen)** screen.
 
-> **Note:** On subsequent restarts, the firmware will automatically reopen the last book you were reading.
+> [!NOTE]
+> On subsequent restarts, the firmware will automatically reopen the last book you were reading.
 
 ---
 
@@ -34,10 +37,10 @@ Upon turning the device on for the first time, you will be placed on the **Home*
 
 ### 3.1 Home Screen
 
-The Home Screen is the main entry point to the firmware. From here you can navigate to the **Book Selection** screen,
-**Settings** screen, or **File Upload** screen.
+The Home Screen is the main entry point to the firmware. From here you can navigate to **[Reading Mode](#4-reading-mode)** with the most recently read book, **[Book Selection](#32-book-selection)**,
+**[Settings](#35-settings)**, or the **[File Upload](#34-file-upload-screen)** screen.
 
-### 3.2 Book Selection (Read)
+### 3.2 Book Selection
 
 The Book Selection acts as a folder and file browser.
 
@@ -45,13 +48,13 @@ The Book Selection acts as a folder and file browser.
   and down through folders and books.
 * **Open Selection:** Press **Confirm** to open a folder or read a selected book.
 
-### 3.3 Reading Screen
+### 3.3 Reading Mode
 
-See [4. Reading Mode](#4-reading-mode) below for more information.
+See [Reading Mode](#4-reading-mode) below for more information.
 
 ### 3.4 File Upload Screen
 
-The File Upload screen allows you to upload new e-books to the device. When you enter the screen you'll be prompted with
+The File Upload screen allows you to upload new e-books to the device. When you enter the screen, you'll be prompted with
 a WiFi selection dialog and then your X4 will start hosting a web server.
 
 See the [webserver docs](./docs/webserver.md) for more information on how to connect to the web server and upload files.
@@ -62,7 +65,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 - **Sleep Screen**: Which sleep screen to display when the device sleeps, options are:
   - "Dark" (default) - The default dark sleep screen
   - "Light" - The same default sleep screen, on a white background
-  - "Custom" - Custom images from the SD card, see [3.6 Sleep Screen](#36-sleep-screen) below for more information
+  - "Custom" - Custom images from the SD card, see [Sleep Screen](#36-sleep-screen) below for more information
   - "Cover" - The book cover image (Note: this is experimental and may not work as expected)
 - **Status Bar**: Configure the status bar displayed while reading, options are:
   - "None" - No status bar
@@ -95,7 +98,7 @@ You can customize the sleep screen by placing custom images in specific location
 
 - **Single Image:** Place a file named `sleep.bmp` in the root directory.
 - **Multiple Images:** Create a `sleep` directory in the root of the SD card and place any number of `.bmp` images
-  inside. If images are found in this directory, they will take priority over the `sleep.png` file, and one will be
+  inside. If images are found in this directory, they will take priority over the `sleep.bmp` file, and one will be
   randomly selected each time the device sleeps.
 
 > [!NOTE]
@@ -123,8 +126,9 @@ Once you have opened a book, the button layout changes to facilitate reading.
 * **Previous Chapter:** Press and **hold** the **Left** (or **Volume Up**) button briefly, then release.
 
 ### System Navigation
-* **Return to Home:** Press **Back** to close the book and return to the Book Selection screen.
-* **Chapter Menu:** Press **Confirm** to open the Table of Contents/Chapter Selection screen.
+* **Return to Book Selection:** Press **Back** to close the book and return to the **[Book Selection](#32-book-selection)** screen.
+* **Return to Home:** Press and hold **Back** to close the book and return to the **[Home](#31-home-screen)** screen.
+* **Chapter Menu:** Press **Confirm** to open the **[Table of Contents/Chapter Selection](#5-chapter-selection-screen)**.
 
 ---
 
