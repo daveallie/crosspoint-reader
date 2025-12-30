@@ -101,7 +101,9 @@ XtcError XtcParser::readHeader() {
   m_bitDepth = (m_header.magic == XTCH_MAGIC) ? 2 : 1;
 
   // Check version
-  if (m_header.version > 1) {
+  // Currently, version 1 is the only valid version, however some generators are using big endian for the version code
+  // so we also accept version 256 (0x0100)
+  if (m_header.version != 1 && m_header.version != 256) {
     Serial.printf("[%lu] [XTC] Unsupported version: %d\n", millis(), m_header.version);
     return XtcError::INVALID_VERSION;
   }
