@@ -312,6 +312,11 @@ bool Epub::generateCoverBmp() const {
 }
 
 uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, const bool trailingNullByte) const {
+  if (itemHref.empty()) {
+    Serial.printf("[%lu] [EBP] Failed to read item, empty href\n", millis());
+    return nullptr;
+  }
+
   const std::string path = FsHelpers::normalisePath(itemHref);
 
   const auto content = ZipFile(filepath).readFileToMemory(path.c_str(), size, trailingNullByte);
@@ -324,6 +329,11 @@ uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size
 }
 
 bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, const size_t chunkSize) const {
+  if (itemHref.empty()) {
+    Serial.printf("[%lu] [EBP] Failed to read item, empty href\n", millis());
+    return false;
+  }
+
   const std::string path = FsHelpers::normalisePath(itemHref);
   return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
 }
