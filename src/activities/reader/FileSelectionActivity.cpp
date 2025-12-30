@@ -180,12 +180,7 @@ void FileSelectionActivity::render() const {
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
   renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
   for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
-    auto item = files[i];
-    int itemWidth = renderer.getTextWidth(UI_10_FONT_ID, item.c_str());
-    while (itemWidth > renderer.getScreenWidth() - 40 && item.length() > 8) {
-      item.replace(item.length() - 5, 5, "...");
-      itemWidth = renderer.getTextWidth(UI_10_FONT_ID, item.c_str());
-    }
+    auto item = renderer.truncatedText(UI_10_FONT_ID, files[i].c_str(), renderer.getScreenWidth() - 40);
     renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
   }
 
