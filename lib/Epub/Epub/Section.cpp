@@ -115,6 +115,12 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   const auto localPath = epub->getSpineItem(spineIndex).href;
   const auto tmpHtmlPath = epub->getCachePath() + "/.tmp_" + std::to_string(spineIndex) + ".html";
 
+  // Create cache directory if it doesn't exist
+  {
+    const auto sectionsDir = epub->getCachePath() + "/sections";
+    SdMan.mkdir(sectionsDir.c_str());
+  }
+
   // Retry logic for SD card timing issues
   bool success = false;
   uint32_t fileSize = 0;
