@@ -141,15 +141,40 @@ void HomeActivity::render() const {
   const int bookHeight = pageHeight / 2;
   const int bookX = (pageWidth - bookWidth) / 2;
   constexpr int bookY = 30;
-  const bool bookSelected = selectorIndex == 0;
+  const bool bookSelected = hasContinueReading && selectorIndex == 0;
 
-  if (hasContinueReading) {
+  // Draw book card regardless, fill with message based on `hasContinueReading`
+  {
     if (bookSelected) {
       renderer.fillRect(bookX, bookY, bookWidth, bookHeight);
     } else {
       renderer.drawRect(bookX, bookY, bookWidth, bookHeight);
     }
 
+    // Bookmark icon in the top-right corner of the card
+    const int bookmarkWidth = bookWidth / 8;
+    const int bookmarkHeight = bookHeight / 5;
+    const int bookmarkX = bookX + bookWidth - bookmarkWidth - 8;
+    constexpr int bookmarkY = bookY + 1;
+
+    // Main bookmark body (solid)
+    renderer.fillRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, !bookSelected);
+
+    // Carve out an inverted triangle notch at the bottom center to create angled points
+    const int notchHeight = bookmarkHeight / 2;  // depth of the notch
+    for (int i = 0; i < notchHeight; ++i) {
+      const int y = bookmarkY + bookmarkHeight - 1 - i;
+      const int xStart = bookmarkX + i;
+      const int width = bookmarkWidth - 2 * i;
+      if (width <= 0) {
+        break;
+      }
+      // Draw a horizontal strip in the opposite color to "cut" the notch
+      renderer.fillRect(xStart, y, width, 1, bookSelected);
+    }
+  }
+
+  if (hasContinueReading) {
     // Split into words (avoid stringstream to keep this light on the MCU)
     std::vector<std::string> words;
     words.reserve(8);
@@ -243,29 +268,12 @@ void HomeActivity::render() const {
 
     renderer.drawCenteredText(UI_10_FONT_ID, bookY + bookHeight - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2,
                               "Continue Reading", !bookSelected);
-
-    // Bookmark icon in the top-right corner of the card
-    const bool iconColor = !bookSelected;
-    const int bookmarkWidth = bookWidth / 8;
-    const int bookmarkHeight = bookHeight / 5;
-    const int bookmarkX = bookX + bookWidth - bookmarkWidth - 8;
-    constexpr int bookmarkY = bookY + 1;
-
-    // Main bookmark body (solid)
-    renderer.fillRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, iconColor);
-
-    // Carve out an inverted triangle notch at the bottom center to create angled points
-    const int notchHeight = bookmarkHeight / 2;  // depth of the notch
-    for (int i = 0; i < notchHeight; ++i) {
-      const int y = bookmarkY + bookmarkHeight - 1 - i;
-      const int xStart = bookmarkX + i;
-      const int width = bookmarkWidth - 2 * i;
-      if (width <= 0) {
-        break;
-      }
-      // Draw a horizontal strip in the opposite color to "cut" the notch
-      renderer.fillRect(xStart, y, width, 1, !iconColor);
-    }
+  } else {
+    // No book to continue reading
+    const int y =
+        bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
+    renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
+    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
   }
 
   // --- Bottom menu tiles (indices 1-3) ---
@@ -274,7 +282,6 @@ void HomeActivity::render() const {
   constexpr int menuSpacing = 10;
   constexpr int totalMenuHeight = 3 * menuTileHeight + 2 * menuSpacing;
 
-  // Primary placement: sit fairly close under the book card
   int menuStartY = bookY + bookHeight + 20;
   // Ensure we don't collide with the bottom button legend
   const int maxMenuStartY = pageHeight - bottomMargin - totalMenuHeight - margin;
@@ -284,10 +291,10 @@ void HomeActivity::render() const {
 
   for (int i = 0; i < 3; ++i) {
     constexpr const char* items[3] = {"Browse files", "File transfer", "Settings"};
-    const int overallIndex = i + 1;  // map to selectorIndex values 1..3
+    const int overallIndex = i + (getMenuItemCount() - 3);
     constexpr int tileX = margin;
     const int tileY = menuStartY + i * (menuTileHeight + menuSpacing);
-    const bool selected = (selectorIndex == overallIndex);
+    const bool selected = selectorIndex == overallIndex;
 
     if (selected) {
       renderer.fillRect(tileX, tileY, menuTileWidth, menuTileHeight);
