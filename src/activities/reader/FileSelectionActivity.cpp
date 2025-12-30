@@ -30,7 +30,15 @@ void FileSelectionActivity::taskTrampoline(void* param) {
 void FileSelectionActivity::loadFiles() {
   files.clear();
   selectorIndex = 0;
+
   auto root = SdMan.open(basepath.c_str());
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    return;
+  }
+
+  root.rewindDirectory();
+
   char name[128];
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
     file.getName(name, sizeof(name));
