@@ -18,7 +18,13 @@ constexpr unsigned long skipChapterMs = 700;
 constexpr unsigned long goHomeMs = 1000;
 constexpr int topPadding = 5;
 constexpr int horizontalPadding = 5;
-constexpr int statusBarMargin = 19;
+// Footer layout: total height reserved for footer area
+// contentGap = space between last line of book text and delimiter line
+// lineToText = space between delimiter line and footer text
+// footerTextHeight ~= 12px for small font
+constexpr int footerHeight = 34;      // total footer area height (includes bottom margin)
+constexpr int contentGap = 6;         // gap above delimiter line
+constexpr int lineToText = 6;         // gap below delimiter line to text
 }  // namespace
 
 void EpubReaderActivity::taskTrampoline(void* param) {
@@ -256,7 +262,7 @@ void EpubReaderActivity::renderScreen() {
   orientedMarginTop += topPadding;
   orientedMarginLeft += horizontalPadding;
   orientedMarginRight += horizontalPadding;
-  orientedMarginBottom += statusBarMargin;
+  orientedMarginBottom += footerHeight + contentGap;
 
   if (!section) {
     const auto filepath = epub->getSpineItem(currentSpineIndex).href;
@@ -419,9 +425,20 @@ void EpubReaderActivity::renderStatusBar(const int orientedMarginRight, const in
   const bool showChapterTitle = SETTINGS.statusBar == CrossPointSettings::STATUS_BAR_MODE::NO_PROGRESS ||
                                 SETTINGS.statusBar == CrossPointSettings::STATUS_BAR_MODE::FULL;
 
-  // Position status bar near the bottom of the logical screen, regardless of orientation
+  // Footer layout calculation:
+  // Screen bottom -> viewable margin -> footer text -> lineToText -> line -> contentGap -> book content
+  // orientedMarginBottom already includes (footerHeight + contentGap)
+  // So book content ends at: screenHeight - orientedMarginBottom
+  // Line should be at: screenHeight - orientedMarginBottom + contentGap (just below content)
+  // Footer text at: lineY + lineToText + some offset for text baseline
+  
   const auto screenHeight = renderer.getScreenHeight();
-  const auto textY = screenHeight - orientedMarginBottom - 4;
+  const int contentBottom = screenHeight - orientedMarginBottom;
+  const int lineY = contentBottom + contentGap;
+  const int textY = lineY + lineToText;
+  
+  renderer.drawLine(orientedMarginLeft, lineY, renderer.getScreenWidth() - orientedMarginRight, lineY);
+
   int progressTextWidth = 0;
 
   if (showProgress) {

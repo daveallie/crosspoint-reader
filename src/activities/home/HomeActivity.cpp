@@ -134,8 +134,8 @@ void HomeActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  constexpr int margin = 20;
-  constexpr int bottomMargin = 60;
+  constexpr int margin = 16;
+  constexpr int bottomMargin = 56;
 
   // --- Top "book" card for the current title (selectorIndex == 0) ---
   const int bookWidth = pageWidth / 2;
@@ -279,8 +279,8 @@ void HomeActivity::render() const {
 
   // --- Bottom menu tiles (indices 1-3) ---
   const int menuTileWidth = pageWidth - 2 * margin;
-  constexpr int menuTileHeight = 50;
-  constexpr int menuSpacing = 10;
+  constexpr int menuTileHeight = 44;
+  constexpr int menuSpacing = 8;
   constexpr int totalMenuHeight = 3 * menuTileHeight + 2 * menuSpacing;
 
   int menuStartY = bookY + bookHeight + 20;
@@ -316,7 +316,7 @@ void HomeActivity::render() const {
   const auto labels = mappedInput.mapLabels("", "Confirm", "Up", "Down");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  ScreenComponents::drawBattery(renderer, 20, pageHeight - 70);
+  ScreenComponents::drawBattery(renderer, margin, pageHeight - 68);
 
   renderer.displayBuffer();
 }

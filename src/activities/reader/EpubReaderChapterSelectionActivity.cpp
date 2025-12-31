@@ -8,16 +8,17 @@
 namespace {
 // Time threshold for treating a long press as a page-up/page-down
 constexpr int SKIP_PAGE_MS = 700;
+constexpr int headerY = 16;
+constexpr int separatorY = 42;
+constexpr int listStartY = 54;
+constexpr int rowHeight = 28;
+constexpr int horizontalMargin = 16;
 }  // namespace
 
 int EpubReaderChapterSelectionActivity::getPageItems() const {
-  // Layout constants used in renderScreen
-  constexpr int startY = 60;
-  constexpr int lineHeight = 30;
-
   const int screenHeight = renderer.getScreenHeight();
-  const int availableHeight = screenHeight - startY;
-  int items = availableHeight / lineHeight;
+  const int availableHeight = screenHeight - listStartY;
+  int items = availableHeight / rowHeight;
 
   // Ensure we always have at least one item per page to avoid division by zero
   if (items < 1) {
@@ -121,17 +122,25 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
 
+  // Draw header with book title
   const std::string title =
-      renderer.truncatedText(UI_12_FONT_ID, epub->getTitle().c_str(), pageWidth - 40, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, title.c_str(), true, EpdFontFamily::BOLD);
+      renderer.truncatedText(UI_12_FONT_ID, epub->getTitle().c_str(), pageWidth - horizontalMargin * 2, EpdFontFamily::BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, headerY, title.c_str(), true, EpdFontFamily::BOLD);
 
+  // Subtle separator line under header
+  renderer.drawLine(horizontalMargin, separatorY, pageWidth - horizontalMargin, separatorY);
+
+  // Draw selection highlight
   const auto pageStartIndex = selectorIndex / pageItems * pageItems;
-  renderer.fillRect(0, 60 + (selectorIndex % pageItems) * 30 - 2, pageWidth - 1, 30);
+  renderer.fillRect(0, listStartY + (selectorIndex % pageItems) * rowHeight - 2, pageWidth - 1, rowHeight);
+
+  // Draw chapter list
   for (int tocIndex = pageStartIndex; tocIndex < epub->getTocItemsCount() && tocIndex < pageStartIndex + pageItems;
        tocIndex++) {
     auto item = epub->getTocItem(tocIndex);
-    renderer.drawText(UI_10_FONT_ID, 20 + (item.level - 1) * 15, 60 + (tocIndex % pageItems) * 30, item.title.c_str(),
-                      tocIndex != selectorIndex);
+    const int indentPx = (item.level - 1) * 12;
+    renderer.drawText(UI_10_FONT_ID, horizontalMargin + 4 + indentPx, listStartY + (tocIndex % pageItems) * rowHeight,
+                      item.title.c_str(), tocIndex != selectorIndex);
   }
 
   renderer.displayBuffer();
