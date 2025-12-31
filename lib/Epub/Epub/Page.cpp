@@ -29,8 +29,13 @@ std::unique_ptr<PageLine> PageLine::deserialize(FsFile& file) {
 }
 
 void PageImage::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
+  // Only render images in BW mode, skip grayscale passes to keep images sharp
+  if (renderer.getRenderMode() != GfxRenderer::BW) {
+    return;
+  }
+
   FsFile imageFile;
-  if (!SdMan.openFileForRead("PGI", cachePath, imageFile)) {
+  if (!SdMan.openFileForRead("PGI", cachePath.c_str(), imageFile)) {
     Serial.printf("[%lu] [PGI] Failed to open image: %s\n", millis(), cachePath.c_str());
     return;
   }

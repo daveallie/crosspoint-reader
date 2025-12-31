@@ -8,9 +8,11 @@
 
 #include <cstddef>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
+#include "activities/util/FullScreenMessageActivity.h"
 #include "fontIds.h"
 
 namespace {
@@ -127,6 +129,15 @@ void CrossPointWebServerActivity::onExit() {
 void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) {
   Serial.printf("[%lu] [WEBACT] Network mode selected: %s\n", millis(),
                 mode == NetworkMode::JOIN_NETWORK ? "Join Network" : "Create Hotspot");
+
+  // Check for WiFi/BLE mutual exclusion
+  if (SETTINGS.bluetoothEnabled) {
+    Serial.printf("[%lu] [WEBACT] ERROR: Cannot start WiFi while Bluetooth is enabled\n", millis());
+    exitActivity();
+    enterNewActivity(new FullScreenMessageActivity(
+        renderer, mappedInput, "Disable Bluetooth first\n\nGo to Settings > Bluetooth"));
+    return;
+  }
 
   networkMode = mode;
   isApMode = (mode == NetworkMode::CREATE_HOTSPOT);

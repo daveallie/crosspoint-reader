@@ -62,6 +62,8 @@ class CrossPointSettings {
   uint8_t fontFamily = BOOKERLY;
   uint8_t fontSize = MEDIUM;
   uint8_t lineSpacing = NORMAL;
+  // Bluetooth settings
+  uint8_t bluetoothEnabled = 0;
 
   ~CrossPointSettings() = default;
 
