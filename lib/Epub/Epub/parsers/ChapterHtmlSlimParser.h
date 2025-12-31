@@ -36,7 +36,7 @@ class ChapterHtmlSlimParser {
   int viewportWidth;
   int viewportHeight;
 
-  void startNewTextBlock(TextBlock::BLOCK_STYLE style);
+  void startNewTextBlock(TextBlock::Style style);
   void makePages();
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);

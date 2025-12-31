@@ -47,8 +47,8 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   uint32_t wc;
   std::list<std::string> words;
   std::list<uint16_t> wordXpos;
-  std::list<EpdFontStyle> wordStyles;
-  BLOCK_STYLE style;
+  std::list<EpdFontFamily::Style> wordStyles;
+  Style style;
 
   // Word count
   serialization::readPod(file, wc);
