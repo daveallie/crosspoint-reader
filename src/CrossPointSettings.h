@@ -45,6 +45,9 @@ class CrossPointSettings {
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
   enum PARAGRAPH_ALIGNMENT { JUSTIFIED = 0, LEFT_ALIGN = 1, CENTER_ALIGN = 2, RIGHT_ALIGN = 3 };
 
+  // Auto-sleep timeout options (in minutes)
+  enum SLEEP_TIMEOUT { SLEEP_1_MIN = 0, SLEEP_5_MIN = 1, SLEEP_10_MIN = 2, SLEEP_15_MIN = 3, SLEEP_30_MIN = 4 };
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Status bar settings
@@ -64,6 +67,8 @@ class CrossPointSettings {
   uint8_t fontSize = MEDIUM;
   uint8_t lineSpacing = NORMAL;
   uint8_t paragraphAlignment = JUSTIFIED;
+  // Auto-sleep timeout setting (default 10 minutes)
+  uint8_t sleepTimeout = SLEEP_10_MIN;
 
   ~CrossPointSettings() = default;
 
@@ -77,6 +82,7 @@ class CrossPointSettings {
   bool loadFromFile();
 
   float getReaderLineCompression() const;
+  unsigned long getSleepTimeoutMs() const;
 };
 
 // Helper macro to access settings

@@ -38,6 +38,7 @@ const SettingInfo settingsList[settingsCount] = {
      SettingType::ENUM,
      &CrossPointSettings::paragraphAlignment,
      {"Justify", "Left", "Center", "Right"}},
+    {"Time to Sleep", SettingType::ENUM, &CrossPointSettings::sleepTimeout, {"1 min", "5 min", "10 min", "15 min", "30 min"}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };
 }  // namespace
