@@ -11,6 +11,7 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
+#include "activities/bluetooth/BleFileTransferActivity.h"
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
@@ -214,7 +215,14 @@ void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
 void onGoToFileTransfer() {
   exitActivity();
-  enterNewActivity(new CrossPointWebServerActivity(renderer, mappedInputManager, onGoHome));
+  // Check if Bluetooth is enabled - use BLE file transfer instead of WiFi
+  if (SETTINGS.bluetoothEnabled) {
+    Serial.printf("[%lu] [   ] Starting BLE file transfer (Bluetooth enabled)\n", millis());
+    enterNewActivity(new BleFileTransferActivity(renderer, mappedInputManager, onGoHome));
+  } else {
+    Serial.printf("[%lu] [   ] Starting WiFi file transfer (Bluetooth disabled)\n", millis());
+    enterNewActivity(new CrossPointWebServerActivity(renderer, mappedInputManager, onGoHome));
+  }
 }
 
 void onGoToSettings() {

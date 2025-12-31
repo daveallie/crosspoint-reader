@@ -132,32 +132,135 @@ uint32_t BleFileTransfer::getConnectedCount() const {
 }
 
 std::string BleFileTransfer::getFileList() {
-  // Return a simple JSON-like list of files in the root directory
+  // List all .epub files in the root directory
   // Format: "file1.epub,file2.epub,file3.epub"
-  // For a full implementation, this would traverse SD card directories
+  std::string fileList;
 
-  // Placeholder implementation - would need to integrate with SDCardManager
-  return "example1.epub,example2.epub,example3.epub";
+  FsFile root;
+  if (!SdMan.openFileForRead("BLE", "/", root)) {
+    Serial.printf("[%lu] [BLE] Failed to open root directory\n", millis());
+    return "ERROR: Cannot access SD card";
+  }
+
+  FsFile file;
+  int count = 0;
+  while (file.openNext(&root, O_RDONLY)) {
+    char filename[256];
+    if (file.isDir()) {
+      file.close();
+      continue;
+    }
+
+    file.getName(filename, sizeof(filename));
+    const std::string fname(filename);
+
+    // Only include EPUB and XTC files
+    if (fname.length() >= 5 &&
+        (fname.substr(fname.length() - 5) == ".epub" ||
+         fname.substr(fname.length() - 4) == ".xtc")) {
+      if (count > 0) {
+        fileList += ",";
+      }
+      fileList += fname;
+      count++;
+
+      // Limit to 50 files to avoid buffer overflow
+      if (count >= 50) {
+        Serial.printf("[%lu] [BLE] File list truncated at 50 files\n", millis());
+        break;
+      }
+    }
+    file.close();
+  }
+  root.close();
+
+  if (fileList.empty()) {
+    return "No EPUB or XTC files found";
+  }
+
+  Serial.printf("[%lu] [BLE] Found %d files\n", millis(), count);
+  return fileList;
 }
 
 void BleFileTransfer::handleControlCommand(const std::string& command) {
   Serial.printf("[%lu] [BLE] Control command: %s\n", millis(), command.c_str());
 
   // Parse and handle commands
-  // Commands could be: "LIST", "GET:filename", "PUT:filename", "DELETE:filename", etc.
-  // For a full implementation, this would handle file operations via SDCardManager
-
   if (command == "LIST") {
-    // Refresh file list
-    Serial.printf("[%lu] [BLE] Refreshing file list\n", millis());
+    // Refresh file list - client should read FILE_LIST characteristic after this
+    Serial.printf("[%lu] [BLE] File list refresh requested\n", millis());
   } else if (command.rfind("GET:", 0) == 0) {
     std::string filename = command.substr(4);
     Serial.printf("[%lu] [BLE] Request to download: %s\n", millis(), filename.c_str());
-    // Would implement file read and send via pFileDataChar notifications
+
+    // Open file for reading
+    std::string filePath = "/" + filename;
+    FsFile file;
+    if (!SdMan.openFileForRead("BLE", filePath.c_str(), file)) {
+      Serial.printf("[%lu] [BLE] ERROR: Failed to open file: %s\n", millis(), filename.c_str());
+      if (pFileDataChar) {
+        pFileDataChar->setValue("ERROR: File not found");
+        pFileDataChar->notify();
+      }
+      return;
+    }
+
+    // Get file size
+    const size_t fileSize = file.size();
+    Serial.printf("[%lu] [BLE] File size: %zu bytes\n", millis(), fileSize);
+
+    // NOTE: For full implementation, we'd need to:
+    // 1. Send file size first
+    // 2. Read file in chunks (BLE MTU is typically 512 bytes)
+    // 3. Send each chunk via notify()
+    // 4. Client would need to reassemble chunks
+    //
+    // For now, just send a status message
+    char statusMsg[128];
+    snprintf(statusMsg, sizeof(statusMsg), "READY:%s:%zu", filename.c_str(), fileSize);
+    pFileDataChar->setValue(statusMsg);
+    pFileDataChar->notify();
+
+    file.close();
+    Serial.printf("[%lu] [BLE] File download prepared (chunked transfer not yet implemented)\n", millis());
+
   } else if (command.rfind("PUT:", 0) == 0) {
     std::string filename = command.substr(4);
     Serial.printf("[%lu] [BLE] Request to upload: %s\n", millis(), filename.c_str());
-    // Would implement file write from pFileDataChar writes
+
+    // NOTE: For full implementation, we'd need to:
+    // 1. Open file for writing
+    // 2. Receive chunks via FILE_DATA characteristic writes
+    // 3. Write each chunk to file
+    // 4. Close file when complete
+    //
+    // For now, just acknowledge
+    if (pFileDataChar) {
+      pFileDataChar->setValue("ACK: Upload ready (not yet implemented)");
+      pFileDataChar->notify();
+    }
+    Serial.printf("[%lu] [BLE] File upload acknowledged (chunked transfer not yet implemented)\n", millis());
+
+  } else if (command.rfind("DELETE:", 0) == 0) {
+    std::string filename = command.substr(7);
+    Serial.printf("[%lu] [BLE] Request to delete: %s\n", millis(), filename.c_str());
+
+    std::string filePath = "/" + filename;
+    if (SdMan.remove(filePath.c_str())) {
+      Serial.printf("[%lu] [BLE] File deleted successfully: %s\n", millis(), filename.c_str());
+      if (pFileDataChar) {
+        pFileDataChar->setValue("OK: File deleted");
+        pFileDataChar->notify();
+      }
+    } else {
+      Serial.printf("[%lu] [BLE] ERROR: Failed to delete file: %s\n", millis(), filename.c_str());
+      if (pFileDataChar) {
+        pFileDataChar->setValue("ERROR: Delete failed");
+        pFileDataChar->notify();
+      }
+    }
+  } else {
+    Serial.printf("[%lu] [BLE] Unknown command: %s\n", millis(), command.c_str());
   }
 }
 
