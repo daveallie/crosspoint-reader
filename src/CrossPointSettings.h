@@ -64,6 +64,8 @@ class CrossPointSettings {
   uint8_t lineSpacing = NORMAL;
   // Bluetooth settings
   uint8_t bluetoothEnabled = 0;
+  // File browser settings
+  uint8_t useCoverArtPicker = 0;
 
   ~CrossPointSettings() = default;
 

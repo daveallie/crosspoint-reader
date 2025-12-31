@@ -1,5 +1,7 @@
 #include "ReaderActivity.h"
 
+#include "CrossPointSettings.h"
+#include "CoverArtPickerActivity.h"
 #include "Epub.h"
 #include "EpubReaderActivity.h"
 #include "FileSelectionActivity.h"
@@ -92,8 +94,15 @@ void ReaderActivity::onGoToFileSelection(const std::string& fromBookPath) {
   exitActivity();
   // If coming from a book, start in that book's folder; otherwise start from root
   const auto initialPath = fromBookPath.empty() ? "/" : extractFolderPath(fromBookPath);
-  enterNewActivity(new FileSelectionActivity(
-      renderer, mappedInput, [this](const std::string& path) { onSelectBookFile(path); }, onGoBack, initialPath));
+
+  // Check if cover art picker is enabled
+  if (SETTINGS.useCoverArtPicker) {
+    enterNewActivity(new CoverArtPickerActivity(
+        renderer, mappedInput, [this](const std::string& path) { onSelectBookFile(path); }, onGoBack, initialPath));
+  } else {
+    enterNewActivity(new FileSelectionActivity(
+        renderer, mappedInput, [this](const std::string& path) { onSelectBookFile(path); }, onGoBack, initialPath));
+  }
 }
 
 void ReaderActivity::onGoToEpubReader(std::unique_ptr<Epub> epub) {

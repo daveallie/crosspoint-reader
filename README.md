@@ -26,7 +26,7 @@ This project is **not affiliated with Xteink**; it's built as a community projec
 ## Features & Usage
 
 - [x] EPUB parsing and rendering
-- [ ] Image support within EPUB
+- [x] Image support within EPUB
 - [x] Saved reading position
 - [x] File explorer with file picker
   - [x] Basic EPUB picker from root directory
@@ -40,6 +40,7 @@ This project is **not affiliated with Xteink**; it's built as a community projec
   - [ ] User provided fonts
   - [ ] Full UTF support
 - [x] Screen rotation
+- [x] Bluetooth LE Support
 
 See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint.
 
