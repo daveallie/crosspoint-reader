@@ -316,9 +316,10 @@ void loop() {
     lastMemPrint = millis();
   }
 
-  // Check for any user activity (button press or release)
+  // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
-  if (inputManager.wasAnyPressed() || inputManager.wasAnyReleased()) {
+  if (inputManager.wasAnyPressed() || inputManager.wasAnyReleased() ||
+      (currentActivity && currentActivity->preventAutoSleep())) {
     lastActivityTime = millis();  // Reset inactivity timer
   }
 
