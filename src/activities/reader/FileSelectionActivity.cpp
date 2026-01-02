@@ -7,9 +7,14 @@
 #include "fontIds.h"
 
 namespace {
-constexpr int PAGE_ITEMS = 23;
+constexpr int PAGE_ITEMS = 20;
 constexpr int SKIP_PAGE_MS = 700;
 constexpr unsigned long GO_HOME_MS = 1000;
+constexpr int headerY = 16;
+constexpr int separatorY = 42;
+constexpr int listStartY = 54;
+constexpr int rowHeight = 28;
+constexpr int horizontalMargin = 16;
 }  // namespace
 
 void sortFileList(std::vector<std::string>& strs) {
@@ -173,23 +178,29 @@ void FileSelectionActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Books", true, EpdFontFamily::BOLD);
+
+  // Draw header
+  renderer.drawCenteredText(UI_12_FONT_ID, headerY, "Books", true, EpdFontFamily::BOLD);
+
+  // Subtle separator line under header
+  renderer.drawLine(horizontalMargin, separatorY, pageWidth - horizontalMargin, separatorY);
 
   // Help text
   const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (files.empty()) {
-    renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
+    renderer.drawText(UI_10_FONT_ID, horizontalMargin + 4, listStartY, "No books found");
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-  renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
+  renderer.fillRect(0, listStartY + (selectorIndex % PAGE_ITEMS) * rowHeight - 2, pageWidth - 1, rowHeight);
   for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
-    auto item = renderer.truncatedText(UI_10_FONT_ID, files[i].c_str(), renderer.getScreenWidth() - 40);
-    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
+    auto item = renderer.truncatedText(UI_10_FONT_ID, files[i].c_str(), pageWidth - horizontalMargin * 2 - 8);
+    renderer.drawText(UI_10_FONT_ID, horizontalMargin + 4, listStartY + (i % PAGE_ITEMS) * rowHeight, item.c_str(),
+                      i != selectorIndex);
   }
 
   renderer.displayBuffer();
