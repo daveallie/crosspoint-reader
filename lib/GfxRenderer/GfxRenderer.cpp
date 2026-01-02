@@ -333,7 +333,7 @@ void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, cons
   constexpr int buttonHeight = 80;  // Height on screen (width when rotated)
   constexpr int buttonX = 5;        // Distance from right edge
   // Position for the button group - buttons share a border so they're adjacent
-  constexpr int topButtonY = 320;  // Top button position
+  constexpr int topButtonY = 345;  // Top button position
 
   const char* labels[] = {topBtn, bottomBtn};
 
