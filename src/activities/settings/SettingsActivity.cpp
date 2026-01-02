@@ -9,7 +9,7 @@
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 11;
+constexpr int settingsCount = 13;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
@@ -34,6 +34,14 @@ const SettingInfo settingsList[settingsCount] = {
      {"Bookerly", "Noto Sans", "Open Dyslexic"}},
     {"Reader Font Size", SettingType::ENUM, &CrossPointSettings::fontSize, {"Small", "Medium", "Large", "X Large"}},
     {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
+    {"Time to Sleep",
+     SettingType::ENUM,
+     &CrossPointSettings::sleepTimeout,
+     {"1 min", "5 min", "10 min", "15 min", "30 min"}},
+    {"Refresh Frequency",
+     SettingType::ENUM,
+     &CrossPointSettings::refreshFrequency,
+     {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };
 }  // namespace
@@ -45,6 +53,7 @@ void SettingsActivity::taskTrampoline(void* param) {
 
 void SettingsActivity::onEnter() {
   Activity::onEnter();
+  isFirstRender = true;
 
   renderingMutex = xSemaphoreCreateMutex();
 
@@ -162,18 +171,28 @@ void SettingsActivity::render() const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 
-  // Draw header
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Settings", true, EpdFontFamily::BOLD);
+  // Layout constants
+  constexpr int headerY = 16;
+  constexpr int separatorY = 42;
+  constexpr int listStartY = 54;
+  constexpr int rowHeight = 28;
+  constexpr int horizontalMargin = 16;
 
-  // Draw selection
-  renderer.fillRect(0, 60 + selectedSettingIndex * 30 - 2, pageWidth - 1, 30);
+  // Draw header
+  renderer.drawCenteredText(UI_12_FONT_ID, headerY, "Settings", true, EpdFontFamily::BOLD);
+
+  // Subtle separator line under header
+  renderer.drawLine(horizontalMargin, separatorY, pageWidth - horizontalMargin, separatorY);
+
+  // Draw selection highlight
+  renderer.fillRect(0, listStartY + selectedSettingIndex * rowHeight - 2, pageWidth - 1, rowHeight);
 
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
-    const int settingY = 60 + i * 30;  // 30 pixels between settings
+    const int settingY = listStartY + i * rowHeight;
 
     // Draw setting name
-    renderer.drawText(UI_10_FONT_ID, 20, settingY, settingsList[i].name, i != selectedSettingIndex);
+    renderer.drawText(UI_10_FONT_ID, horizontalMargin + 4, settingY, settingsList[i].name, i != selectedSettingIndex);
 
     // Draw value based on setting type
     std::string valueText = "";
@@ -185,17 +204,23 @@ void SettingsActivity::render() const {
       valueText = settingsList[i].enumValues[value];
     }
     const auto width = renderer.getTextWidth(UI_10_FONT_ID, valueText.c_str());
-    renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, valueText.c_str(), i != selectedSettingIndex);
+    renderer.drawText(UI_10_FONT_ID, pageWidth - horizontalMargin - 4 - width, settingY, valueText.c_str(),
+                      i != selectedSettingIndex);
   }
 
   // Draw version text above button hints
-  renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
-                    pageHeight - 60, CROSSPOINT_VERSION);
+  renderer.drawText(SMALL_FONT_ID, pageWidth - 16 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
+                    pageHeight - 58, CROSSPOINT_VERSION);
 
   // Draw help text
   const auto labels = mappedInput.mapLabels("« Save", "Toggle", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  // Always use standard refresh for settings screen
-  renderer.displayBuffer();
+  // Use HALF_REFRESH on first render to clear ghosting, then FAST_REFRESH
+  if (isFirstRender) {
+    renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
+    isFirstRender = false;
+  } else {
+    renderer.displayBuffer();
+  }
 }

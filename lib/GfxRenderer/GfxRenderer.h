@@ -4,6 +4,7 @@
 #include <EpdFontFamily.h>
 
 #include <map>
+#include <string>
 
 #include "Bitmap.h"
 
