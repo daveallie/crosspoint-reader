@@ -5,8 +5,6 @@
 #include <SDCardManager.h>
 #include <Xtc.h>
 
-#include <vector>
-
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "fontIds.h"
@@ -42,16 +40,16 @@ void SleepActivity::onEnter() {
 }
 
 void SleepActivity::renderPopup(const char* message) const {
-  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, message);
+  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, message, EpdFontFamily::BOLD);
   constexpr int margin = 20;
   const int x = (renderer.getScreenWidth() - textWidth - margin * 2) / 2;
   constexpr int y = 117;
   const int w = textWidth + margin * 2;
   const int h = renderer.getLineHeight(UI_12_FONT_ID) + margin * 2;
   // renderer.clearScreen();
+  renderer.fillRect(x - 5, y - 5, w + 10, h + 10, true);
   renderer.fillRect(x + 5, y + 5, w - 10, h - 10, false);
-  renderer.drawText(UI_12_FONT_ID, x + margin, y + margin, message);
-  renderer.drawRect(x + 5, y + 5, w - 10, h - 10);
+  renderer.drawText(UI_12_FONT_ID, x + margin, y + margin, message, true, EpdFontFamily::BOLD);
   renderer.displayBuffer();
 }
 
