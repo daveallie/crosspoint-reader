@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Print.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -10,8 +12,10 @@
 class ZipFile;
 
 class Epub {
-  // the ncx file
+  // the ncx file (EPUB 2)
   std::string tocNcxItem;
+  // the nav file (EPUB 3)
+  std::string tocNavItem;
   // where is the EPUBfile?
   std::string filepath;
   // the base path for items in the EPUB file
@@ -24,7 +28,7 @@ class Epub {
   bool findContentOpfFile(std::string* contentOpfFile) const;
   bool parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata);
   bool parseTocNcxFile() const;
-  static bool getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size);
+  bool parseTocNavFile() const;
 
  public:
   explicit Epub(std::string filepath, const std::string& cacheDir) : filepath(std::move(filepath)) {
@@ -33,12 +37,13 @@ class Epub {
   }
   ~Epub() = default;
   std::string& getBasePath() { return contentBasePath; }
-  bool load();
+  bool load(bool buildIfMissing = true);
   bool clearCache() const;
   void setupCacheDir() const;
   const std::string& getCachePath() const;
   const std::string& getPath() const;
   const std::string& getTitle() const;
+  const std::string& getAuthor() const;
   std::string getCoverBmpPath() const;
   bool generateCoverBmp() const;
   uint8_t* readItemContentsToBytes(const std::string& itemHref, size_t* size = nullptr,
@@ -52,7 +57,8 @@ class Epub {
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
   size_t getCumulativeSpineItemSize(int spineIndex) const;
+  int getSpineIndexForTextReference() const;
 
   size_t getBookSize() const;
-  uint8_t calculateProgress(const int currentSpineIndex, const float currentSpineRead) const;
+  uint8_t calculateProgress(int currentSpineIndex, float currentSpineRead) const;
 };

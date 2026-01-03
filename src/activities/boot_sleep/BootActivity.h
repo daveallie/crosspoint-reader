@@ -3,6 +3,7 @@
 
 class BootActivity final : public Activity {
  public:
-  explicit BootActivity(GfxRenderer& renderer, InputManager& inputManager) : Activity("Boot", renderer, inputManager) {}
+  explicit BootActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("Boot", renderer, mappedInput) {}
   void onEnter() override;
 };

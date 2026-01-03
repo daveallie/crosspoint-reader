@@ -1,3 +1,19 @@
 #!/bin/bash
 
-find src lib \( -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) -exec clang-format -style=file -i {} +
+GIT_LS_FILES_FLAGS=""
+if [[ "$1" == "-g" ]]; then
+  GIT_LS_FILES_FLAGS="--modified"
+fi
+
+# --- Main Logic ---
+
+# Format all files (or only modified files if -g is passed)
+
+# Use 'git ls-files' to get a list of all files tracked by git:
+# --modified: files tracked by git that have been modified (staged or unstaged)
+# --exclude-standard: ignores files in .gitignore
+# Additionally exclude files in 'lib/EpdFont/builtinFonts/' as they are script-generated.
+git ls-files  --exclude-standard ${GIT_LS_FILES_FLAGS} \
+    | grep -E '\.(c|cpp|h|hpp)$' \
+    | grep -v -E '^lib/EpdFont/builtinFonts/' \
+    | xargs -r clang-format -style=file -i

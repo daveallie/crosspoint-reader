@@ -3,11 +3,12 @@
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <JpegToBmpConverter.h>
-#include <SD.h>
+#include <SDCardManager.h>
 #include <ZipFile.h>
 
 #include "Epub/parsers/ContainerParser.h"
 #include "Epub/parsers/ContentOpfParser.h"
+#include "Epub/parsers/TocNavParser.h"
 #include "Epub/parsers/TocNcxParser.h"
 
 bool Epub::findContentOpfFile(std::string* contentOpfFile) const {
@@ -60,9 +61,6 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
   }
 
   ContentOpfParser opfParser(getCachePath(), getBasePath(), contentOpfSize, bookMetadataCache.get());
-  Serial.printf("[%lu] [MEM] Free: %d bytes, Total: %d bytes, Min Free: %d bytes\n", millis(), ESP.getFreeHeap(),
-                ESP.getHeapSize(), ESP.getMinFreeHeap());
-
   if (!opfParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup content.opf parser\n", millis());
     return false;
@@ -75,12 +73,16 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
 
   // Grab data from opfParser into epub
   bookMetadata.title = opfParser.title;
-  // TODO: Parse author
-  bookMetadata.author = "";
+  bookMetadata.author = opfParser.author;
   bookMetadata.coverItemHref = opfParser.coverItemHref;
+  bookMetadata.textReferenceHref = opfParser.textReferenceHref;
 
   if (!opfParser.tocNcxPath.empty()) {
     tocNcxItem = opfParser.tocNcxPath;
+  }
+
+  if (!opfParser.tocNavPath.empty()) {
+    tocNavItem = opfParser.tocNavPath;
   }
 
   Serial.printf("[%lu] [EBP] Successfully parsed content.opf\n", millis());
@@ -97,13 +99,13 @@ bool Epub::parseTocNcxFile() const {
   Serial.printf("[%lu] [EBP] Parsing toc ncx file: %s\n", millis(), tocNcxItem.c_str());
 
   const auto tmpNcxPath = getCachePath() + "/toc.ncx";
-  File tempNcxFile;
-  if (!FsHelpers::openFileForWrite("EBP", tmpNcxPath, tempNcxFile)) {
+  FsFile tempNcxFile;
+  if (!SdMan.openFileForWrite("EBP", tmpNcxPath, tempNcxFile)) {
     return false;
   }
   readItemContentsToStream(tocNcxItem, tempNcxFile, 1024);
   tempNcxFile.close();
-  if (!FsHelpers::openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
+  if (!SdMan.openFileForRead("EBP", tmpNcxPath, tempNcxFile)) {
     return false;
   }
   const auto ncxSize = tempNcxFile.size();
@@ -112,17 +114,20 @@ bool Epub::parseTocNcxFile() const {
 
   if (!ncxParser.setup()) {
     Serial.printf("[%lu] [EBP] Could not setup toc ncx parser\n", millis());
+    tempNcxFile.close();
     return false;
   }
 
   const auto ncxBuffer = static_cast<uint8_t*>(malloc(1024));
   if (!ncxBuffer) {
     Serial.printf("[%lu] [EBP] Could not allocate memory for toc ncx parser\n", millis());
+    tempNcxFile.close();
     return false;
   }
 
   while (tempNcxFile.available()) {
     const auto readSize = tempNcxFile.read(ncxBuffer, 1024);
+    if (readSize == 0) break;
     const auto processedSize = ncxParser.write(ncxBuffer, readSize);
 
     if (processedSize != readSize) {
@@ -135,14 +140,68 @@ bool Epub::parseTocNcxFile() const {
 
   free(ncxBuffer);
   tempNcxFile.close();
-  SD.remove(tmpNcxPath.c_str());
+  SdMan.remove(tmpNcxPath.c_str());
 
   Serial.printf("[%lu] [EBP] Parsed TOC items\n", millis());
   return true;
 }
 
+bool Epub::parseTocNavFile() const {
+  // the nav file should have been specified in the content.opf file (EPUB 3)
+  if (tocNavItem.empty()) {
+    Serial.printf("[%lu] [EBP] No nav file specified\n", millis());
+    return false;
+  }
+
+  Serial.printf("[%lu] [EBP] Parsing toc nav file: %s\n", millis(), tocNavItem.c_str());
+
+  const auto tmpNavPath = getCachePath() + "/toc.nav";
+  FsFile tempNavFile;
+  if (!SdMan.openFileForWrite("EBP", tmpNavPath, tempNavFile)) {
+    return false;
+  }
+  readItemContentsToStream(tocNavItem, tempNavFile, 1024);
+  tempNavFile.close();
+  if (!SdMan.openFileForRead("EBP", tmpNavPath, tempNavFile)) {
+    return false;
+  }
+  const auto navSize = tempNavFile.size();
+
+  TocNavParser navParser(contentBasePath, navSize, bookMetadataCache.get());
+
+  if (!navParser.setup()) {
+    Serial.printf("[%lu] [EBP] Could not setup toc nav parser\n", millis());
+    return false;
+  }
+
+  const auto navBuffer = static_cast<uint8_t*>(malloc(1024));
+  if (!navBuffer) {
+    Serial.printf("[%lu] [EBP] Could not allocate memory for toc nav parser\n", millis());
+    return false;
+  }
+
+  while (tempNavFile.available()) {
+    const auto readSize = tempNavFile.read(navBuffer, 1024);
+    const auto processedSize = navParser.write(navBuffer, readSize);
+
+    if (processedSize != readSize) {
+      Serial.printf("[%lu] [EBP] Could not process all toc nav data\n", millis());
+      free(navBuffer);
+      tempNavFile.close();
+      return false;
+    }
+  }
+
+  free(navBuffer);
+  tempNavFile.close();
+  SdMan.remove(tmpNavPath.c_str());
+
+  Serial.printf("[%lu] [EBP] Parsed TOC nav items\n", millis());
+  return true;
+}
+
 // load in the meta data for the epub file
-bool Epub::load() {
+bool Epub::load(const bool buildIfMissing) {
   Serial.printf("[%lu] [EBP] Loading ePub: %s\n", millis(), filepath.c_str());
 
   // Initialize spine/TOC cache
@@ -152,6 +211,11 @@ bool Epub::load() {
   if (bookMetadataCache->load()) {
     Serial.printf("[%lu] [EBP] Loaded ePub: %s\n", millis(), filepath.c_str());
     return true;
+  }
+
+  // If we didn't load from cache above and we aren't allowed to build, fail now
+  if (!buildIfMissing) {
+    return false;
   }
 
   // Cache doesn't exist or is invalid, build it
@@ -179,15 +243,31 @@ bool Epub::load() {
     return false;
   }
 
-  // TOC Pass
+  // TOC Pass - try EPUB 3 nav first, fall back to NCX
   if (!bookMetadataCache->beginTocPass()) {
     Serial.printf("[%lu] [EBP] Could not begin writing toc pass\n", millis());
     return false;
   }
-  if (!parseTocNcxFile()) {
-    Serial.printf("[%lu] [EBP] Could not parse toc\n", millis());
-    return false;
+
+  bool tocParsed = false;
+
+  // Try EPUB 3 nav document first (preferred)
+  if (!tocNavItem.empty()) {
+    Serial.printf("[%lu] [EBP] Attempting to parse EPUB 3 nav document\n", millis());
+    tocParsed = parseTocNavFile();
   }
+
+  // Fall back to NCX if nav parsing failed or wasn't available
+  if (!tocParsed && !tocNcxItem.empty()) {
+    Serial.printf("[%lu] [EBP] Falling back to NCX TOC\n", millis());
+    tocParsed = parseTocNcxFile();
+  }
+
+  if (!tocParsed) {
+    Serial.printf("[%lu] [EBP] Warning: Could not parse any TOC format\n", millis());
+    // Continue anyway - book will work without TOC
+  }
+
   if (!bookMetadataCache->endTocPass()) {
     Serial.printf("[%lu] [EBP] Could not end writing toc pass\n", millis());
     return false;
@@ -221,12 +301,12 @@ bool Epub::load() {
 }
 
 bool Epub::clearCache() const {
-  if (!SD.exists(cachePath.c_str())) {
+  if (!SdMan.exists(cachePath.c_str())) {
     Serial.printf("[%lu] [EPB] Cache does not exist, no action needed\n", millis());
     return true;
   }
 
-  if (!FsHelpers::removeDir(cachePath.c_str())) {
+  if (!SdMan.removeDir(cachePath.c_str())) {
     Serial.printf("[%lu] [EPB] Failed to clear cache\n", millis());
     return false;
   }
@@ -236,17 +316,11 @@ bool Epub::clearCache() const {
 }
 
 void Epub::setupCacheDir() const {
-  if (SD.exists(cachePath.c_str())) {
+  if (SdMan.exists(cachePath.c_str())) {
     return;
   }
 
-  // Loop over each segment of the cache path and create directories as needed
-  for (size_t i = 1; i < cachePath.length(); i++) {
-    if (cachePath[i] == '/') {
-      SD.mkdir(cachePath.substr(0, i).c_str());
-    }
-  }
-  SD.mkdir(cachePath.c_str());
+  SdMan.mkdir(cachePath.c_str());
 }
 
 const std::string& Epub::getCachePath() const { return cachePath; }
@@ -262,11 +336,20 @@ const std::string& Epub::getTitle() const {
   return bookMetadataCache->coreMetadata.title;
 }
 
+const std::string& Epub::getAuthor() const {
+  static std::string blank;
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    return blank;
+  }
+
+  return bookMetadataCache->coreMetadata.author;
+}
+
 std::string Epub::getCoverBmpPath() const { return cachePath + "/cover.bmp"; }
 
 bool Epub::generateCoverBmp() const {
   // Already generated, return true
-  if (SD.exists(getCoverBmpPath().c_str())) {
+  if (SdMan.exists(getCoverBmpPath().c_str())) {
     return true;
   }
 
@@ -286,30 +369,30 @@ bool Epub::generateCoverBmp() const {
     Serial.printf("[%lu] [EBP] Generating BMP from JPG cover image\n", millis());
     const auto coverJpgTempPath = getCachePath() + "/.cover.jpg";
 
-    File coverJpg;
-    if (!FsHelpers::openFileForWrite("EBP", coverJpgTempPath, coverJpg)) {
+    FsFile coverJpg;
+    if (!SdMan.openFileForWrite("EBP", coverJpgTempPath, coverJpg)) {
       return false;
     }
     readItemContentsToStream(coverImageHref, coverJpg, 1024);
     coverJpg.close();
 
-    if (!FsHelpers::openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
+    if (!SdMan.openFileForRead("EBP", coverJpgTempPath, coverJpg)) {
       return false;
     }
 
-    File coverBmp;
-    if (!FsHelpers::openFileForWrite("EBP", getCoverBmpPath(), coverBmp)) {
+    FsFile coverBmp;
+    if (!SdMan.openFileForWrite("EBP", getCoverBmpPath(), coverBmp)) {
       coverJpg.close();
       return false;
     }
     const bool success = JpegToBmpConverter::jpegFileToBmpStream(coverJpg, coverBmp);
     coverJpg.close();
     coverBmp.close();
-    SD.remove(coverJpgTempPath.c_str());
+    SdMan.remove(coverJpgTempPath.c_str());
 
     if (!success) {
       Serial.printf("[%lu] [EBP] Failed to generate BMP from JPG cover image\n", millis());
-      SD.remove(getCoverBmpPath().c_str());
+      SdMan.remove(getCoverBmpPath().c_str());
     }
     Serial.printf("[%lu] [EBP] Generated BMP from JPG cover image, success: %s\n", millis(), success ? "yes" : "no");
     return success;
@@ -321,10 +404,14 @@ bool Epub::generateCoverBmp() const {
 }
 
 uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size, const bool trailingNullByte) const {
-  const ZipFile zip("/sd" + filepath);
+  if (itemHref.empty()) {
+    Serial.printf("[%lu] [EBP] Failed to read item, empty href\n", millis());
+    return nullptr;
+  }
+
   const std::string path = FsHelpers::normalisePath(itemHref);
 
-  const auto content = zip.readFileToMemory(path.c_str(), size, trailingNullByte);
+  const auto content = ZipFile(filepath).readFileToMemory(path.c_str(), size, trailingNullByte);
   if (!content) {
     Serial.printf("[%lu] [EBP] Failed to read item %s\n", millis(), path.c_str());
     return nullptr;
@@ -334,20 +421,18 @@ uint8_t* Epub::readItemContentsToBytes(const std::string& itemHref, size_t* size
 }
 
 bool Epub::readItemContentsToStream(const std::string& itemHref, Print& out, const size_t chunkSize) const {
-  const ZipFile zip("/sd" + filepath);
-  const std::string path = FsHelpers::normalisePath(itemHref);
+  if (itemHref.empty()) {
+    Serial.printf("[%lu] [EBP] Failed to read item, empty href\n", millis());
+    return false;
+  }
 
-  return zip.readFileToStream(path.c_str(), out, chunkSize);
+  const std::string path = FsHelpers::normalisePath(itemHref);
+  return ZipFile(filepath).readFileToStream(path.c_str(), out, chunkSize);
 }
 
 bool Epub::getItemSize(const std::string& itemHref, size_t* size) const {
-  const ZipFile zip("/sd" + filepath);
-  return getItemSize(zip, itemHref, size);
-}
-
-bool Epub::getItemSize(const ZipFile& zip, const std::string& itemHref, size_t* size) {
   const std::string path = FsHelpers::normalisePath(itemHref);
-  return zip.getInflatedFileSize(path.c_str(), size);
+  return ZipFile(filepath).getInflatedFileSize(path.c_str(), size);
 }
 
 int Epub::getSpineItemsCount() const {
@@ -423,6 +508,35 @@ size_t Epub::getBookSize() const {
     return 0;
   }
   return getCumulativeSpineItemSize(getSpineItemsCount() - 1);
+}
+
+int Epub::getSpineIndexForTextReference() const {
+  if (!bookMetadataCache || !bookMetadataCache->isLoaded()) {
+    Serial.printf("[%lu] [EBP] getSpineIndexForTextReference called but cache not loaded\n", millis());
+    return 0;
+  }
+  Serial.printf("[%lu] [ERS] Core Metadata: cover(%d)=%s, textReference(%d)=%s\n", millis(),
+                bookMetadataCache->coreMetadata.coverItemHref.size(),
+                bookMetadataCache->coreMetadata.coverItemHref.c_str(),
+                bookMetadataCache->coreMetadata.textReferenceHref.size(),
+                bookMetadataCache->coreMetadata.textReferenceHref.c_str());
+
+  if (bookMetadataCache->coreMetadata.textReferenceHref.empty()) {
+    // there was no textReference in epub, so we return 0 (the first chapter)
+    return 0;
+  }
+
+  // loop through spine items to get the correct index matching the text href
+  for (size_t i = 0; i < getSpineItemsCount(); i++) {
+    if (getSpineItem(i).href == bookMetadataCache->coreMetadata.textReferenceHref) {
+      Serial.printf("[%lu] [ERS] Text reference %s found at index %d\n", millis(),
+                    bookMetadataCache->coreMetadata.textReferenceHref.c_str(), i);
+      return i;
+    }
+  }
+  // This should not happen, as we checked for empty textReferenceHref earlier
+  Serial.printf("[%lu] [EBP] Section not found for text reference\n", millis());
+  return 0;
 }
 
 // Calculate progress in book

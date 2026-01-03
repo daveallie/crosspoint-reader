@@ -1,14 +1,15 @@
 #include "FileSelectionActivity.h"
 
 #include <GfxRenderer.h>
-#include <InputManager.h>
-#include <SD.h>
+#include <SDCardManager.h>
 
-#include "config.h"
+#include "MappedInputManager.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
+constexpr unsigned long GO_HOME_MS = 1000;
 }  // namespace
 
 void sortFileList(std::vector<std::string>& strs) {
@@ -29,18 +30,32 @@ void FileSelectionActivity::taskTrampoline(void* param) {
 void FileSelectionActivity::loadFiles() {
   files.clear();
   selectorIndex = 0;
-  auto root = SD.open(basepath.c_str());
-  for (File file = root.openNextFile(); file; file = root.openNextFile()) {
-    auto filename = std::string(file.name());
-    if (filename[0] == '.') {
+
+  auto root = SdMan.open(basepath.c_str());
+  if (!root || !root.isDirectory()) {
+    if (root) root.close();
+    return;
+  }
+
+  root.rewindDirectory();
+
+  char name[128];
+  for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
+    file.getName(name, sizeof(name));
+    if (name[0] == '.' || strcmp(name, "System Volume Information") == 0) {
       file.close();
       continue;
     }
 
     if (file.isDirectory()) {
-      files.emplace_back(filename + "/");
-    } else if (filename.substr(filename.length() - 5) == ".epub") {
-      files.emplace_back(filename);
+      files.emplace_back(std::string(name) + "/");
+    } else {
+      auto filename = std::string(name);
+      std::string ext4 = filename.length() >= 4 ? filename.substr(filename.length() - 4) : "";
+      std::string ext5 = filename.length() >= 5 ? filename.substr(filename.length() - 5) : "";
+      if (ext5 == ".epub" || ext5 == ".xtch" || ext4 == ".xtc") {
+        files.emplace_back(filename);
+      }
     }
     file.close();
   }
@@ -53,7 +68,7 @@ void FileSelectionActivity::onEnter() {
 
   renderingMutex = xSemaphoreCreateMutex();
 
-  basepath = "/";
+  // basepath is set via constructor parameter (defaults to "/" if not specified)
   loadFiles();
   selectorIndex = 0;
 
@@ -83,14 +98,24 @@ void FileSelectionActivity::onExit() {
 }
 
 void FileSelectionActivity::loop() {
-  const bool prevReleased =
-      inputManager.wasReleased(InputManager::BTN_UP) || inputManager.wasReleased(InputManager::BTN_LEFT);
-  const bool nextReleased =
-      inputManager.wasReleased(InputManager::BTN_DOWN) || inputManager.wasReleased(InputManager::BTN_RIGHT);
+  // Long press BACK (1s+) goes to root folder
+  if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS) {
+    if (basepath != "/") {
+      basepath = "/";
+      loadFiles();
+      updateRequired = true;
+    }
+    return;
+  }
 
-  const bool skipPage = inputManager.getHeldTime() > SKIP_PAGE_MS;
+  const bool prevReleased = mappedInput.wasReleased(MappedInputManager::Button::Up) ||
+                            mappedInput.wasReleased(MappedInputManager::Button::Left);
+  const bool nextReleased = mappedInput.wasReleased(MappedInputManager::Button::Down) ||
+                            mappedInput.wasReleased(MappedInputManager::Button::Right);
 
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  const bool skipPage = mappedInput.getHeldTime() > SKIP_PAGE_MS;
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (files.empty()) {
       return;
     }
@@ -103,15 +128,17 @@ void FileSelectionActivity::loop() {
     } else {
       onSelect(basepath + files[selectorIndex]);
     }
-  } else if (inputManager.wasPressed(InputManager::BTN_BACK)) {
-    if (basepath != "/") {
-      basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
-      if (basepath.empty()) basepath = "/";
-      loadFiles();
-      updateRequired = true;
-    } else {
-      // At root level, go back home
-      onGoHome();
+  } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    // Short press: go up one directory, or go home if at root
+    if (mappedInput.getHeldTime() < GO_HOME_MS) {
+      if (basepath != "/") {
+        basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
+        if (basepath.empty()) basepath = "/";
+        loadFiles();
+        updateRequired = true;
+      } else {
+        onGoHome();
+      }
     }
   } else if (prevReleased) {
     if (skipPage) {
@@ -145,28 +172,24 @@ void FileSelectionActivity::displayTaskLoop() {
 void FileSelectionActivity::render() const {
   renderer.clearScreen();
 
-  const auto pageWidth = GfxRenderer::getScreenWidth();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Books", true, BOLD);
+  const auto pageWidth = renderer.getScreenWidth();
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Books", true, EpdFontFamily::BOLD);
 
   // Help text
-  renderer.drawText(SMALL_FONT_ID, 20, GfxRenderer::getScreenHeight() - 30, "Press BACK for Home");
+  const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   if (files.empty()) {
-    renderer.drawText(UI_FONT_ID, 20, 60, "No EPUBs found");
+    renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
-  renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 + 2, pageWidth - 1, 30);
+  renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
   for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
-    auto item = files[i];
-    int itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
-    while (itemWidth > renderer.getScreenWidth() - 40 && item.length() > 8) {
-      item.replace(item.length() - 5, 5, "...");
-      itemWidth = renderer.getTextWidth(UI_FONT_ID, item.c_str());
-    }
-    renderer.drawText(UI_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
+    auto item = renderer.truncatedText(UI_10_FONT_ID, files[i].c_str(), renderer.getScreenWidth() - 40);
+    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
   }
 
   renderer.displayBuffer();

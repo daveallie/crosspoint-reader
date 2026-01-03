@@ -34,8 +34,9 @@ class SettingsActivity final : public ActivityWithSubactivity {
   void toggleCurrentSetting();
 
  public:
-  explicit SettingsActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& onGoHome)
-      : ActivityWithSubactivity("Settings", renderer, inputManager), onGoHome(onGoHome) {}
+  explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                            const std::function<void()>& onGoHome)
+      : ActivityWithSubactivity("Settings", renderer, mappedInput), onGoHome(onGoHome) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

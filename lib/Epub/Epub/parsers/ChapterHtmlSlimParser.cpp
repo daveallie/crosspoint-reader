@@ -1,8 +1,8 @@
 #include "ChapterHtmlSlimParser.h"
 
-#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <SDCardManager.h>
 #include <expat.h>
 
 #include "../Page.h"
@@ -10,6 +10,9 @@
 
 const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
 constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
+
+// Minimum file size (in bytes) to show progress bar - smaller chapters don't benefit from it
+constexpr size_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;  // 50KB
 
 const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
@@ -39,7 +42,7 @@ bool matches(const char* tag_name, const char* possible_tags[], const int possib
 }
 
 // start a new text block if needed
-void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::BLOCK_STYLE style) {
+void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
   if (currentTextBlock) {
     // already have a text block running and it is empty - just reuse it
     if (currentTextBlock->isEmpty()) {
@@ -54,7 +57,6 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::BLOCK_STYLE style
 
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-  (void)atts;
 
   // Middle of skip
   if (self->skipUntilDepth < self->depth) {
@@ -90,17 +92,17 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
-    self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
+    self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
   } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
     if (strcmp(name, "br") == 0) {
       self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
-      self->startNewTextBlock(TextBlock::JUSTIFIED);
+      self->startNewTextBlock((TextBlock::Style)self->paragraphAlignment);
     }
   } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
-    self->boldUntilDepth = min(self->boldUntilDepth, self->depth);
+    self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
   } else if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
-    self->italicUntilDepth = min(self->italicUntilDepth, self->depth);
+    self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
   }
 
   self->depth += 1;
@@ -114,13 +116,13 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     return;
   }
 
-  EpdFontStyle fontStyle = REGULAR;
+  EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
   if (self->boldUntilDepth < self->depth && self->italicUntilDepth < self->depth) {
-    fontStyle = BOLD_ITALIC;
+    fontStyle = EpdFontFamily::BOLD_ITALIC;
   } else if (self->boldUntilDepth < self->depth) {
-    fontStyle = BOLD;
+    fontStyle = EpdFontFamily::BOLD;
   } else if (self->italicUntilDepth < self->depth) {
-    fontStyle = ITALIC;
+    fontStyle = EpdFontFamily::ITALIC;
   }
 
   for (int i = 0; i < len; i++) {
@@ -133,6 +135,21 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
       }
       // Skip the whitespace char
       continue;
+    }
+
+    // Skip soft-hyphen with UTF-8 representation (U+00AD) = 0xC2 0xAD
+    const XML_Char SHY_BYTE_1 = static_cast<XML_Char>(0xC2);
+    const XML_Char SHY_BYTE_2 = static_cast<XML_Char>(0xAD);
+    // 1. Check for the start of the 2-byte Soft Hyphen sequence
+    if (s[i] == SHY_BYTE_1) {
+      // 2. Check if the next byte exists AND if it completes the sequence
+      //    We must check i + 1 < len to prevent reading past the end of the buffer.
+      if ((i + 1 < len) && (s[i + 1] == SHY_BYTE_2)) {
+        // Sequence 0xC2 0xAD found!
+        // Skip the current byte (0xC2) and the next byte (0xAD)
+        i++;       // Increment 'i' one more time to skip the 0xAD byte
+        continue;  // Skip the rest of the loop and move to the next iteration
+      }
     }
 
     // If we're about to run out of space, then cut the word off and start a new one
@@ -152,14 +169,13 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   if (self->currentTextBlock->size() > 750) {
     Serial.printf("[%lu] [EHP] Text block too long, splitting into multiple pages\n", millis());
     self->currentTextBlock->layoutAndExtractLines(
-        self->renderer, self->fontId, self->marginLeft + self->marginRight,
+        self->renderer, self->fontId, self->viewportWidth,
         [self](const std::shared_ptr<TextBlock>& textBlock) { self->addLineToPage(textBlock); }, false);
   }
 }
 
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
-  (void)name;
 
   if (self->partWordBufferIndex > 0) {
     // Only flush out part word buffer if we're closing a block tag or are at the top of the HTML file.
@@ -171,13 +187,13 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
         matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) || self->depth == 1;
 
     if (shouldBreakText) {
-      EpdFontStyle fontStyle = REGULAR;
+      EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
       if (self->boldUntilDepth < self->depth && self->italicUntilDepth < self->depth) {
-        fontStyle = BOLD_ITALIC;
+        fontStyle = EpdFontFamily::BOLD_ITALIC;
       } else if (self->boldUntilDepth < self->depth) {
-        fontStyle = BOLD;
+        fontStyle = EpdFontFamily::BOLD;
       } else if (self->italicUntilDepth < self->depth) {
-        fontStyle = ITALIC;
+        fontStyle = EpdFontFamily::ITALIC;
       }
 
       self->partWordBuffer[self->partWordBufferIndex] = '\0';
@@ -205,7 +221,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 }
 
 bool ChapterHtmlSlimParser::parseAndBuildPages() {
-  startNewTextBlock(TextBlock::JUSTIFIED);
+  startNewTextBlock((TextBlock::Style)this->paragraphAlignment);
 
   const XML_Parser parser = XML_ParserCreate(nullptr);
   int done;
@@ -215,11 +231,16 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
     return false;
   }
 
-  File file;
-  if (!FsHelpers::openFileForRead("EHP", filepath, file)) {
+  FsFile file;
+  if (!SdMan.openFileForRead("EHP", filepath, file)) {
     XML_ParserFree(parser);
     return false;
   }
+
+  // Get file size for progress calculation
+  const size_t totalSize = file.size();
+  size_t bytesRead = 0;
+  int lastProgress = -1;
 
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
@@ -237,9 +258,9 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       return false;
     }
 
-    const size_t len = file.read(static_cast<uint8_t*>(buf), 1024);
+    const size_t len = file.read(buf, 1024);
 
-    if (len == 0) {
+    if (len == 0 && file.available() > 0) {
       Serial.printf("[%lu] [EHP] File read error\n", millis());
       XML_StopParser(parser, XML_FALSE);                // Stop any pending processing
       XML_SetElementHandler(parser, nullptr, nullptr);  // Clear callbacks
@@ -247,6 +268,17 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
       XML_ParserFree(parser);
       file.close();
       return false;
+    }
+
+    // Update progress (call every 10% change to avoid too frequent updates)
+    // Only show progress for larger chapters where rendering overhead is worth it
+    bytesRead += len;
+    if (progressFn && totalSize >= MIN_SIZE_FOR_PROGRESS) {
+      const int progress = static_cast<int>((bytesRead * 100) / totalSize);
+      if (lastProgress / 10 != progress / 10) {
+        lastProgress = progress;
+        progressFn(progress);
+      }
     }
 
     done = file.available() == 0;
@@ -282,15 +314,14 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
 
 void ChapterHtmlSlimParser::addLineToPage(std::shared_ptr<TextBlock> line) {
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
-  const int pageHeight = GfxRenderer::getScreenHeight() - marginTop - marginBottom;
 
-  if (currentPageNextY + lineHeight > pageHeight) {
+  if (currentPageNextY + lineHeight > viewportHeight) {
     completePageFn(std::move(currentPage));
     currentPage.reset(new Page());
-    currentPageNextY = marginTop;
+    currentPageNextY = 0;
   }
 
-  currentPage->elements.push_back(std::make_shared<PageLine>(line, marginLeft, currentPageNextY));
+  currentPage->elements.push_back(std::make_shared<PageLine>(line, 0, currentPageNextY));
   currentPageNextY += lineHeight;
 }
 
@@ -302,12 +333,12 @@ void ChapterHtmlSlimParser::makePages() {
 
   if (!currentPage) {
     currentPage.reset(new Page());
-    currentPageNextY = marginTop;
+    currentPageNextY = 0;
   }
 
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
   currentTextBlock->layoutAndExtractLines(
-      renderer, fontId, marginLeft + marginRight,
+      renderer, fontId, viewportWidth,
       [this](const std::shared_ptr<TextBlock>& textBlock) { addLineToPage(textBlock); });
   // Extra paragraph spacing if enabled
   if (extraParagraphSpacing) {

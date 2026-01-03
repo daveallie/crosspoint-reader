@@ -12,8 +12,10 @@ class ContentOpfParser final : public Print {
     IN_PACKAGE,
     IN_METADATA,
     IN_BOOK_TITLE,
+    IN_BOOK_AUTHOR,
     IN_MANIFEST,
     IN_SPINE,
+    IN_GUIDE,
   };
 
   const std::string& cachePath;
@@ -22,7 +24,7 @@ class ContentOpfParser final : public Print {
   XML_Parser parser = nullptr;
   ParserState state = START;
   BookMetadataCache* cache;
-  File tempItemStore;
+  FsFile tempItemStore;
   std::string coverItemId;
 
   static void startElement(void* userData, const XML_Char* name, const XML_Char** atts);
@@ -31,8 +33,11 @@ class ContentOpfParser final : public Print {
 
  public:
   std::string title;
+  std::string author;
   std::string tocNcxPath;
+  std::string tocNavPath;  // EPUB 3 nav document path
   std::string coverItemHref;
+  std::string textReferenceHref;
 
   explicit ContentOpfParser(const std::string& cachePath, const std::string& baseContentPath, const size_t xmlSize,
                             BookMetadataCache* cache)

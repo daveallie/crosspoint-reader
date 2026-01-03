@@ -2,8 +2,7 @@
 
 #include <Utf8.h>
 
-inline int min(const int a, const int b) { return a < b ? a : b; }
-inline int max(const int a, const int b) { return a < b ? b : a; }
+#include <algorithm>
 
 void EpdFont::getTextBounds(const char* string, const int startX, const int startY, int* minX, int* minY, int* maxX,
                             int* maxY) const {
@@ -32,10 +31,10 @@ void EpdFont::getTextBounds(const char* string, const int startX, const int star
       continue;
     }
 
-    *minX = min(*minX, cursorX + glyph->left);
-    *maxX = max(*maxX, cursorX + glyph->left + glyph->width);
-    *minY = min(*minY, cursorY + glyph->top - glyph->height);
-    *maxY = max(*maxY, cursorY + glyph->top);
+    *minX = std::min(*minX, cursorX + glyph->left);
+    *maxX = std::max(*maxX, cursorX + glyph->left + glyph->width);
+    *minY = std::min(*minY, cursorY + glyph->top - glyph->height);
+    *maxY = std::max(*maxY, cursorY + glyph->top);
     cursorX += glyph->advanceX;
   }
 }
@@ -59,14 +58,28 @@ bool EpdFont::hasPrintableChars(const char* string) const {
 
 const EpdGlyph* EpdFont::getGlyph(const uint32_t cp) const {
   const EpdUnicodeInterval* intervals = data->intervals;
-  for (int i = 0; i < data->intervalCount; i++) {
-    const EpdUnicodeInterval* interval = &intervals[i];
-    if (cp >= interval->first && cp <= interval->last) {
+  const int count = data->intervalCount;
+
+  if (count == 0) return nullptr;
+
+  // Binary search for O(log n) lookup instead of O(n)
+  // Critical for Korean fonts with many unicode intervals
+  int left = 0;
+  int right = count - 1;
+
+  while (left <= right) {
+    const int mid = left + (right - left) / 2;
+    const EpdUnicodeInterval* interval = &intervals[mid];
+
+    if (cp < interval->first) {
+      right = mid - 1;
+    } else if (cp > interval->last) {
+      left = mid + 1;
+    } else {
+      // Found: cp >= interval->first && cp <= interval->last
       return &data->glyph[interval->offset + (cp - interval->first)];
     }
-    if (cp < interval->first) {
-      return nullptr;
-    }
   }
+
   return nullptr;
 }

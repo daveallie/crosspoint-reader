@@ -1,9 +1,9 @@
 #include "NetworkModeSelectionActivity.h"
 
 #include <GfxRenderer.h>
-#include <InputManager.h>
 
-#include "config.h"
+#include "MappedInputManager.h"
+#include "fontIds.h"
 
 namespace {
 constexpr int MENU_ITEM_COUNT = 2;
@@ -51,23 +51,23 @@ void NetworkModeSelectionActivity::onExit() {
 
 void NetworkModeSelectionActivity::loop() {
   // Handle back button - cancel
-  if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     onCancel();
     return;
   }
 
   // Handle confirm button - select current option
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     const NetworkMode mode = (selectedIndex == 0) ? NetworkMode::JOIN_NETWORK : NetworkMode::CREATE_HOTSPOT;
     onModeSelected(mode);
     return;
   }
 
   // Handle navigation
-  const bool prevPressed =
-      inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT);
-  const bool nextPressed =
-      inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT);
+  const bool prevPressed = mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+                           mappedInput.wasPressed(MappedInputManager::Button::Left);
+  const bool nextPressed = mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+                           mappedInput.wasPressed(MappedInputManager::Button::Right);
 
   if (prevPressed) {
     selectedIndex = (selectedIndex + MENU_ITEM_COUNT - 1) % MENU_ITEM_COUNT;
@@ -97,10 +97,10 @@ void NetworkModeSelectionActivity::render() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(READER_FONT_ID, 10, "File Transfer", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "File Transfer", true, EpdFontFamily::BOLD);
 
   // Draw subtitle
-  renderer.drawCenteredText(UI_FONT_ID, 50, "How would you like to connect?", true, REGULAR);
+  renderer.drawCenteredText(UI_10_FONT_ID, 50, "How would you like to connect?");
 
   // Draw menu items centered on screen
   constexpr int itemHeight = 50;  // Height for each menu item (including description)
@@ -117,12 +117,13 @@ void NetworkModeSelectionActivity::render() const {
 
     // Draw text: black=false (white text) when selected (on black background)
     //            black=true (black text) when not selected (on white background)
-    renderer.drawText(UI_FONT_ID, 30, itemY, MENU_ITEMS[i], /*black=*/!isSelected);
+    renderer.drawText(UI_10_FONT_ID, 30, itemY, MENU_ITEMS[i], /*black=*/!isSelected);
     renderer.drawText(SMALL_FONT_ID, 30, itemY + 22, MENU_DESCRIPTIONS[i], /*black=*/!isSelected);
   }
 
   // Draw help text at bottom
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press OK to select, BACK to cancel", true, REGULAR);
+  const auto labels = mappedInput.mapLabels("« Back", "Select", "", "");
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

@@ -5,8 +5,8 @@ class Bitmap;
 
 class SleepActivity final : public Activity {
  public:
-  explicit SleepActivity(GfxRenderer& renderer, InputManager& inputManager)
-      : Activity("Sleep", renderer, inputManager) {}
+  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : Activity("Sleep", renderer, mappedInput) {}
   void onEnter() override;
 
  private:

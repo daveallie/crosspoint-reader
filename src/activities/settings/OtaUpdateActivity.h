@@ -35,9 +35,11 @@ class OtaUpdateActivity : public ActivityWithSubactivity {
   void render();
 
  public:
-  explicit OtaUpdateActivity(GfxRenderer& renderer, InputManager& inputManager, const std::function<void()>& goBack)
-      : ActivityWithSubactivity("OtaUpdate", renderer, inputManager), goBack(goBack), updater() {}
+  explicit OtaUpdateActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                             const std::function<void()>& goBack)
+      : ActivityWithSubactivity("OtaUpdate", renderer, mappedInput), goBack(goBack), updater() {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
+  bool preventAutoSleep() override { return state == CHECKING_FOR_UPDATE || state == UPDATE_IN_PROGRESS; }
 };

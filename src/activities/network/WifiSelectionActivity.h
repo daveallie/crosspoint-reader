@@ -92,9 +92,9 @@ class WifiSelectionActivity final : public ActivityWithSubactivity {
   std::string getSignalStrengthIndicator(int32_t rssi) const;
 
  public:
-  explicit WifiSelectionActivity(GfxRenderer& renderer, InputManager& inputManager,
+  explicit WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                  const std::function<void(bool connected)>& onComplete)
-      : ActivityWithSubactivity("WifiSelection", renderer, inputManager), onComplete(onComplete) {}
+      : ActivityWithSubactivity("WifiSelection", renderer, mappedInput), onComplete(onComplete) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;

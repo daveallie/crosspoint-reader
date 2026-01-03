@@ -3,12 +3,15 @@
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
-#include <InputManager.h>
 #include <WiFi.h>
+#include <qrcode.h>
 
+#include <cstddef>
+
+#include "MappedInputManager.h"
 #include "NetworkModeSelectionActivity.h"
 #include "WifiSelectionActivity.h"
-#include "config.h"
+#include "fontIds.h"
 
 namespace {
 // AP Mode configuration
@@ -54,7 +57,7 @@ void CrossPointWebServerActivity::onEnter() {
   // Launch network mode selection subactivity
   Serial.printf("[%lu] [WEBACT] Launching NetworkModeSelectionActivity...\n", millis());
   enterNewActivity(new NetworkModeSelectionActivity(
-      renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+      renderer, mappedInput, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
       [this]() { onGoBack(); }  // Cancel goes back to home
       ));
 }
@@ -138,7 +141,7 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
 
     state = WebServerActivityState::WIFI_SELECTION;
     Serial.printf("[%lu] [WEBACT] Launching WifiSelectionActivity...\n", millis());
-    enterNewActivity(new WifiSelectionActivity(renderer, inputManager,
+    enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                                [this](const bool connected) { onWifiSelectionComplete(connected); }));
   } else {
     // AP mode - start access point
@@ -171,7 +174,7 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
     exitActivity();
     state = WebServerActivityState::MODE_SELECTION;
     enterNewActivity(new NetworkModeSelectionActivity(
-        renderer, inputManager, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
+        renderer, mappedInput, [this](const NetworkMode mode) { onNetworkModeSelected(mode); },
         [this]() { onGoBack(); }));
   }
 }
@@ -302,7 +305,7 @@ void CrossPointWebServerActivity::loop() {
     }
 
     // Handle exit on Back button
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       onGoBack();
       return;
     }
@@ -331,40 +334,69 @@ void CrossPointWebServerActivity::render() const {
   } else if (state == WebServerActivityState::AP_STARTING) {
     renderer.clearScreen();
     const auto pageHeight = renderer.getScreenHeight();
-    renderer.drawCenteredText(READER_FONT_ID, pageHeight / 2 - 20, "Starting Hotspot...", true, BOLD);
+    renderer.drawCenteredText(UI_12_FONT_ID, pageHeight / 2 - 20, "Starting Hotspot...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
   }
 }
 
-void CrossPointWebServerActivity::renderServerRunning() const {
-  const auto pageHeight = renderer.getScreenHeight();
+void drawQRCode(const GfxRenderer& renderer, const int x, const int y, const std::string& data) {
+  // Implementation of QR code calculation
+  // The structure to manage the QR code
+  QRCode qrcode;
+  uint8_t qrcodeBytes[qrcode_getBufferSize(4)];
+  Serial.printf("[%lu] [WEBACT] QR Code (%lu): %s\n", millis(), data.length(), data.c_str());
 
+  qrcode_initText(&qrcode, qrcodeBytes, 4, ECC_LOW, data.c_str());
+  const uint8_t px = 6;  // pixels per module
+  for (uint8_t cy = 0; cy < qrcode.size; cy++) {
+    for (uint8_t cx = 0; cx < qrcode.size; cx++) {
+      if (qrcode_getModule(&qrcode, cx, cy)) {
+        // Serial.print("**");
+        renderer.fillRect(x + px * cx, y + px * cy, px, px, true);
+      } else {
+        // Serial.print("  ");
+      }
+    }
+    // Serial.print("\n");
+  }
+}
+
+void CrossPointWebServerActivity::renderServerRunning() const {
   // Use consistent line spacing
   constexpr int LINE_SPACING = 28;  // Space between lines
 
-  renderer.drawCenteredText(READER_FONT_ID, 15, "File Transfer", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "File Transfer", true, EpdFontFamily::BOLD);
 
   if (isApMode) {
     // AP mode display - center the content block
-    const int startY = 55;
+    int startY = 55;
 
-    renderer.drawCenteredText(UI_FONT_ID, startY, "Hotspot Mode", true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY, "Hotspot Mode", true, EpdFontFamily::BOLD);
 
     std::string ssidInfo = "Network: " + connectedSSID;
-    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING, ssidInfo.c_str(), true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY + LINE_SPACING, ssidInfo.c_str());
 
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, "Connect your device to this WiFi network",
-                              true, REGULAR);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 2, "Connect your device to this WiFi network");
 
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3,
+                              "or scan QR code with your phone to connect to Wifi.");
+    // Show QR code for URL
+    std::string wifiConfig = std::string("WIFI:T:WPA;S:") + connectedSSID + ";P:" + "" + ";;";
+    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 4, wifiConfig);
+
+    startY += 6 * 29 + 3 * LINE_SPACING;
     // Show primary URL (hostname)
     std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
-    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str(), true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str(), true, EpdFontFamily::BOLD);
 
     // Show IP address as fallback
     std::string ipUrl = "or http://" + connectedIP + "/";
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, ipUrl.c_str(), true, REGULAR);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, ipUrl.c_str());
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, "Open this URL in your browser");
 
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, "Open this URL in your browser", true, REGULAR);
+    // Show QR code for URL
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 6, "or scan QR code with your phone:");
+    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 7, hostnameUrl);
   } else {
     // STA mode display (original behavior)
     const int startY = 65;
@@ -373,21 +405,26 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     if (ssidInfo.length() > 28) {
       ssidInfo.replace(25, ssidInfo.length() - 25, "...");
     }
-    renderer.drawCenteredText(UI_FONT_ID, startY, ssidInfo.c_str(), true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY, ssidInfo.c_str());
 
     std::string ipInfo = "IP Address: " + connectedIP;
-    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING, ipInfo.c_str(), true, REGULAR);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY + LINE_SPACING, ipInfo.c_str());
 
     // Show web server URL prominently
     std::string webInfo = "http://" + connectedIP + "/";
-    renderer.drawCenteredText(UI_FONT_ID, startY + LINE_SPACING * 2, webInfo.c_str(), true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, startY + LINE_SPACING * 2, webInfo.c_str(), true, EpdFontFamily::BOLD);
 
     // Also show hostname URL
     std::string hostnameUrl = std::string("or http://") + AP_HOSTNAME + ".local/";
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str(), true, REGULAR);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 3, hostnameUrl.c_str());
 
-    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, "Open this URL in your browser", true, REGULAR);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 4, "Open this URL in your browser");
+
+    // Show QR code for URL
+    drawQRCode(renderer, (480 - 6 * 33) / 2, startY + LINE_SPACING * 6, webInfo);
+    renderer.drawCenteredText(SMALL_FONT_ID, startY + LINE_SPACING * 5, "or scan QR code with your phone:");
   }
 
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, "Press BACK to exit", true, REGULAR);
+  const auto labels = mappedInput.mapLabels("« Exit", "", "", "");
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

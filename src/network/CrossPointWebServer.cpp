@@ -2,7 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <FsHelpers.h>
-#include <SD.h>
+#include <SDCardManager.h>
 #include <WiFi.h>
 
 #include <algorithm>
@@ -50,6 +50,14 @@ void CrossPointWebServer::begin() {
 
   Serial.printf("[%lu] [WEB] Creating web server on port %d...\n", millis(), port);
   server.reset(new WebServer(port));
+
+  // Disable WiFi sleep to improve responsiveness and prevent 'unreachable' errors.
+  // This is critical for reliable web server operation on ESP32.
+  WiFi.setSleep(false);
+
+  // Note: WebServer class doesn't have setNoDelay() in the standard ESP32 library.
+  // We rely on disabling WiFi sleep for responsiveness.
+
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
 
   if (!server) {
@@ -157,20 +165,21 @@ void CrossPointWebServer::handleStatus() const {
   // Get correct IP based on AP vs STA mode
   const String ipAddr = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
 
-  String json = "{";
-  json += "\"version\":\"" + String(CROSSPOINT_VERSION) + "\",";
-  json += "\"ip\":\"" + ipAddr + "\",";
-  json += "\"mode\":\"" + String(apMode ? "AP" : "STA") + "\",";
-  json += "\"rssi\":" + String(apMode ? 0 : WiFi.RSSI()) + ",";  // RSSI not applicable in AP mode
-  json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
-  json += "\"uptime\":" + String(millis() / 1000);
-  json += "}";
+  JsonDocument doc;
+  doc["version"] = CROSSPOINT_VERSION;
+  doc["ip"] = ipAddr;
+  doc["mode"] = apMode ? "AP" : "STA";
+  doc["rssi"] = apMode ? 0 : WiFi.RSSI();
+  doc["freeHeap"] = ESP.getFreeHeap();
+  doc["uptime"] = millis() / 1000;
 
+  String json;
+  serializeJson(doc, json);
   server->send(200, "application/json", json);
 }
 
 void CrossPointWebServer::scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const {
-  File root = SD.open(path);
+  FsFile root = SdMan.open(path);
   if (!root) {
     Serial.printf("[%lu] [WEB] Failed to open directory: %s\n", millis(), path);
     return;
@@ -184,9 +193,11 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
 
   Serial.printf("[%lu] [WEB] Scanning files in: %s\n", millis(), path);
 
-  File file = root.openNextFile();
+  FsFile file = root.openNextFile();
+  char name[128];
   while (file) {
-    auto fileName = String(file.name());
+    file.getName(name, sizeof(name));
+    auto fileName = String(name);
 
     // Skip hidden items (starting with ".")
     bool shouldHide = fileName.startsWith(".");
@@ -218,6 +229,7 @@ void CrossPointWebServer::scanFiles(const char* path, const std::function<void(F
     }
 
     file.close();
+    yield();  // Yield to allow WiFi and other tasks to process during long scans
     file = root.openNextFile();
   }
   root.close();
@@ -252,12 +264,15 @@ void CrossPointWebServer::handleFileListData() const {
   char output[512];
   constexpr size_t outputSize = sizeof(output);
   bool seenFirst = false;
-  scanFiles(currentPath.c_str(), [this, &output, seenFirst](const FileInfo& info) mutable {
-    JsonDocument doc;
+  JsonDocument doc;
+
+  scanFiles(currentPath.c_str(), [this, &output, &doc, seenFirst](const FileInfo& info) mutable {
+    doc.clear();
     doc["name"] = info.name;
     doc["size"] = info.size;
     doc["isDirectory"] = info.isDirectory;
     doc["isEpub"] = info.isEpub;
+
     const size_t written = serializeJson(doc, output, outputSize);
     if (written >= outputSize) {
       // JSON output truncated; skip this entry to avoid sending malformed JSON
@@ -279,7 +294,7 @@ void CrossPointWebServer::handleFileListData() const {
 }
 
 // Static variables for upload handling
-static File uploadFile;
+static FsFile uploadFile;
 static String uploadFileName;
 static String uploadPath = "/";
 static size_t uploadSize = 0;
@@ -334,13 +349,13 @@ void CrossPointWebServer::handleUpload() const {
     filePath += uploadFileName;
 
     // Check if file already exists
-    if (SD.exists(filePath.c_str())) {
+    if (SdMan.exists(filePath.c_str())) {
       Serial.printf("[%lu] [WEB] [UPLOAD] Overwriting existing file: %s\n", millis(), filePath.c_str());
-      SD.remove(filePath.c_str());
+      SdMan.remove(filePath.c_str());
     }
 
     // Open file for writing
-    if (!FsHelpers::openFileForWrite("WEB", filePath, uploadFile)) {
+    if (!SdMan.openFileForWrite("WEB", filePath, uploadFile)) {
       uploadError = "Failed to create file on SD card";
       Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to create file: %s\n", millis(), filePath.c_str());
       return;
@@ -393,7 +408,7 @@ void CrossPointWebServer::handleUpload() const {
       String filePath = uploadPath;
       if (!filePath.endsWith("/")) filePath += "/";
       filePath += uploadFileName;
-      SD.remove(filePath.c_str());
+      SdMan.remove(filePath.c_str());
     }
     uploadError = "Upload aborted";
     Serial.printf("[%lu] [WEB] Upload aborted\n", millis());
@@ -444,13 +459,13 @@ void CrossPointWebServer::handleCreateFolder() const {
   Serial.printf("[%lu] [WEB] Creating folder: %s\n", millis(), folderPath.c_str());
 
   // Check if already exists
-  if (SD.exists(folderPath.c_str())) {
+  if (SdMan.exists(folderPath.c_str())) {
     server->send(400, "text/plain", "Folder already exists");
     return;
   }
 
   // Create the folder
-  if (SD.mkdir(folderPath.c_str())) {
+  if (SdMan.mkdir(folderPath.c_str())) {
     Serial.printf("[%lu] [WEB] Folder created successfully: %s\n", millis(), folderPath.c_str());
     server->send(200, "text/plain", "Folder created: " + folderName);
   } else {
@@ -500,7 +515,7 @@ void CrossPointWebServer::handleDelete() const {
   }
 
   // Check if item exists
-  if (!SD.exists(itemPath.c_str())) {
+  if (!SdMan.exists(itemPath.c_str())) {
     Serial.printf("[%lu] [WEB] Delete failed - item not found: %s\n", millis(), itemPath.c_str());
     server->send(404, "text/plain", "Item not found");
     return;
@@ -512,10 +527,10 @@ void CrossPointWebServer::handleDelete() const {
 
   if (itemType == "folder") {
     // For folders, try to remove (will fail if not empty)
-    File dir = SD.open(itemPath.c_str());
+    FsFile dir = SdMan.open(itemPath.c_str());
     if (dir && dir.isDirectory()) {
       // Check if folder is empty
-      File entry = dir.openNextFile();
+      FsFile entry = dir.openNextFile();
       if (entry) {
         // Folder is not empty
         entry.close();
@@ -526,10 +541,10 @@ void CrossPointWebServer::handleDelete() const {
       }
       dir.close();
     }
-    success = SD.rmdir(itemPath.c_str());
+    success = SdMan.rmdir(itemPath.c_str());
   } else {
     // For files, use remove
-    success = SD.remove(itemPath.c_str());
+    success = SdMan.remove(itemPath.c_str());
   }
 
   if (success) {

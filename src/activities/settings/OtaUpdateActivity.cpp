@@ -1,11 +1,11 @@
 #include "OtaUpdateActivity.h"
 
 #include <GfxRenderer.h>
-#include <InputManager.h>
 #include <WiFi.h>
 
+#include "MappedInputManager.h"
 #include "activities/network/WifiSelectionActivity.h"
-#include "config.h"
+#include "fontIds.h"
 #include "network/OtaUpdater.h"
 
 void OtaUpdateActivity::taskTrampoline(void* param) {
@@ -72,7 +72,7 @@ void OtaUpdateActivity::onEnter() {
 
   // Launch WiFi selection subactivity
   Serial.printf("[%lu] [OTA] Launching WifiSelectionActivity...\n", millis());
-  enterNewActivity(new WifiSelectionActivity(renderer, inputManager,
+  enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
                                              [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
 
@@ -124,60 +124,56 @@ void OtaUpdateActivity::render() {
     lastUpdaterPercentage = static_cast<int>(updaterProgress * 100);
   }
 
-  const auto pageHeight = renderer.getScreenHeight();
   const auto pageWidth = renderer.getScreenWidth();
 
   renderer.clearScreen();
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Update", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Update", true, EpdFontFamily::BOLD);
 
   if (state == CHECKING_FOR_UPDATE) {
-    renderer.drawCenteredText(UI_FONT_ID, 300, "Checking for update...", true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, "Checking for update...", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == WAITING_CONFIRMATION) {
-    renderer.drawCenteredText(UI_FONT_ID, 200, "New update available!", true, BOLD);
-    renderer.drawText(UI_FONT_ID, 20, 250, "Current Version: " CROSSPOINT_VERSION);
-    renderer.drawText(UI_FONT_ID, 20, 270, ("New Version: " + updater.getLatestVersion()).c_str());
+    renderer.drawCenteredText(UI_10_FONT_ID, 200, "New update available!", true, EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, 20, 250, "Current Version: " CROSSPOINT_VERSION);
+    renderer.drawText(UI_10_FONT_ID, 20, 270, ("New Version: " + updater.getLatestVersion()).c_str());
 
-    renderer.drawRect(25, pageHeight - 40, 106, 40);
-    renderer.drawText(UI_FONT_ID, 25 + (105 - renderer.getTextWidth(UI_FONT_ID, "Cancel")) / 2, pageHeight - 35,
-                      "Cancel");
-
-    renderer.drawRect(130, pageHeight - 40, 106, 40);
-    renderer.drawText(UI_FONT_ID, 130 + (105 - renderer.getTextWidth(UI_FONT_ID, "Update")) / 2, pageHeight - 35,
-                      "Update");
+    const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");
+    renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
     renderer.displayBuffer();
     return;
   }
 
   if (state == UPDATE_IN_PROGRESS) {
-    renderer.drawCenteredText(UI_FONT_ID, 310, "Updating...", true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 310, "Updating...", true, EpdFontFamily::BOLD);
     renderer.drawRect(20, 350, pageWidth - 40, 50);
     renderer.fillRect(24, 354, static_cast<int>(updaterProgress * static_cast<float>(pageWidth - 44)), 42);
-    renderer.drawCenteredText(UI_FONT_ID, 420, (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
+    renderer.drawCenteredText(UI_10_FONT_ID, 420,
+                              (std::to_string(static_cast<int>(updaterProgress * 100)) + "%").c_str());
     renderer.drawCenteredText(
-        UI_FONT_ID, 440, (std::to_string(updater.processedSize) + " / " + std::to_string(updater.totalSize)).c_str());
+        UI_10_FONT_ID, 440,
+        (std::to_string(updater.processedSize) + " / " + std::to_string(updater.totalSize)).c_str());
     renderer.displayBuffer();
     return;
   }
 
   if (state == NO_UPDATE) {
-    renderer.drawCenteredText(UI_FONT_ID, 300, "No update available", true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, "No update available", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FAILED) {
-    renderer.drawCenteredText(UI_FONT_ID, 300, "Update failed", true, BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, "Update failed", true, EpdFontFamily::BOLD);
     renderer.displayBuffer();
     return;
   }
 
   if (state == FINISHED) {
-    renderer.drawCenteredText(UI_FONT_ID, 300, "Update complete", true, BOLD);
-    renderer.drawCenteredText(UI_FONT_ID, 350, "Press and hold power button to turn back on");
+    renderer.drawCenteredText(UI_10_FONT_ID, 300, "Update complete", true, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(UI_10_FONT_ID, 350, "Press and hold power button to turn back on");
     renderer.displayBuffer();
     state = SHUTTING_DOWN;
     return;
@@ -191,7 +187,7 @@ void OtaUpdateActivity::loop() {
   }
 
   if (state == WAITING_CONFIRMATION) {
-    if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       Serial.printf("[%lu] [OTA] New update available, starting download...\n", millis());
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       state = UPDATE_IN_PROGRESS;
@@ -215,7 +211,7 @@ void OtaUpdateActivity::loop() {
       updateRequired = true;
     }
 
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       goBack();
     }
 
@@ -223,14 +219,14 @@ void OtaUpdateActivity::loop() {
   }
 
   if (state == FAILED) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       goBack();
     }
     return;
   }
 
   if (state == NO_UPDATE) {
-    if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       goBack();
     }
     return;

@@ -99,7 +99,91 @@ bool chooseSplitForWidth(const GfxRenderer& renderer, const int fontId, const st
 
 }  // namespace
 
-void ParsedText::addWord(std::string word, const EpdFontStyle fontStyle) {
+namespace {
+
+struct HyphenSplitDecision {
+  size_t byteOffset;
+  uint16_t prefixWidth;
+  bool appendHyphen;  // true when we must draw an extra hyphen after the prefix glyphs
+};
+
+// Verifies whether the substring ending at `offset` already contains a literal hyphen glyph, so we can avoid
+// drawing a duplicate hyphen when breaking the word.
+bool endsWithExplicitHyphen(const std::string& word, const size_t offset) {
+  if (offset == 0 || offset > word.size()) {
+    return false;
+  }
+
+  const unsigned char* base = reinterpret_cast<const unsigned char*>(word.data());
+  const unsigned char* ptr = base;
+  const unsigned char* target = base + offset;
+  const unsigned char* lastStart = nullptr;
+
+  while (ptr < target) {
+    lastStart = ptr;
+    utf8NextCodepoint(&ptr);
+    if (ptr > target) {
+      return false;
+    }
+  }
+
+  if (!lastStart || ptr != target) {
+    return false;
+  }
+
+  const unsigned char* tmp = lastStart;
+  const uint32_t cp = utf8NextCodepoint(&tmp);  // decode the codepoint immediately prior to the break
+  return isExplicitHyphen(cp);
+}
+
+bool chooseSplitForWidth(const GfxRenderer& renderer, const int fontId, const std::string& word,
+                         const EpdFontFamily::Style style, const int availableWidth, const bool includeFallback,
+                         HyphenSplitDecision* decision) {
+  if (!decision || availableWidth <= 0) {
+    return false;
+  }
+
+  const int hyphenWidth = renderer.getTextWidth(fontId, "-", style);
+
+  auto offsets = Hyphenator::breakOffsets(word, includeFallback);
+  if (offsets.empty()) {
+    return false;
+  }
+
+  size_t chosenOffset = std::numeric_limits<size_t>::max();
+  uint16_t chosenWidth = 0;
+  bool chosenAppendHyphen = true;
+
+  for (const size_t offset : offsets) {
+    const bool needsInsertedHyphen = !endsWithExplicitHyphen(word, offset);
+    const int budget = availableWidth - (needsInsertedHyphen ? hyphenWidth : 0);
+    if (budget <= 0) {
+      continue;
+    }
+    const std::string prefix = word.substr(0, offset);
+    const int prefixWidth = renderer.getTextWidth(fontId, prefix.c_str(), style);
+    if (prefixWidth <= budget) {
+      chosenOffset = offset;
+      chosenWidth = static_cast<uint16_t>(prefixWidth + (needsInsertedHyphen ? hyphenWidth : 0));
+      chosenAppendHyphen = needsInsertedHyphen;
+    } else {
+      break;
+    }
+  }
+
+  if (chosenOffset == std::numeric_limits<size_t>::max()) {
+    return false;
+  }
+
+  decision->byteOffset = chosenOffset;
+  decision->prefixWidth = chosenWidth;
+  decision->appendHyphen = chosenAppendHyphen;
+  return true;
+}
+
+}  // namespace
+
+void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle) {
   if (word.empty()) return;
 
   words.push_back(std::move(word));
@@ -107,14 +191,14 @@ void ParsedText::addWord(std::string word, const EpdFontStyle fontStyle) {
 }
 
 // Consumes data to minimize memory usage
-void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const int horizontalMargin,
+void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fontId, const uint16_t viewportWidth,
                                        const std::function<void(std::shared_ptr<TextBlock>)>& processLine,
                                        const bool includeLastLine) {
   if (words.empty()) {
     return;
   }
 
-  const int pageWidth = renderer.getScreenWidth() - horizontalMargin;
+  const int pageWidth = viewportWidth;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
   // Pre-split oversized tokens so the DP step always has feasible line candidates.
   auto wordWidths = calculateWordWidths(renderer, fontId, pageWidth);
@@ -364,7 +448,7 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
 
   std::list<std::string> lineWords;
   lineWords.splice(lineWords.begin(), words, words.begin(), wordEndIt);
-  std::list<EpdFontStyle> lineWordStyles;
+  std::list<EpdFontFamily::Style> lineWordStyles;
   lineWordStyles.splice(lineWordStyles.begin(), wordStyles, wordStyles.begin(), wordStyleEndIt);
 
   processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), style));

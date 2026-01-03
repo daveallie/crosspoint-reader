@@ -1,22 +1,53 @@
 #include "SettingsActivity.h"
 
 #include <GfxRenderer.h>
-#include <InputManager.h>
 
 #include "CrossPointSettings.h"
+#include "MappedInputManager.h"
 #include "OtaUpdateActivity.h"
-#include "config.h"
+#include "fontIds.h"
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 5;
+constexpr int settingsCount = 15;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
+    {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}},
     {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, {}},
     {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, {}},
-    {"Check for updates", SettingType::ACTION, nullptr, {}},
-    {"Hyphenation", SettingType::TOGGLE, &CrossPointSettings::hyphenationEnabled, {}}};
+    {"Reading Orientation",
+     SettingType::ENUM,
+     &CrossPointSettings::orientation,
+     {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}},
+    {"Front Button Layout",
+     SettingType::ENUM,
+     &CrossPointSettings::frontButtonLayout,
+     {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}},
+    {"Side Button Layout (reader)",
+     SettingType::ENUM,
+     &CrossPointSettings::sideButtonLayout,
+     {"Prev, Next", "Next, Prev"}},
+    {"Reader Font Family",
+     SettingType::ENUM,
+     &CrossPointSettings::fontFamily,
+     {"Bookerly", "Noto Sans", "Open Dyslexic"}},
+    {"Reader Font Size", SettingType::ENUM, &CrossPointSettings::fontSize, {"Small", "Medium", "Large", "X Large"}},
+    {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
+    {"Reader Paragraph Alignment",
+     SettingType::ENUM,
+     &CrossPointSettings::paragraphAlignment,
+     {"Justify", "Left", "Center", "Right"}},
+    {"Hyphenation", SettingType::TOGGLE, &CrossPointSettings::hyphenationEnabled, {}}},
+    {"Time to Sleep",
+     SettingType::ENUM,
+     &CrossPointSettings::sleepTimeout,
+     {"1 min", "5 min", "10 min", "15 min", "30 min"}},
+    {"Refresh Frequency",
+     SettingType::ENUM,
+     &CrossPointSettings::refreshFrequency,
+     {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}},
+    {"Check for updates", SettingType::ACTION, nullptr, {}};
 }  // namespace
 
 void SettingsActivity::taskTrampoline(void* param) {
@@ -63,24 +94,26 @@ void SettingsActivity::loop() {
   }
 
   // Handle actions with early return
-  if (inputManager.wasPressed(InputManager::BTN_CONFIRM)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
     toggleCurrentSetting();
     updateRequired = true;
     return;
   }
 
-  if (inputManager.wasPressed(InputManager::BTN_BACK)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     SETTINGS.saveToFile();
     onGoHome();
     return;
   }
 
   // Handle navigation
-  if (inputManager.wasPressed(InputManager::BTN_UP) || inputManager.wasPressed(InputManager::BTN_LEFT)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Left)) {
     // Move selection up (with wrap-around)
     selectedSettingIndex = (selectedSettingIndex > 0) ? (selectedSettingIndex - 1) : (settingsCount - 1);
     updateRequired = true;
-  } else if (inputManager.wasPressed(InputManager::BTN_DOWN) || inputManager.wasPressed(InputManager::BTN_RIGHT)) {
+  } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+             mappedInput.wasPressed(MappedInputManager::Button::Right)) {
     // Move selection down
     if (selectedSettingIndex < settingsCount - 1) {
       selectedSettingIndex++;
@@ -108,7 +141,7 @@ void SettingsActivity::toggleCurrentSetting() {
     if (std::string(setting.name) == "Check for updates") {
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
       exitActivity();
-      enterNewActivity(new OtaUpdateActivity(renderer, inputManager, [this] {
+      enterNewActivity(new OtaUpdateActivity(renderer, mappedInput, [this] {
         exitActivity();
         updateRequired = true;
       }));
@@ -138,40 +171,42 @@ void SettingsActivity::displayTaskLoop() {
 void SettingsActivity::render() const {
   renderer.clearScreen();
 
-  const auto pageWidth = GfxRenderer::getScreenWidth();
-  const auto pageHeight = GfxRenderer::getScreenHeight();
+  const auto pageWidth = renderer.getScreenWidth();
+  const auto pageHeight = renderer.getScreenHeight();
 
   // Draw header
-  renderer.drawCenteredText(READER_FONT_ID, 10, "Settings", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Settings", true, EpdFontFamily::BOLD);
+
+  // Draw selection
+  renderer.fillRect(0, 60 + selectedSettingIndex * 30 - 2, pageWidth - 1, 30);
 
   // Draw all settings
   for (int i = 0; i < settingsCount; i++) {
     const int settingY = 60 + i * 30;  // 30 pixels between settings
 
-    // Draw selection indicator for the selected setting
-    if (i == selectedSettingIndex) {
-      renderer.drawText(UI_FONT_ID, 5, settingY, ">");
-    }
-
     // Draw setting name
-    renderer.drawText(UI_FONT_ID, 20, settingY, settingsList[i].name);
+    renderer.drawText(UI_10_FONT_ID, 20, settingY, settingsList[i].name, i != selectedSettingIndex);
 
     // Draw value based on setting type
+    std::string valueText = "";
     if (settingsList[i].type == SettingType::TOGGLE && settingsList[i].valuePtr != nullptr) {
       const bool value = SETTINGS.*(settingsList[i].valuePtr);
-      renderer.drawText(UI_FONT_ID, pageWidth - 80, settingY, value ? "ON" : "OFF");
+      valueText = value ? "ON" : "OFF";
     } else if (settingsList[i].type == SettingType::ENUM && settingsList[i].valuePtr != nullptr) {
       const uint8_t value = SETTINGS.*(settingsList[i].valuePtr);
-      auto valueText = settingsList[i].enumValues[value];
-      const auto width = renderer.getTextWidth(UI_FONT_ID, valueText.c_str());
-      renderer.drawText(UI_FONT_ID, pageWidth - 50 - width, settingY, valueText.c_str());
+      valueText = settingsList[i].enumValues[value];
     }
+    const auto width = renderer.getTextWidth(UI_10_FONT_ID, valueText.c_str());
+    renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, valueText.c_str(), i != selectedSettingIndex);
   }
 
-  // Draw help text
-  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 30, "Press OK to toggle, BACK to save & exit");
+  // Draw version text above button hints
   renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
-                    pageHeight - 30, CROSSPOINT_VERSION);
+                    pageHeight - 60, CROSSPOINT_VERSION);
+
+  // Draw help text
+  const auto labels = mappedInput.mapLabels("« Save", "Toggle", "", "");
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   // Always use standard refresh for settings screen
   renderer.displayBuffer();

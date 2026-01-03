@@ -3,7 +3,127 @@
 #include <cstdlib>
 #include <cstring>
 
-uint16_t Bitmap::readLE16(File& f) {
+// ============================================================================
+// IMAGE PROCESSING OPTIONS - Toggle these to test different configurations
+// ============================================================================
+// Note: For cover images, dithering is done in JpegToBmpConverter.cpp
+// This file handles BMP reading - use simple quantization to avoid double-dithering
+constexpr bool USE_FLOYD_STEINBERG = false;  // Disabled - dithering done at JPEG conversion
+constexpr bool USE_NOISE_DITHERING = false;  // Hash-based noise dithering
+// Brightness adjustments:
+constexpr bool USE_BRIGHTNESS = false;    // true: apply brightness/gamma adjustments
+constexpr int BRIGHTNESS_BOOST = 20;      // Brightness offset (0-50), only if USE_BRIGHTNESS=true
+constexpr bool GAMMA_CORRECTION = false;  // Gamma curve, only if USE_BRIGHTNESS=true
+// ============================================================================
+
+// Integer approximation of gamma correction (brightens midtones)
+static inline int applyGamma(int gray) {
+  if (!GAMMA_CORRECTION) return gray;
+  const int product = gray * 255;
+  int x = gray;
+  if (x > 0) {
+    x = (x + product / x) >> 1;
+    x = (x + product / x) >> 1;
+  }
+  return x > 255 ? 255 : x;
+}
+
+// Simple quantization without dithering - just divide into 4 levels
+static inline uint8_t quantizeSimple(int gray) {
+  if (USE_BRIGHTNESS) {
+    gray += BRIGHTNESS_BOOST;
+    if (gray > 255) gray = 255;
+    gray = applyGamma(gray);
+  }
+  return static_cast<uint8_t>(gray >> 6);
+}
+
+// Hash-based noise dithering - survives downsampling without moiré artifacts
+static inline uint8_t quantizeNoise(int gray, int x, int y) {
+  if (USE_BRIGHTNESS) {
+    gray += BRIGHTNESS_BOOST;
+    if (gray > 255) gray = 255;
+    gray = applyGamma(gray);
+  }
+
+  uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
+  hash = (hash ^ (hash >> 13)) * 1274126177u;
+  const int threshold = static_cast<int>(hash >> 24);
+
+  const int scaled = gray * 3;
+  if (scaled < 255) {
+    return (scaled + threshold >= 255) ? 1 : 0;
+  } else if (scaled < 510) {
+    return ((scaled - 255) + threshold >= 255) ? 2 : 1;
+  } else {
+    return ((scaled - 510) + threshold >= 255) ? 3 : 2;
+  }
+}
+
+// Main quantization function
+static inline uint8_t quantize(int gray, int x, int y) {
+  if (USE_NOISE_DITHERING) {
+    return quantizeNoise(gray, x, y);
+  } else {
+    return quantizeSimple(gray);
+  }
+}
+
+// Floyd-Steinberg quantization with error diffusion and serpentine scanning
+// Returns 2-bit value (0-3) and updates error buffers
+static inline uint8_t quantizeFloydSteinberg(int gray, int x, int width, int16_t* errorCurRow, int16_t* errorNextRow,
+                                             bool reverseDir) {
+  // Add accumulated error to this pixel
+  int adjusted = gray + errorCurRow[x + 1];
+
+  // Clamp to valid range
+  if (adjusted < 0) adjusted = 0;
+  if (adjusted > 255) adjusted = 255;
+
+  // Quantize to 4 levels (0, 85, 170, 255)
+  uint8_t quantized;
+  int quantizedValue;
+  if (adjusted < 43) {
+    quantized = 0;
+    quantizedValue = 0;
+  } else if (adjusted < 128) {
+    quantized = 1;
+    quantizedValue = 85;
+  } else if (adjusted < 213) {
+    quantized = 2;
+    quantizedValue = 170;
+  } else {
+    quantized = 3;
+    quantizedValue = 255;
+  }
+
+  // Calculate error
+  int error = adjusted - quantizedValue;
+
+  // Distribute error to neighbors (serpentine: direction-aware)
+  if (!reverseDir) {
+    // Left to right
+    errorCurRow[x + 2] += (error * 7) >> 4;   // Right: 7/16
+    errorNextRow[x] += (error * 3) >> 4;      // Bottom-left: 3/16
+    errorNextRow[x + 1] += (error * 5) >> 4;  // Bottom: 5/16
+    errorNextRow[x + 2] += (error) >> 4;      // Bottom-right: 1/16
+  } else {
+    // Right to left (mirrored)
+    errorCurRow[x] += (error * 7) >> 4;       // Left: 7/16
+    errorNextRow[x + 2] += (error * 3) >> 4;  // Bottom-right: 3/16
+    errorNextRow[x + 1] += (error * 5) >> 4;  // Bottom: 5/16
+    errorNextRow[x] += (error) >> 4;          // Bottom-left: 1/16
+  }
+
+  return quantized;
+}
+
+Bitmap::~Bitmap() {
+  delete[] errorCurRow;
+  delete[] errorNextRow;
+}
+
+uint16_t Bitmap::readLE16(FsFile& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const auto b0 = static_cast<uint8_t>(c0 < 0 ? 0 : c0);
@@ -11,7 +131,7 @@ uint16_t Bitmap::readLE16(File& f) {
   return static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8);
 }
 
-uint32_t Bitmap::readLE32(File& f) {
+uint32_t Bitmap::readLE32(FsFile& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const int c2 = f.read();
@@ -46,6 +166,8 @@ const char* Bitmap::errorToString(BmpReaderError err) {
       return "UnsupportedCompression (expected BI_RGB or BI_BITFIELDS for 32bpp)";
     case BmpReaderError::BadDimensions:
       return "BadDimensions";
+    case BmpReaderError::ImageTooLarge:
+      return "ImageTooLarge (max 2048x3072)";
     case BmpReaderError::PaletteTooLarge:
       return "PaletteTooLarge";
 
@@ -70,7 +192,7 @@ BmpReaderError Bitmap::parseHeaders() {
   const uint16_t bfType = readLE16(file);
   if (bfType != 0x4D42) return BmpReaderError::NotBMP;
 
-  file.seek(8, SeekCur);
+  file.seekCur(8);
   bfOffBits = readLE32(file);
 
   // --- DIB HEADER ---
@@ -92,12 +214,19 @@ BmpReaderError Bitmap::parseHeaders() {
   // Allow BI_RGB (0) for all, and BI_BITFIELDS (3) for 32bpp which is common for BGRA masks.
   if (!(comp == 0 || (bpp == 32 && comp == 3))) return BmpReaderError::UnsupportedCompression;
 
-  file.seek(12, SeekCur);  // biSizeImage, biXPelsPerMeter, biYPelsPerMeter
+  file.seekCur(12);  // biSizeImage, biXPelsPerMeter, biYPelsPerMeter
   const uint32_t colorsUsed = readLE32(file);
   if (colorsUsed > 256u) return BmpReaderError::PaletteTooLarge;
-  file.seek(4, SeekCur);  // biClrImportant
+  file.seekCur(4);  // biClrImportant
 
   if (width <= 0 || height <= 0) return BmpReaderError::BadDimensions;
+
+  // Safety limits to prevent memory issues on ESP32
+  constexpr int MAX_IMAGE_WIDTH = 2048;
+  constexpr int MAX_IMAGE_HEIGHT = 3072;
+  if (width > MAX_IMAGE_WIDTH || height > MAX_IMAGE_HEIGHT) {
+    return BmpReaderError::ImageTooLarge;
+  }
 
   // Pre-calculate Row Bytes to avoid doing this every row
   rowBytes = (width * bpp + 31) / 32 * 4;
@@ -115,21 +244,56 @@ BmpReaderError Bitmap::parseHeaders() {
     return BmpReaderError::SeekPixelDataFailed;
   }
 
+  // Allocate Floyd-Steinberg error buffers if enabled
+  if (USE_FLOYD_STEINBERG) {
+    delete[] errorCurRow;
+    delete[] errorNextRow;
+    errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
+    errorNextRow = new int16_t[width + 2]();
+    lastRowY = -1;
+  }
+
   return BmpReaderError::Ok;
 }
 
 // packed 2bpp output, 0 = black, 1 = dark gray, 2 = light gray, 3 = white
-BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer) const {
+BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer, int rowY) const {
   // Note: rowBuffer should be pre-allocated by the caller to size 'rowBytes'
   if (file.read(rowBuffer, rowBytes) != rowBytes) return BmpReaderError::ShortReadRow;
+
+  // Handle Floyd-Steinberg error buffer progression
+  const bool useFS = USE_FLOYD_STEINBERG && errorCurRow && errorNextRow;
+  if (useFS) {
+    // Check if we need to advance to next row (or reset if jumping)
+    if (rowY != lastRowY + 1 && rowY != 0) {
+      // Non-sequential row access - reset error buffers
+      memset(errorCurRow, 0, (width + 2) * sizeof(int16_t));
+      memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
+    } else if (rowY > 0) {
+      // Sequential access - swap buffers
+      int16_t* temp = errorCurRow;
+      errorCurRow = errorNextRow;
+      errorNextRow = temp;
+      memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
+    }
+    lastRowY = rowY;
+  }
 
   uint8_t* outPtr = data;
   uint8_t currentOutByte = 0;
   int bitShift = 6;
+  int currentX = 0;
 
   // Helper lambda to pack 2bpp color into the output stream
   auto packPixel = [&](const uint8_t lum) {
-    uint8_t color = (lum >> 6);  // Simple 2-bit reduction: 0-255 -> 0-3
+    uint8_t color;
+    if (useFS) {
+      // Floyd-Steinberg error diffusion
+      color = quantizeFloydSteinberg(lum, currentX, width, errorCurRow, errorNextRow, false);
+    } else {
+      // Simple quantization or noise dithering
+      color = quantize(lum, currentX, rowY);
+    }
     currentOutByte |= (color << bitShift);
     if (bitShift == 0) {
       *outPtr++ = currentOutByte;
@@ -138,6 +302,7 @@ BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer) const {
     } else {
       bitShift -= 2;
     }
+    currentX++;
   };
 
   uint8_t lum;
@@ -194,6 +359,13 @@ BmpReaderError Bitmap::readRow(uint8_t* data, uint8_t* rowBuffer) const {
 BmpReaderError Bitmap::rewindToData() const {
   if (!file.seek(bfOffBits)) {
     return BmpReaderError::SeekPixelDataFailed;
+  }
+
+  // Reset Floyd-Steinberg error buffers when rewinding
+  if (USE_FLOYD_STEINBERG && errorCurRow && errorNextRow) {
+    memset(errorCurRow, 0, (width + 2) * sizeof(int16_t));
+    memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
+    lastRowY = -1;
   }
 
   return BmpReaderError::Ok;

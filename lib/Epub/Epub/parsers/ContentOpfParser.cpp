@@ -3,7 +3,6 @@
 #include <FsHelpers.h>
 #include <HardwareSerial.h>
 #include <Serialization.h>
-#include <ZipFile.h>
 
 #include "../BookMetadataCache.h"
 
@@ -36,8 +35,8 @@ ContentOpfParser::~ContentOpfParser() {
   if (tempItemStore) {
     tempItemStore.close();
   }
-  if (SD.exists((cachePath + itemCacheFile).c_str())) {
-    SD.remove((cachePath + itemCacheFile).c_str());
+  if (SdMan.exists((cachePath + itemCacheFile).c_str())) {
+    SdMan.remove((cachePath + itemCacheFile).c_str());
   }
 }
 
@@ -103,9 +102,14 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     return;
   }
 
+  if (self->state == IN_METADATA && strcmp(name, "dc:creator") == 0) {
+    self->state = IN_BOOK_AUTHOR;
+    return;
+  }
+
   if (self->state == IN_PACKAGE && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_MANIFEST;
-    if (!FsHelpers::openFileForWrite("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+    if (!SdMan.openFileForWrite("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
       Serial.printf(
           "[%lu] [COF] Couldn't open temp items file for writing. This is probably going to be a fatal error.\n",
           millis());
@@ -115,7 +119,19 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_PACKAGE && (strcmp(name, "spine") == 0 || strcmp(name, "opf:spine") == 0)) {
     self->state = IN_SPINE;
-    if (!FsHelpers::openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+    if (!SdMan.openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
+      Serial.printf(
+          "[%lu] [COF] Couldn't open temp items file for reading. This is probably going to be a fatal error.\n",
+          millis());
+    }
+    return;
+  }
+
+  if (self->state == IN_PACKAGE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
+    self->state = IN_GUIDE;
+    // TODO Remove print
+    Serial.printf("[%lu] [COF] Entering guide state.\n", millis());
+    if (!SdMan.openFileForRead("COF", self->cachePath + itemCacheFile, self->tempItemStore)) {
       Serial.printf(
           "[%lu] [COF] Couldn't open temp items file for reading. This is probably going to be a fatal error.\n",
           millis());
@@ -145,6 +161,7 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
     std::string itemId;
     std::string href;
     std::string mediaType;
+    std::string properties;
 
     for (int i = 0; atts[i]; i += 2) {
       if (strcmp(atts[i], "id") == 0) {
@@ -153,6 +170,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
         href = self->baseContentPath + atts[i + 1];
       } else if (strcmp(atts[i], "media-type") == 0) {
         mediaType = atts[i + 1];
+      } else if (strcmp(atts[i], "properties") == 0) {
+        properties = atts[i + 1];
       }
     }
 
@@ -172,6 +191,15 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
                       href.c_str());
       }
     }
+
+    // EPUB 3: Check for nav document (properties contains "nav")
+    if (!properties.empty() && self->tocNavPath.empty()) {
+      // Properties is space-separated, check if "nav" is present as a word
+      if (properties == "nav" || properties.find("nav ") == 0 || properties.find(" nav") != std::string::npos) {
+        self->tocNavPath = href;
+        Serial.printf("[%lu] [COF] Found EPUB 3 nav document: %s\n", millis(), href.c_str());
+      }
+    }
     return;
   }
 
@@ -183,6 +211,8 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
         if (strcmp(atts[i], "idref") == 0) {
           const std::string idref = atts[i + 1];
           // Resolve the idref to href using items map
+          // TODO: This lookup is slow as need to scan through all items each time.
+          //       It can take up to 200ms per item when getting to 1500 items.
           self->tempItemStore.seek(0);
           std::string itemId;
           std::string href;
@@ -199,6 +229,29 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
       return;
     }
   }
+  // parse the guide
+  if (self->state == IN_GUIDE && (strcmp(name, "reference") == 0 || strcmp(name, "opf:reference") == 0)) {
+    std::string type;
+    std::string textHref;
+    for (int i = 0; atts[i]; i += 2) {
+      if (strcmp(atts[i], "type") == 0) {
+        type = atts[i + 1];
+        if (type == "text" || type == "start") {
+          continue;
+        } else {
+          Serial.printf("[%lu] [COF] Skipping non-text reference in guide: %s\n", millis(), type.c_str());
+          break;
+        }
+      } else if (strcmp(atts[i], "href") == 0) {
+        textHref = self->baseContentPath + atts[i + 1];
+      }
+    }
+    if ((type == "text" || (type == "start" && !self->textReferenceHref.empty())) && (textHref.length() > 0)) {
+      Serial.printf("[%lu] [COF] Found %s reference in guide: %s.\n", millis(), type.c_str(), textHref.c_str());
+      self->textReferenceHref = textHref;
+    }
+    return;
+  }
 }
 
 void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, const int len) {
@@ -206,6 +259,11 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
 
   if (self->state == IN_BOOK_TITLE) {
     self->title.append(s, len);
+    return;
+  }
+
+  if (self->state == IN_BOOK_AUTHOR) {
+    self->author.append(s, len);
     return;
   }
 }
@@ -220,6 +278,12 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
     return;
   }
 
+  if (self->state == IN_GUIDE && (strcmp(name, "guide") == 0 || strcmp(name, "opf:guide") == 0)) {
+    self->state = IN_PACKAGE;
+    self->tempItemStore.close();
+    return;
+  }
+
   if (self->state == IN_MANIFEST && (strcmp(name, "manifest") == 0 || strcmp(name, "opf:manifest") == 0)) {
     self->state = IN_PACKAGE;
     self->tempItemStore.close();
@@ -227,6 +291,11 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
   }
 
   if (self->state == IN_BOOK_TITLE && strcmp(name, "dc:title") == 0) {
+    self->state = IN_METADATA;
+    return;
+  }
+
+  if (self->state == IN_BOOK_AUTHOR && strcmp(name, "dc:creator") == 0) {
     self->state = IN_METADATA;
     return;
   }

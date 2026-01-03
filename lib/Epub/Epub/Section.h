@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <memory>
 
 #include "Epub.h"
@@ -10,27 +11,29 @@ class Section {
   std::shared_ptr<Epub> epub;
   const int spineIndex;
   GfxRenderer& renderer;
-  std::string cachePath;
+  std::string filePath;
+  FsFile file;
 
-  void writeCacheMetadata(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                          int marginLeft, bool extraParagraphSpacing, bool hyphenationEnabled) const;
-  void onPageComplete(std::unique_ptr<Page> page);
+  void writeSectionFileHeader(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
+                              uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled);
+  uint32_t onPageComplete(std::unique_ptr<Page> page);
 
  public:
-  int pageCount = 0;
+  uint16_t pageCount = 0;
   int currentPage = 0;
 
   explicit Section(const std::shared_ptr<Epub>& epub, const int spineIndex, GfxRenderer& renderer)
       : epub(epub),
         spineIndex(spineIndex),
         renderer(renderer),
-        cachePath(epub->getCachePath() + "/" + std::to_string(spineIndex)) {}
+        filePath(epub->getCachePath() + "/sections/" + std::to_string(spineIndex) + ".bin") {}
   ~Section() = default;
-  bool loadCacheMetadata(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                         int marginLeft, bool extraParagraphSpacing, bool hyphenationEnabled);
-  void setupCacheDir() const;
+  bool loadSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
+                       uint16_t viewportWidth, uint16_t viewportHeight, bool hyphenationEnabled);
   bool clearCache() const;
-  bool persistPageDataToSD(int fontId, float lineCompression, int marginTop, int marginRight, int marginBottom,
-                           int marginLeft, bool extraParagraphSpacing, bool hyphenationEnabled);
-  std::unique_ptr<Page> loadPageFromSD() const;
+  bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
+                         uint16_t viewportWidth, uint16_t viewportHeight,
+                         const std::function<void()>& progressSetupFn = nullptr,
+                         const std::function<void(int)>& progressFn = nullptr, bool hyphenationEnabled);
+  std::unique_ptr<Page> loadPageFromSectionFile();
 };

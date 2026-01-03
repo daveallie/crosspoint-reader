@@ -1,25 +1,27 @@
 #include "CrossPointSettings.h"
 
-#include <FsHelpers.h>
 #include <HardwareSerial.h>
-#include <SD.h>
+#include <SDCardManager.h>
 #include <Serialization.h>
+
+#include "fontIds.h"
 
 // Initialize the static instance
 CrossPointSettings CrossPointSettings::instance;
 
 namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
-constexpr uint8_t SETTINGS_COUNT = 4;
+// Increment this when adding new persisted settings fields
+constexpr uint8_t SETTINGS_COUNT = 14;
 constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
 }  // namespace
 
 bool CrossPointSettings::saveToFile() const {
   // Make sure the directory exists
-  SD.mkdir("/.crosspoint");
+  SdMan.mkdir("/.crosspoint");
 
-  File outputFile;
-  if (!FsHelpers::openFileForWrite("CPS", SETTINGS_FILE, outputFile)) {
+  FsFile outputFile;
+  if (!SdMan.openFileForWrite("CPS", SETTINGS_FILE, outputFile)) {
     return false;
   }
 
@@ -28,6 +30,16 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, sleepScreen);
   serialization::writePod(outputFile, extraParagraphSpacing);
   serialization::writePod(outputFile, shortPwrBtn);
+  serialization::writePod(outputFile, statusBar);
+  serialization::writePod(outputFile, orientation);
+  serialization::writePod(outputFile, frontButtonLayout);
+  serialization::writePod(outputFile, sideButtonLayout);
+  serialization::writePod(outputFile, fontFamily);
+  serialization::writePod(outputFile, fontSize);
+  serialization::writePod(outputFile, lineSpacing);
+  serialization::writePod(outputFile, paragraphAlignment);
+  serialization::writePod(outputFile, sleepTimeout);
+  serialization::writePod(outputFile, refreshFrequency);
   serialization::writePod(outputFile, hyphenationEnabled);
   outputFile.close();
 
@@ -36,8 +48,8 @@ bool CrossPointSettings::saveToFile() const {
 }
 
 bool CrossPointSettings::loadFromFile() {
-  File inputFile;
-  if (!FsHelpers::openFileForRead("CPS", SETTINGS_FILE, inputFile)) {
+  FsFile inputFile;
+  if (!SdMan.openFileForRead("CPS", SETTINGS_FILE, inputFile)) {
     return false;
   }
 
@@ -52,7 +64,7 @@ bool CrossPointSettings::loadFromFile() {
   uint8_t fileSettingsCount = 0;
   serialization::readPod(inputFile, fileSettingsCount);
 
-  // load settings that exist
+  // load settings that exist (support older files with fewer fields)
   uint8_t settingsRead = 0;
   do {
     serialization::readPod(inputFile, sleepScreen);
@@ -61,6 +73,26 @@ bool CrossPointSettings::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, shortPwrBtn);
     if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, statusBar);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, orientation);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, frontButtonLayout);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, sideButtonLayout);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, fontFamily);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, fontSize);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, lineSpacing);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, paragraphAlignment);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, sleepTimeout);
+    if (++settingsRead >= fileSettingsCount) break;
+    serialization::readPod(inputFile, refreshFrequency);
+    if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, hyphenationEnabled);
     if (++settingsRead >= fileSettingsCount) break;
   } while (false);
@@ -68,4 +100,114 @@ bool CrossPointSettings::loadFromFile() {
   inputFile.close();
   Serial.printf("[%lu] [CPS] Settings loaded from file\n", millis());
   return true;
+}
+
+float CrossPointSettings::getReaderLineCompression() const {
+  switch (fontFamily) {
+    case BOOKERLY:
+    default:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.95f;
+        case NORMAL:
+        default:
+          return 1.0f;
+        case WIDE:
+          return 1.1f;
+      }
+    case NOTOSANS:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
+    case OPENDYSLEXIC:
+      switch (lineSpacing) {
+        case TIGHT:
+          return 0.90f;
+        case NORMAL:
+        default:
+          return 0.95f;
+        case WIDE:
+          return 1.0f;
+      }
+  }
+}
+
+unsigned long CrossPointSettings::getSleepTimeoutMs() const {
+  switch (sleepTimeout) {
+    case SLEEP_1_MIN:
+      return 1UL * 60 * 1000;
+    case SLEEP_5_MIN:
+      return 5UL * 60 * 1000;
+    case SLEEP_10_MIN:
+    default:
+      return 10UL * 60 * 1000;
+    case SLEEP_15_MIN:
+      return 15UL * 60 * 1000;
+    case SLEEP_30_MIN:
+      return 30UL * 60 * 1000;
+  }
+}
+
+int CrossPointSettings::getRefreshFrequency() const {
+  switch (refreshFrequency) {
+    case REFRESH_1:
+      return 1;
+    case REFRESH_5:
+      return 5;
+    case REFRESH_10:
+      return 10;
+    case REFRESH_15:
+    default:
+      return 15;
+    case REFRESH_30:
+      return 30;
+  }
+}
+
+int CrossPointSettings::getReaderFontId() const {
+  switch (fontFamily) {
+    case BOOKERLY:
+    default:
+      switch (fontSize) {
+        case SMALL:
+          return BOOKERLY_12_FONT_ID;
+        case MEDIUM:
+        default:
+          return BOOKERLY_14_FONT_ID;
+        case LARGE:
+          return BOOKERLY_16_FONT_ID;
+        case EXTRA_LARGE:
+          return BOOKERLY_18_FONT_ID;
+      }
+    case NOTOSANS:
+      switch (fontSize) {
+        case SMALL:
+          return NOTOSANS_12_FONT_ID;
+        case MEDIUM:
+        default:
+          return NOTOSANS_14_FONT_ID;
+        case LARGE:
+          return NOTOSANS_16_FONT_ID;
+        case EXTRA_LARGE:
+          return NOTOSANS_18_FONT_ID;
+      }
+    case OPENDYSLEXIC:
+      switch (fontSize) {
+        case SMALL:
+          return OPENDYSLEXIC_8_FONT_ID;
+        case MEDIUM:
+        default:
+          return OPENDYSLEXIC_10_FONT_ID;
+        case LARGE:
+          return OPENDYSLEXIC_12_FONT_ID;
+        case EXTRA_LARGE:
+          return OPENDYSLEXIC_14_FONT_ID;
+      }
+  }
 }
