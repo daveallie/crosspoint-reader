@@ -16,8 +16,6 @@ namespace {
 // pagesPerRefresh now comes from SETTINGS.getRefreshFrequency()
 constexpr unsigned long skipChapterMs = 700;
 constexpr unsigned long goHomeMs = 1000;
-constexpr int topPadding = 5;
-constexpr int horizontalPadding = 5;
 constexpr int statusBarMargin = 19;
 }  // namespace
 
@@ -253,9 +251,9 @@ void EpubReaderActivity::renderScreen() {
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
                                    &orientedMarginLeft);
-  orientedMarginTop += SETTINGS.screenMargin;
-  orientedMarginLeft += SETTINGS.screenMargin;
-  orientedMarginRight += SETTINGS.screenMargin;
+  orientedMarginTop += SETTINGS.getReaderScreenMargin();
+  orientedMarginLeft += SETTINGS.getReaderScreenMargin();
+  orientedMarginRight += SETTINGS.getReaderScreenMargin();
   orientedMarginBottom += statusBarMargin;
 
   if (!section) {

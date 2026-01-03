@@ -34,7 +34,7 @@ const SettingInfo settingsList[settingsCount] = {
      {"Bookerly", "Noto Sans", "Open Dyslexic"}},
     {"Reader Font Size", SettingType::ENUM, &CrossPointSettings::fontSize, {"Small", "Medium", "Large", "X Large"}},
     {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
-    {"Reader Screen Margin", SettingType::ENUM, &CrossPointSettings::screenMargin, {"S", "M", "L", "XL"}},
+    {"Reader Screen Margin", SettingType::ENUM, &CrossPointSettings::screenMargin, {"5", "10", "20", "40"}},
     {"Reader Paragraph Alignment",
      SettingType::ENUM,
      &CrossPointSettings::paragraphAlignment,
