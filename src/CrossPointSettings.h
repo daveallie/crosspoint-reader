@@ -44,6 +44,10 @@ class CrossPointSettings {
   enum FONT_SIZE { SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3 };
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
 
+  // Reader screen margin options
+  enum SCREEN_MARGIN { S = 5, M = 10, L = 20, XL = 30 };
+
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Status bar settings
@@ -62,6 +66,9 @@ class CrossPointSettings {
   uint8_t fontFamily = BOOKERLY;
   uint8_t fontSize = MEDIUM;
   uint8_t lineSpacing = NORMAL;
+
+  // Reader screen margin settings
+  uint8_t screenMargin = M;
 
   ~CrossPointSettings() = default;
 
