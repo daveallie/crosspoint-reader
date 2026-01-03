@@ -436,7 +436,9 @@ void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data)
 
 void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& data) {
   setState(CalibreWirelessState::WAITING);
-  setStatus("Connected to " + calibreHostname + "\nWaiting for transfer...\n\nIf transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice plugin settings.");
+  setStatus("Connected to " + calibreHostname +
+            "\nWaiting for transfer...\n\nIf transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice "
+            "plugin settings.");
 
   // Build response with device capabilities
   // Format must match what Calibre expects from a smart device
