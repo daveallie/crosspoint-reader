@@ -46,7 +46,6 @@ void CalibreWirelessActivity::onEnter() {
 
   // Start UDP listener for Calibre responses
   udp.begin(LOCAL_UDP_PORT);
-  Serial.printf("[%lu] [CAL] UDP listener started on port %d\n", millis(), LOCAL_UDP_PORT);
 
   // Create display task
   xTaskCreate(&CalibreWirelessActivity::displayTaskTrampoline, "CalDisplayTask", 2048, this, 1, &displayTaskHandle);
@@ -57,8 +56,6 @@ void CalibreWirelessActivity::onEnter() {
 
 void CalibreWirelessActivity::onExit() {
   Activity::onExit();
-
-  Serial.printf("[%lu] [CAL] Exiting CalibreWirelessActivity\n", millis());
 
   // Always turn off the setting when exiting so it shows OFF in settings
   SETTINGS.calibreWirelessEnabled = 0;
@@ -94,8 +91,6 @@ void CalibreWirelessActivity::onExit() {
 
   vSemaphoreDelete(stateMutex);
   stateMutex = nullptr;
-
-  Serial.printf("[%lu] [CAL] Cleanup complete\n", millis());
 }
 
 void CalibreWirelessActivity::loop() {
@@ -153,7 +148,6 @@ void CalibreWirelessActivity::listenForDiscovery() {
     udp.write(reinterpret_cast<const uint8_t*>("hello"), 5);
     udp.endPacket();
   }
-  Serial.printf("[%lu] [CAL] Broadcast 'hello' on discovery ports\n", millis());
 
   // Wait for Calibre's response
   vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -165,7 +159,6 @@ void CalibreWirelessActivity::listenForDiscovery() {
     const int len = udp.read(buffer, sizeof(buffer) - 1);
     if (len > 0) {
       buffer[len] = '\0';
-      Serial.printf("[%lu] [CAL] UDP response received: %s\n", millis(), buffer);
 
       // Parse Calibre's response format:
       // "calibre wireless device client (on hostname);port,content_server_port"
@@ -219,9 +212,6 @@ void CalibreWirelessActivity::listenForDiscovery() {
         calibreHostname = calibreHost;
       }
 
-      Serial.printf("[%lu] [CAL] Parsed: host=%s, port=%d, altPort=%d, name=%s\n", millis(), calibreHost.c_str(),
-                    calibrePort, calibreAltPort, calibreHostname.c_str());
-
       if (calibrePort > 0) {
         // Connect to Calibre's TCP server - try main port first, then alt port
         setState(CalibreWirelessState::CONNECTING);
@@ -233,23 +223,15 @@ void CalibreWirelessActivity::listenForDiscovery() {
         bool connected = false;
 
         // Try main port first
-        Serial.printf("[%lu] [CAL] Trying main port %s:%d\n", millis(), calibreHost.c_str(), calibrePort);
         if (tcpClient.connect(calibreHost.c_str(), calibrePort, 5000)) {
           connected = true;
-          Serial.printf("[%lu] [CAL] TCP connected to %s:%d\n", millis(), calibreHost.c_str(), calibrePort);
-        } else {
-          Serial.printf("[%lu] [CAL] Main port %d failed\n", millis(), calibrePort);
         }
 
         // Try alternative port if main failed
         if (!connected && calibreAltPort > 0) {
           vTaskDelay(200 / portTICK_PERIOD_MS);
-          Serial.printf("[%lu] [CAL] Trying alt port %s:%d\n", millis(), calibreHost.c_str(), calibreAltPort);
           if (tcpClient.connect(calibreHost.c_str(), calibreAltPort, 5000)) {
             connected = true;
-            Serial.printf("[%lu] [CAL] TCP connected to %s:%d (alt)\n", millis(), calibreHost.c_str(), calibreAltPort);
-          } else {
-            Serial.printf("[%lu] [CAL] Alt port %d also failed\n", millis(), calibreAltPort);
           }
         }
 
@@ -257,7 +239,6 @@ void CalibreWirelessActivity::listenForDiscovery() {
           setState(CalibreWirelessState::WAITING);
           setStatus("Connected to " + calibreHostname + "\nWaiting for commands...");
         } else {
-          Serial.printf("[%lu] [CAL] All TCP connection attempts failed\n", millis());
           // Don't set error yet, keep trying discovery
           setState(CalibreWirelessState::DISCOVERING);
           setStatus("Discovering Calibre...\n(Connection failed, retrying)");
@@ -271,7 +252,6 @@ void CalibreWirelessActivity::listenForDiscovery() {
 
 void CalibreWirelessActivity::handleTcpClient() {
   if (!tcpClient.connected()) {
-    Serial.printf("[%lu] [CAL] TCP client disconnected\n", millis());
     setState(CalibreWirelessState::DISCONNECTED);
     setStatus("Calibre disconnected");
     return;
@@ -301,7 +281,6 @@ void CalibreWirelessActivity::handleTcpClient() {
           data = message.substr(dataStart, dataEnd - dataStart);
         }
 
-        Serial.printf("[%lu] [CAL] Opcode %d, data=%zu bytes\n", millis(), opcode, data.size());
         handleCommand(opcode, data);
       }
     }
@@ -314,7 +293,6 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
   if (available > 0) {
     // Limit buffer growth to prevent memory issues
     if (recvBuffer.size() > 100000) {
-      Serial.printf("[%lu] [CAL] Buffer too large (%zu), clearing\n", millis(), recvBuffer.size());
       recvBuffer.clear();
       return false;
     }
@@ -341,7 +319,6 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
   if (bracketPos == std::string::npos) {
     // No '[' found - if buffer is getting large, something is wrong
     if (recvBuffer.size() > 1000) {
-      Serial.printf("[%lu] [CAL] No '[' in buffer (%zu bytes), clearing\n", millis(), recvBuffer.size());
       recvBuffer.clear();
     }
     return false;
@@ -371,9 +348,7 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
   if (!validPrefix) {
     // Not a valid length prefix - discard everything up to '[' and treat '[' as start
     if (bracketPos > 0) {
-      Serial.printf("[%lu] [CAL] Invalid prefix, discarding %zu bytes before '['\n", millis(), bracketPos);
       recvBuffer = recvBuffer.substr(bracketPos);
-      bracketPos = 0;
     }
     // Without length prefix, we can't reliably parse - wait for more data
     // that hopefully starts with a proper length prefix
@@ -382,7 +357,6 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
 
   // Sanity check the message length
   if (msgLen > 1000000) {
-    Serial.printf("[%lu] [CAL] Message length too large: %zu, discarding\n", millis(), msgLen);
     recvBuffer = recvBuffer.substr(bracketPos + 1);  // Skip past this '[' and try again
     return false;
   }
@@ -404,7 +378,6 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
     recvBuffer.clear();
   }
 
-  Serial.printf("[%lu] [CAL] Got message (%zu bytes): %.80s...\n", millis(), message.length(), message.c_str());
   return true;
 }
 
@@ -413,12 +386,8 @@ void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& da
   std::string json = "[" + std::to_string(opcode) + "," + data + "]";
   std::string packet = std::to_string(json.length()) + json;
 
-  Serial.printf("[%lu] [CAL] Sending packet (%zu bytes): %s\n", millis(), packet.length(), packet.c_str());
-
-  const size_t written = tcpClient.write(reinterpret_cast<const uint8_t*>(packet.c_str()), packet.length());
+  tcpClient.write(reinterpret_cast<const uint8_t*>(packet.c_str()), packet.length());
   tcpClient.flush();
-
-  Serial.printf("[%lu] [CAL] Wrote %zu bytes, client connected: %d\n", millis(), written, tcpClient.connected());
 }
 
 void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data) {
@@ -453,30 +422,19 @@ void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data)
       sendJsonResponse(OP_OK, "{}");
       break;
     case OP_SET_LIBRARY_INFO:
-      // Calibre sends library info - acknowledge
-      Serial.printf("[%lu] [CAL] SET_LIBRARY_INFO received\n", millis());
-      sendJsonResponse(OP_OK, "{}");
-      break;
     case OP_SEND_BOOKLISTS:
-      // Calibre sends book lists for sync - acknowledge
-      Serial.printf("[%lu] [CAL] SEND_BOOKLISTS received\n", millis());
       sendJsonResponse(OP_OK, "{}");
       break;
     case OP_TOTAL_SPACE:
-      // Same as FREE_SPACE
       handleFreeSpace();
       break;
     default:
-      Serial.printf("[%lu] [CAL] Unknown opcode: %d\n", millis(), opcode);
       sendJsonResponse(OP_OK, "{}");
       break;
   }
 }
 
 void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& data) {
-  // Log the full received data for debugging
-  Serial.printf("[%lu] [CAL] GET_INITIALIZATION_INFO data: %s\n", millis(), data.c_str());
-
   setState(CalibreWirelessState::WAITING);
   setStatus("Connected to " + calibreHostname + "\nWaiting for transfer...\n\nIf transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice plugin settings.");
 
@@ -504,7 +462,6 @@ void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& dat
   response += "\"versionOK\":true";
   response += "}";
 
-  Serial.printf("[%lu] [CAL] Sending init response: %s\n", millis(), response.c_str());
   sendJsonResponse(OP_OK, response);
 }
 
@@ -523,14 +480,8 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
 }
 
 void CalibreWirelessActivity::handleFreeSpace() {
-  Serial.printf("[%lu] [CAL] handleFreeSpace called\n", millis());
-
-  // Report 10GB free space - hardcoded to avoid any number formatting issues
-  // Using a string literal to ensure the JSON is exactly what we expect
-  std::string response = "{\"free_space_on_device\":10737418240}";  // 10GB
-
-  Serial.printf("[%lu] [CAL] FREE_SPACE response: %s\n", millis(), response.c_str());
-  sendJsonResponse(OP_OK, response);
+  // Report 10GB free space
+  sendJsonResponse(OP_OK, "{\"free_space_on_device\":10737418240}");
 }
 
 void CalibreWirelessActivity::handleGetBookCount() {
@@ -542,9 +493,6 @@ void CalibreWirelessActivity::handleGetBookCount() {
 void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   // Manually extract lpath and length from SEND_BOOK data
   // Full JSON parsing crashes on large metadata, so we just extract what we need
-
-  Serial.printf("[%lu] [CAL] handleSendBook: data size=%zu, free heap=%lu\n",
-                millis(), data.size(), (unsigned long)ESP.getFreeHeap());
 
   // Extract "lpath" field - format: "lpath": "value"
   std::string lpath;
@@ -588,7 +536,6 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
           }
           if (numEnd > numStart) {
             length = std::stoul(data.substr(numStart, numEnd - numStart));
-            Serial.printf("[%lu] [CAL] Found top-level length=%zu at pos %zu\n", millis(), length, i);
             break;
           }
         }
@@ -596,15 +543,10 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
     }
   }
 
-  Serial.printf("[%lu] [CAL] Parsed: lpath=%s, length=%zu\n", millis(), lpath.c_str(), length);
-
   if (lpath.empty() || length == 0) {
-    Serial.printf("[%lu] [CAL] Invalid SEND_BOOK data\n", millis());
     sendJsonResponse(OP_ERROR, "{\"message\":\"Invalid book data\"}");
     return;
   }
-
-  Serial.printf("[%lu] [CAL] SEND_BOOK: %s (%zu bytes)\n", millis(), lpath.c_str(), length);
 
   // Extract filename from lpath
   std::string filename = lpath;
@@ -626,7 +568,6 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
 
   // Open file for writing
   if (!SdMan.openFileForWrite("CAL", currentFilename.c_str(), currentFile)) {
-    Serial.printf("[%lu] [CAL] Failed to open file for writing: %s\n", millis(), currentFilename.c_str());
     setError("Failed to create file");
     sendJsonResponse(OP_ERROR, "{\"message\":\"Failed to create file\"}");
     return;
@@ -643,7 +584,6 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   if (!recvBuffer.empty()) {
     size_t toWrite = std::min(recvBuffer.size(), binaryBytesRemaining);
     size_t written = currentFile.write(reinterpret_cast<const uint8_t*>(recvBuffer.data()), toWrite);
-    Serial.printf("[%lu] [CAL] Wrote %zu bytes from buffer to file\n", millis(), written);
     bytesReceived += written;
     binaryBytesRemaining -= written;
     recvBuffer = recvBuffer.substr(toWrite);
@@ -668,7 +608,6 @@ void CalibreWirelessActivity::handleDisplayMessage(const std::string& data) {
 void CalibreWirelessActivity::handleNoop(const std::string& data) {
   // Check for ejecting flag
   if (data.find("\"ejecting\":true") != std::string::npos) {
-    Serial.printf("[%lu] [CAL] Calibre is ejecting\n", millis());
     setState(CalibreWirelessState::DISCONNECTED);
     setStatus("Calibre disconnected");
   }
@@ -680,8 +619,6 @@ void CalibreWirelessActivity::receiveBinaryData() {
   if (available == 0) {
     // Check if connection is still alive
     if (!tcpClient.connected()) {
-      Serial.printf("[%lu] [CAL] TCP disconnected during transfer! Received %zu/%zu bytes\n",
-                    millis(), bytesReceived, currentFileSize);
       currentFile.close();
       inBinaryMode = false;
       setError("Transfer interrupted");
@@ -689,37 +626,21 @@ void CalibreWirelessActivity::receiveBinaryData() {
     return;
   }
 
-  uint8_t buffer[1024];  // Smaller buffer to avoid stack overflow
+  uint8_t buffer[1024];
   const size_t toRead = std::min(sizeof(buffer), binaryBytesRemaining);
   const size_t bytesRead = tcpClient.read(buffer, toRead);
 
   if (bytesRead > 0) {
-    const size_t written = currentFile.write(buffer, bytesRead);
-    if (written != bytesRead) {
-      Serial.printf("[%lu] [CAL] Write error! Tried %zu, wrote %zu\n", millis(), bytesRead, written);
-    }
+    currentFile.write(buffer, bytesRead);
     bytesReceived += bytesRead;
     binaryBytesRemaining -= bytesRead;
     updateRequired = true;
-
-    // Log progress every ~10%
-    if (currentFileSize > 0) {
-      const int percent = static_cast<int>((bytesReceived * 100) / currentFileSize);
-      const int prevPercent = static_cast<int>(((bytesReceived - bytesRead) * 100) / currentFileSize);
-      if (percent / 10 != prevPercent / 10 || percent == 100) {
-        Serial.printf("[%lu] [CAL] Transfer progress: %zu/%zu bytes (%d%%), remaining=%zu\n",
-                      millis(), bytesReceived, currentFileSize, percent, binaryBytesRemaining);
-      }
-    }
 
     if (binaryBytesRemaining == 0) {
       // Transfer complete
       currentFile.flush();
       currentFile.close();
       inBinaryMode = false;
-
-      Serial.printf("[%lu] [CAL] Book transfer complete: %s (%zu bytes)\n", millis(), currentFilename.c_str(),
-                    bytesReceived);
 
       setState(CalibreWirelessState::WAITING);
       setStatus("Received: " + currentFilename + "\nWaiting for more...");
