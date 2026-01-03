@@ -142,18 +142,29 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   int x, y;
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
+  float cropX = 0, cropY = 0;
 
+  Serial.printf("[%lu] [SLP] bitmap %d x %d, screen %d x %d\n", millis(), bitmap.getWidth(), bitmap.getHeight(),
+                pageWidth, pageHeight);
   if (bitmap.getWidth() > pageWidth || bitmap.getHeight() > pageHeight) {
     // image will scale, make sure placement is right
-    const float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
+    float ratio = static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
     const float screenRatio = static_cast<float>(pageWidth) / static_cast<float>(pageHeight);
 
+    Serial.printf("[%lu] [SLP] bitmap ratio: %f, screen ratio: %f\n", millis(), ratio, screenRatio);
     if (ratio > screenRatio) {
       // image wider than viewport ratio, scaled down image needs to be centered vertically
+      cropX = 1.0f - (screenRatio / ratio);
+      Serial.printf("[%lu] [SLP] Cropping bitmap x: %f\n", millis(), cropX);
+      ratio = (1 - cropX) * static_cast<float>(bitmap.getWidth()) / static_cast<float>(bitmap.getHeight());
       x = 0;
       y = (pageHeight - pageWidth / ratio) / 2;
     } else {
       // image taller than viewport ratio, scaled down image needs to be centered horizontally
+      // try to crop
+      cropY = 1.0f - (ratio / screenRatio);
+      Serial.printf("[%lu] [SLP] Cropping bitmap y: %f\n", millis(), cropY);
+      ratio = static_cast<float>(bitmap.getWidth()) / ((1 - cropY) * static_cast<float>(bitmap.getHeight()));
       x = (pageWidth - pageHeight * ratio) / 2;
       y = 0;
     }
@@ -164,20 +175,20 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap) const {
   }
 
   renderer.clearScreen();
-  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight);
+  renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
   renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
 
   if (bitmap.hasGreyscale()) {
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight);
+    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight);
+    renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
