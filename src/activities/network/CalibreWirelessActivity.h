@@ -69,6 +69,7 @@ class CalibreWirelessActivity final : public Activity {
   bool inBinaryMode = false;
   size_t binaryBytesRemaining = 0;
   FsFile currentFile;
+  std::string recvBuffer;  // Buffer for incoming data (like KOReader)
 
   // Calibre protocol opcodes (from calibre/devices/smart_device_app/driver.py)
   static constexpr int OP_OK = 0;

@@ -40,6 +40,7 @@ void CalibreWirelessActivity::onEnter() {
   currentFileSize = 0;
   bytesReceived = 0;
   inBinaryMode = false;
+  recvBuffer.clear();
 
   updateRequired = true;
 
@@ -276,13 +277,11 @@ void CalibreWirelessActivity::handleTcpClient() {
     return;
   }
 
-  // Check if we're receiving binary data
   if (inBinaryMode) {
     receiveBinaryData();
     return;
   }
 
-  // Read JSON message
   std::string message;
   if (readJsonMessage(message)) {
     // Parse opcode from JSON array format: [opcode, {...}]
@@ -302,7 +301,7 @@ void CalibreWirelessActivity::handleTcpClient() {
           data = message.substr(dataStart, dataEnd - dataStart);
         }
 
-        Serial.printf("[%lu] [CAL] Received opcode %d\n", millis(), opcode);
+        Serial.printf("[%lu] [CAL] Opcode %d, data=%zu bytes\n", millis(), opcode, data.size());
         handleCommand(opcode, data);
       }
     }
@@ -310,70 +309,103 @@ void CalibreWirelessActivity::handleTcpClient() {
 }
 
 bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
-  if (!tcpClient.available()) {
-    return false;
-  }
-
-  // Protocol: 4-byte length prefix (as string) followed by JSON
-  // Actually, Calibre uses variable-length ASCII number followed by JSON array
-  // Read until we get a '[' character
-
-  // Read length prefix (digits until we hit '[')
-  std::string lengthStr;
-  while (tcpClient.available()) {
-    const char c = tcpClient.read();
-    if (c == '[') {
-      // Start of JSON
-      message = "[";
-      break;
-    } else if (c >= '0' && c <= '9') {
-      lengthStr += c;
-    } else {
-      // Unexpected character, skip
+  // Read available data into buffer
+  int available = tcpClient.available();
+  if (available > 0) {
+    // Limit buffer growth to prevent memory issues
+    if (recvBuffer.size() > 100000) {
+      Serial.printf("[%lu] [CAL] Buffer too large (%zu), clearing\n", millis(), recvBuffer.size());
+      recvBuffer.clear();
+      return false;
     }
-  }
-
-  if (message.empty()) {
-    return false;
-  }
-
-  // Parse expected length
-  const size_t expectedLen = lengthStr.empty() ? 0 : std::stoul(lengthStr);
-
-  // Read rest of the JSON message
-  // We already read '[', so we need expectedLen - 1 more chars (if length was specified)
-  // But Calibre's length includes the '[', so read expectedLen - 1 more
-  size_t bytesToRead = expectedLen > 0 ? expectedLen - 1 : 4096;
-  size_t bytesRead = 0;
-
-  const unsigned long timeout = millis() + 5000;
-  while (bytesRead < bytesToRead && millis() < timeout) {
-    if (tcpClient.available()) {
-      const char c = tcpClient.read();
-      message += c;
-      bytesRead++;
-
-      // If no length specified, check for end of JSON
-      if (expectedLen == 0 && c == ']') {
-        // Check if this is the matching closing bracket
-        int depth = 0;
-        for (char ch : message) {
-          if (ch == '[' || ch == '{')
-            depth++;
-          else if (ch == ']' || ch == '}')
-            depth--;
-        }
-        if (depth == 0) {
-          break;
-        }
+    // Read in chunks
+    char buf[1024];
+    while (available > 0) {
+      int toRead = std::min(available, static_cast<int>(sizeof(buf)));
+      int bytesRead = tcpClient.read(reinterpret_cast<uint8_t*>(buf), toRead);
+      if (bytesRead > 0) {
+        recvBuffer.append(buf, bytesRead);
+        available -= bytesRead;
+      } else {
+        break;
       }
-    } else {
-      vTaskDelay(1);
     }
   }
 
-  Serial.printf("[%lu] [CAL] Read JSON (%zu bytes): %.100s...\n", millis(), message.length(), message.c_str());
-  return !message.empty();
+  if (recvBuffer.empty()) {
+    return false;
+  }
+
+  // Find '[' which marks the start of JSON
+  size_t bracketPos = recvBuffer.find('[');
+  if (bracketPos == std::string::npos) {
+    // No '[' found - if buffer is getting large, something is wrong
+    if (recvBuffer.size() > 1000) {
+      Serial.printf("[%lu] [CAL] No '[' in buffer (%zu bytes), clearing\n", millis(), recvBuffer.size());
+      recvBuffer.clear();
+    }
+    return false;
+  }
+
+  // Try to extract length from digits before '['
+  // Calibre ALWAYS sends a length prefix, so if it's not valid digits, it's garbage
+  size_t msgLen = 0;
+  bool validPrefix = false;
+
+  if (bracketPos > 0 && bracketPos <= 12) {
+    // Check if prefix is all digits
+    bool allDigits = true;
+    for (size_t i = 0; i < bracketPos; i++) {
+      char c = recvBuffer[i];
+      if (c < '0' || c > '9') {
+        allDigits = false;
+        break;
+      }
+    }
+    if (allDigits) {
+      msgLen = std::stoul(recvBuffer.substr(0, bracketPos));
+      validPrefix = true;
+    }
+  }
+
+  if (!validPrefix) {
+    // Not a valid length prefix - discard everything up to '[' and treat '[' as start
+    if (bracketPos > 0) {
+      Serial.printf("[%lu] [CAL] Invalid prefix, discarding %zu bytes before '['\n", millis(), bracketPos);
+      recvBuffer = recvBuffer.substr(bracketPos);
+      bracketPos = 0;
+    }
+    // Without length prefix, we can't reliably parse - wait for more data
+    // that hopefully starts with a proper length prefix
+    return false;
+  }
+
+  // Sanity check the message length
+  if (msgLen > 1000000) {
+    Serial.printf("[%lu] [CAL] Message length too large: %zu, discarding\n", millis(), msgLen);
+    recvBuffer = recvBuffer.substr(bracketPos + 1);  // Skip past this '[' and try again
+    return false;
+  }
+
+  // Check if we have the complete message
+  size_t totalNeeded = bracketPos + msgLen;
+  if (recvBuffer.size() < totalNeeded) {
+    // Not enough data yet - wait for more
+    return false;
+  }
+
+  // Extract the message
+  message = recvBuffer.substr(bracketPos, msgLen);
+
+  // Keep the rest in buffer (may contain binary data or next message)
+  if (recvBuffer.size() > totalNeeded) {
+    recvBuffer = recvBuffer.substr(totalNeeded);
+  } else {
+    recvBuffer.clear();
+  }
+
+  Serial.printf("[%lu] [CAL] Got message (%zu bytes): %.80s...\n", millis(), message.length(), message.c_str());
+  return true;
 }
 
 void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& data) {
@@ -390,8 +422,6 @@ void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& da
 }
 
 void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data) {
-  Serial.printf("[%lu] [CAL] handleCommand: opcode=%d, data_len=%zu\n", millis(), opcode, data.length());
-
   switch (opcode) {
     case OP_GET_INITIALIZATION_INFO:
       handleGetInitializationInfo(data);
@@ -510,40 +540,63 @@ void CalibreWirelessActivity::handleGetBookCount() {
 }
 
 void CalibreWirelessActivity::handleSendBook(const std::string& data) {
-  // Parse the SEND_BOOK data to get lpath and length
-  // Format: {"lpath": "path/to/book.epub", "length": 12345, ...}
+  // Manually extract lpath and length from SEND_BOOK data
+  // Full JSON parsing crashes on large metadata, so we just extract what we need
 
-  // Simple JSON parsing for lpath and length
+  Serial.printf("[%lu] [CAL] handleSendBook: data size=%zu, free heap=%lu\n",
+                millis(), data.size(), (unsigned long)ESP.getFreeHeap());
+
+  // Extract "lpath" field - format: "lpath": "value"
   std::string lpath;
-  size_t length = 0;
-
-  // Find lpath
   size_t lpathPos = data.find("\"lpath\"");
   if (lpathPos != std::string::npos) {
-    size_t colonPos = data.find(':', lpathPos);
-    size_t quoteStart = data.find('"', colonPos);
-    size_t quoteEnd = data.find('"', quoteStart + 1);
-    if (quoteStart != std::string::npos && quoteEnd != std::string::npos) {
-      lpath = data.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+    size_t colonPos = data.find(':', lpathPos + 7);
+    if (colonPos != std::string::npos) {
+      size_t quoteStart = data.find('"', colonPos + 1);
+      if (quoteStart != std::string::npos) {
+        size_t quoteEnd = data.find('"', quoteStart + 1);
+        if (quoteEnd != std::string::npos) {
+          lpath = data.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+        }
+      }
     }
   }
 
-  // Find length
-  size_t lengthPos = data.find("\"length\"");
-  if (lengthPos != std::string::npos) {
-    size_t colonPos = data.find(':', lengthPos);
-    size_t numStart = colonPos + 1;
-    while (numStart < data.length() && (data[numStart] == ' ' || data[numStart] == '\t')) {
-      numStart++;
-    }
-    size_t numEnd = numStart;
-    while (numEnd < data.length() && data[numEnd] >= '0' && data[numEnd] <= '9') {
-      numEnd++;
-    }
-    if (numEnd > numStart) {
-      length = std::stoul(data.substr(numStart, numEnd - numStart));
+  // Extract top-level "length" field - must track depth to skip nested objects
+  // The metadata contains nested "length" fields (e.g., cover image length)
+  size_t length = 0;
+  int depth = 0;
+  for (size_t i = 0; i < data.size(); i++) {
+    char c = data[i];
+    if (c == '{' || c == '[') {
+      depth++;
+    } else if (c == '}' || c == ']') {
+      depth--;
+    } else if (depth == 1 && c == '"') {
+      // At top level, check if this is "length"
+      if (i + 9 < data.size() && data.substr(i, 8) == "\"length\"") {
+        // Found top-level "length" - extract the number after ':'
+        size_t colonPos = data.find(':', i + 8);
+        if (colonPos != std::string::npos) {
+          size_t numStart = colonPos + 1;
+          while (numStart < data.size() && (data[numStart] == ' ' || data[numStart] == '\t')) {
+            numStart++;
+          }
+          size_t numEnd = numStart;
+          while (numEnd < data.size() && data[numEnd] >= '0' && data[numEnd] <= '9') {
+            numEnd++;
+          }
+          if (numEnd > numStart) {
+            length = std::stoul(data.substr(numStart, numEnd - numStart));
+            Serial.printf("[%lu] [CAL] Found top-level length=%zu at pos %zu\n", millis(), length, i);
+            break;
+          }
+        }
+      }
     }
   }
+
+  Serial.printf("[%lu] [CAL] Parsed: lpath=%s, length=%zu\n", millis(), lpath.c_str(), length);
 
   if (lpath.empty() || length == 0) {
     Serial.printf("[%lu] [CAL] Invalid SEND_BOOK data\n", millis());
@@ -585,6 +638,17 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   // Switch to binary mode
   inBinaryMode = true;
   binaryBytesRemaining = length;
+
+  // Check if recvBuffer has leftover data (binary file data that arrived with the JSON)
+  if (!recvBuffer.empty()) {
+    size_t toWrite = std::min(recvBuffer.size(), binaryBytesRemaining);
+    size_t written = currentFile.write(reinterpret_cast<const uint8_t*>(recvBuffer.data()), toWrite);
+    Serial.printf("[%lu] [CAL] Wrote %zu bytes from buffer to file\n", millis(), written);
+    bytesReceived += written;
+    binaryBytesRemaining -= written;
+    recvBuffer = recvBuffer.substr(toWrite);
+    updateRequired = true;
+  }
 }
 
 void CalibreWirelessActivity::handleSendBookMetadata(const std::string& data) {
