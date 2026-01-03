@@ -1,7 +1,7 @@
 #include "HttpDownloader.h"
 
-#include <HardwareSerial.h>
 #include <HTTPClient.h>
+#include <HardwareSerial.h>
 #include <WiFiClientSecure.h>
 
 #include <memory>
@@ -32,7 +32,7 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
 }
 
 HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& url, const std::string& destPath,
-                                                              ProgressCallback progress) {
+                                                             ProgressCallback progress) {
   const std::unique_ptr<WiFiClientSecure> client(new WiFiClientSecure());
   client->setInsecure();
   HTTPClient http;

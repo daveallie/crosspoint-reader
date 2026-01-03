@@ -246,7 +246,8 @@ void OpdsBookBrowserActivity::render() const {
     }
 
     auto item = renderer.truncatedText(UI_10_FONT_ID, displayText.c_str(), renderer.getScreenWidth() - 40);
-    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != static_cast<size_t>(selectorIndex));
+    renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(),
+                      i != static_cast<size_t>(selectorIndex));
   }
 
   renderer.displayBuffer();
@@ -342,8 +343,8 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
 
   Serial.printf("[%lu] [OPDS] Downloading: %s -> %s\n", millis(), downloadUrl.c_str(), filename.c_str());
 
-  const auto result = HttpDownloader::downloadToFile(
-      downloadUrl, filename, [this](const size_t downloaded, const size_t total) {
+  const auto result =
+      HttpDownloader::downloadToFile(downloadUrl, filename, [this](const size_t downloaded, const size_t total) {
         downloadProgress = downloaded;
         downloadTotal = total;
         updateRequired = true;

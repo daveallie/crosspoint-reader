@@ -18,8 +18,8 @@ enum class OpdsEntryType {
 struct OpdsEntry {
   OpdsEntryType type = OpdsEntryType::NAVIGATION;
   std::string title;
-  std::string author;      // Only for books
-  std::string href;        // Navigation URL or epub download URL
+  std::string author;  // Only for books
+  std::string href;    // Navigation URL or epub download URL
   std::string id;
 };
 

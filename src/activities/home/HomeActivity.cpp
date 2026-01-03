@@ -3,6 +3,7 @@
 #include <Epub.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+
 #include <cstring>
 #include <vector>
 
@@ -299,8 +300,8 @@ void HomeActivity::render() const {
   const int menuTileWidth = pageWidth - 2 * margin;
   constexpr int menuTileHeight = 45;
   constexpr int menuSpacing = 8;
-  const int totalMenuHeight = static_cast<int>(menuItems.size()) * menuTileHeight +
-                              (static_cast<int>(menuItems.size()) - 1) * menuSpacing;
+  const int totalMenuHeight =
+      static_cast<int>(menuItems.size()) * menuTileHeight + (static_cast<int>(menuItems.size()) - 1) * menuSpacing;
 
   int menuStartY = bookY + bookHeight + 15;
   // Ensure we don't collide with the bottom button legend

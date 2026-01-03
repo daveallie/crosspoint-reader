@@ -7,6 +7,7 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <builtinFonts/all.h>
+
 #include <cstring>
 
 #include "Battery.h"

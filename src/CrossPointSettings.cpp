@@ -3,6 +3,7 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <Serialization.h>
+
 #include <cstring>
 
 #include "fontIds.h"
