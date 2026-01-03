@@ -11,7 +11,7 @@
 namespace {
 constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
-constexpr char OPDS_FEED_PATH[] = "/opds/navcatalog/4f6e6577657374?library_id=Calibre_Library";
+constexpr char OPDS_FEED_PATH[] = "/opds";
 
 // Prepend http:// if no protocol specified (server will redirect to https if needed)
 std::string ensureProtocol(const std::string& url) {
