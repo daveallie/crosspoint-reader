@@ -34,6 +34,6 @@ class Section {
   bool createSectionFile(int fontId, float lineCompression, bool extraParagraphSpacing, uint8_t paragraphAlignment,
                          uint16_t viewportWidth, uint16_t viewportHeight,
                          const std::function<void()>& progressSetupFn = nullptr,
-                         const std::function<void(int)>& progressFn = nullptr, bool hyphenationEnabled);
+                         const std::function<void(int)>& progressFn = nullptr, bool hyphenationEnabled = false);
   std::unique_ptr<Page> loadPageFromSectionFile();
 };

@@ -86,7 +86,8 @@ bool Section::loadSectionFile(const int fontId, const float lineCompression, con
 
     if (fontId != fileFontId || lineCompression != fileLineCompression ||
         extraParagraphSpacing != fileExtraParagraphSpacing || paragraphAlignment != fileParagraphAlignment ||
-        viewportWidth != fileViewportWidth || viewportHeight != fileViewportHeight || hyphenationEnabled != fileHyphenationEnabled) {
+        viewportWidth != fileViewportWidth || viewportHeight != fileViewportHeight ||
+        hyphenationEnabled != fileHyphenationEnabled) {
       file.close();
       Serial.printf("[%lu] [SCT] Deserialization failed: Parameters do not match\n", millis());
       clearCache();
@@ -179,8 +180,8 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
   std::vector<uint32_t> lut = {};
 
   ChapterHtmlSlimParser visitor(
-      tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, hyphenationEnabled, paragraphAlignment, viewportWidth,
-      viewportHeight,
+      tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, hyphenationEnabled, paragraphAlignment,
+      viewportWidth, viewportHeight,
       [this, &lut](std::unique_ptr<Page> page) { lut.emplace_back(this->onPageComplete(std::move(page))); },
       progressFn);
   success = visitor.parseAndBuildPages();

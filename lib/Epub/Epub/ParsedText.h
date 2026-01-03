@@ -27,8 +27,7 @@ class ParsedText {
   std::vector<uint16_t> calculateWordWidths(const GfxRenderer& renderer, int fontId, int pageWidth);
 
  public:
-  explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing,
-                      const bool hyphenationEnabled)
+  explicit ParsedText(const TextBlock::Style style, const bool extraParagraphSpacing, const bool hyphenationEnabled)
       : style(style), extraParagraphSpacing(extraParagraphSpacing), hyphenationEnabled(hyphenationEnabled) {}
   ~ParsedText() = default;
 
