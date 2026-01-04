@@ -127,8 +127,6 @@ EpdFont ui12RegularFont(&ubuntu_12_regular);
 EpdFont ui12BoldFont(&ubuntu_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
-// Auto-sleep timeout (10 minutes of inactivity)
-constexpr unsigned long AUTO_SLEEP_TIMEOUT_MS = 10 * 60 * 1000;
 // measurement of power button press duration calibration value
 unsigned long t1 = 0;
 unsigned long t2 = 0;
@@ -330,8 +328,10 @@ void loop() {
     lastActivityTime = millis();  // Reset inactivity timer
   }
 
-  if (millis() - lastActivityTime >= AUTO_SLEEP_TIMEOUT_MS) {
-    Serial.printf("[%lu] [SLP] Auto-sleep triggered after %lu ms of inactivity\n", millis(), AUTO_SLEEP_TIMEOUT_MS);
+  // Check auto-sleep timeout (if enabled - 0 means never sleep)
+  const unsigned long autoSleepTimeout = SETTINGS.getAutoSleepTimeoutMs();
+  if (autoSleepTimeout > 0 && millis() - lastActivityTime >= autoSleepTimeout) {
+    Serial.printf("[%lu] [SLP] Auto-sleep triggered after %lu ms of inactivity\n", millis(), autoSleepTimeout);
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;
