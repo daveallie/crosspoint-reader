@@ -344,6 +344,38 @@
     .folder-btn:hover {
       background-color: #d68910;
     }
+    .rename-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+    .rename-btn-submit {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+      width: 100%;
+    }
+    .rename-btn-submit:hover {
+      background-color: #2980b9;
+    }
+    .folder-select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
     /* Delete button styles */
     .delete-btn {
       background: none;
@@ -359,9 +391,24 @@
       background-color: #fee;
       color: #e74c3c;
     }
+    .rename-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1em;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #95a5a6;
+      transition: all 0.15s;
+    }
+    .rename-btn:hover {
+      background-color: #e3f2fd;
+      color: #3498db;
+    }
     .actions-col {
-      width: 60px;
+      width: 80px;
       text-align: center;
+      white-space: nowrap;
     }
     /* Failed uploads banner */
     .failed-uploads-banner {
@@ -538,6 +585,22 @@
       background-color: #95a5a6;
       cursor: not-allowed;
     }
+    .move-selected-btn {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .move-selected-btn:hover {
+      background-color: #2980b9;
+    }
+    .move-selected-btn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
     .loader-container {
       display: flex;
       justify-content: center;
@@ -669,6 +732,7 @@
   <div class="action-buttons">
     <button class="action-btn upload-action-btn" onclick="openUploadModal()">📤 Upload</button>
     <button class="action-btn folder-action-btn" onclick="openFolderModal()">📁 New Folder</button>
+    <button class="move-selected-btn" id="moveSelectedBtn" onclick="openMoveModal()" disabled>📦 Move Selected</button>
     <button class="delete-selected-btn" id="deleteSelectedBtn" onclick="deleteSelectedFiles()" disabled>🗑️ Delete Selected</button>
   </div>
 </div>
@@ -744,6 +808,41 @@
       <div class="delete-items-list" id="deleteItemsList" style="display: none;"></div>
       <button class="delete-btn-confirm" onclick="confirmDelete()">Delete</button>
       <button class="delete-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Modal -->
+<div class="modal-overlay" id="renameModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRenameModal()">&times;</button>
+    <h3>✏️ Rename Item</h3>
+    <div class="folder-form">
+      <p class="file-info">Enter new name:</p>
+      <div style="display: flex; align-items: center; gap: 5px;">
+        <input type="text" id="renameInput" class="rename-input" placeholder="filename" style="flex: 1; margin-bottom: 0;">
+        <span id="renameExtension" style="font-family: monospace; color: #7f8c8d; font-size: 1em; padding: 10px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;"></span>
+      </div>
+      <input type="hidden" id="renameOriginalPath">
+      <input type="hidden" id="renameOriginalExtension">
+      <button class="rename-btn-submit" onclick="confirmRename()" style="margin-top: 10px;">Rename</button>
+      <button class="delete-btn-cancel" onclick="closeRenameModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move Selected Modal -->
+<div class="modal-overlay" id="moveModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeMoveModal()">&times;</button>
+    <h3>📦 Move Selected Items</h3>
+    <div class="folder-form">
+      <p class="file-info">Select destination folder for <strong id="moveItemCount">0</strong> items:</p>
+      <select id="folderSelect" class="folder-select">
+        <option value="/">/  (Root)</option>
+      </select>
+      <button class="rename-btn-submit" onclick="confirmMove()">Move Here</button>
+      <button class="delete-btn-cancel" onclick="closeMoveModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -843,7 +942,7 @@
           fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span></td>`;
           fileTableContent += '<td>Folder</td>';
           fileTableContent += '<td>-</td>';
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></td>`;
+          fileTableContent += `<td class="actions-col"><button class="rename-btn" onclick="openRenameModal('${folderPath.replaceAll("'", "\\'")}')" title="Rename">✏️</button><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></td>`;
           fileTableContent += '</tr>';
         } else {
           let filePath = currentPath;
@@ -857,7 +956,7 @@
           fileTableContent += '</td>';
           fileTableContent += `<td>${file.name.split('.').pop().toUpperCase()}</td>`;
           fileTableContent += `<td>${formatFileSize(file.size)}</td>`;
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button></td>`;
+          fileTableContent += `<td class="actions-col"><button class="rename-btn" onclick="openRenameModal('${filePath.replaceAll("'", "\\'")}')" title="Rename">✏️</button><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button></td>`;
           fileTableContent += '</tr>';
         }
       });
@@ -913,8 +1012,14 @@ function toggleSelectAll(checkbox) {
 function updateDeleteButton() {
   const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
   const deleteBtn = document.getElementById('deleteSelectedBtn');
+  const moveBtn = document.getElementById('moveSelectedBtn');
+  const hasSelection = checkedBoxes.length > 0;
+  
   if (deleteBtn) {
-    deleteBtn.disabled = checkedBoxes.length === 0;
+    deleteBtn.disabled = !hasSelection;
+  }
+  if (moveBtn) {
+    moveBtn.disabled = !hasSelection;
   }
   
   // Update select-all checkbox state
@@ -1120,6 +1225,258 @@ function deleteSelectedFiles() {
 
   // Open the delete modal with all selected items
   openDeleteModalMultiple(items);
+}
+
+// Rename/Move functions
+function openRenameModal(currentPath) {
+  document.getElementById('renameOriginalPath').value = currentPath;
+  
+  // Extract just the filename from the path
+  const lastSlash = currentPath.lastIndexOf('/');
+  const filename = currentPath.substring(lastSlash + 1);
+  
+  // Split filename and extension
+  const lastDot = filename.lastIndexOf('.');
+  const hasExtension = lastDot > 0;
+  const nameWithoutExt = hasExtension ? filename.substring(0, lastDot) : filename;
+  const extension = hasExtension ? filename.substring(lastDot) : '';
+  
+  document.getElementById('renameInput').value = nameWithoutExt;
+  document.getElementById('renameOriginalExtension').value = extension;
+  document.getElementById('renameExtension').textContent = extension || '(no extension)';
+  document.getElementById('renameModal').classList.add('open');
+  
+  // Focus and select all text in the input
+  setTimeout(() => {
+    const input = document.getElementById('renameInput');
+    input.focus();
+    input.select();
+  }, 100);
+}
+
+function closeRenameModal() {
+  document.getElementById('renameModal').classList.remove('open');
+}
+
+function confirmRename() {
+  const originalPath = document.getElementById('renameOriginalPath').value;
+  const newNamePart = document.getElementById('renameInput').value.trim();
+  const extension = document.getElementById('renameOriginalExtension').value;
+
+  if (!newNamePart) {
+    alert('Name cannot be empty!');
+    return;
+  }
+
+  // Validate filename (no slashes or dots allowed in name part)
+  if (newNamePart.includes('/') || newNamePart.includes('\\')) {
+    alert('Name cannot contain slashes. Use "Move Selected" to move files to a different folder.');
+    return;
+  }
+  
+  if (newNamePart.includes('.')) {
+    alert('Name cannot contain dots. The file extension is preserved automatically.');
+    return;
+  }
+  
+  // Reconstruct full filename with original extension
+  const newName = newNamePart + extension;
+
+  // Extract directory from original path and construct new path
+  const lastSlash = originalPath.lastIndexOf('/');
+  const directory = originalPath.substring(0, lastSlash + 1);
+  const newPath = directory + newName;
+
+  if (originalPath === newPath) {
+    closeRenameModal();
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('sourcePath', originalPath);
+  formData.append('destPath', newPath);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/move', true);
+
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      closeRenameModal();
+      hydrate();
+    } else {
+      alert('Failed to rename: ' + xhr.responseText);
+    }
+  };
+
+  xhr.onerror = function() {
+    alert('Failed to rename - network error');
+  };
+
+  xhr.send(formData);
+}
+
+// Move selected functions
+function openMoveModal() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  
+  if (checkedBoxes.length === 0) {
+    alert('Please select at least one item to move!');
+    return;
+  }
+
+  document.getElementById('moveItemCount').textContent = checkedBoxes.length;
+  
+  // Build folder list
+  buildFolderList();
+  
+  document.getElementById('moveModal').classList.add('open');
+}
+
+function closeMoveModal() {
+  document.getElementById('moveModal').classList.remove('open');
+}
+
+async function buildFolderList() {
+  const select = document.getElementById('folderSelect');
+  select.innerHTML = '<option value="/">/  (Root)</option>';
+  
+  try {
+    const response = await fetch('/api/folders');
+    if (!response.ok) {
+      throw new Error('Failed to load folders');
+    }
+    
+    const folders = await response.json();
+    
+    // Skip first item (root) since we already added it
+    folders.slice(1).forEach(folder => {
+      const option = document.createElement('option');
+      option.value = folder;
+      option.textContent = folder;
+      select.appendChild(option);
+    });
+    
+    // Set current path as selected
+    if (select.querySelector(`option[value="${currentPath}"]`)) {
+      select.value = currentPath;
+    }
+  } catch (e) {
+    console.error('Failed to load folders:', e);
+  }
+}
+
+function confirmMove() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  const destFolder = document.getElementById('folderSelect').value;
+  
+  if (checkedBoxes.length === 0) {
+    alert('No items selected!');
+    return;
+  }
+
+  const items = Array.from(checkedBoxes).map(checkbox => ({
+    path: checkbox.dataset.path,
+    name: checkbox.dataset.name
+  }));
+
+  closeMoveModal();
+  performMultipleMoves(items, destFolder);
+}
+
+function performMultipleMoves(items, destFolder) {
+  // Create progress overlay
+  const progressOverlay = document.createElement('div');
+  progressOverlay.className = 'modal-overlay open';
+  progressOverlay.innerHTML = `
+    <div class="modal">
+      <h3>📦 Moving items...</h3>
+      <div id="delete-progress-container">
+        <div id="delete-progress-bar"><div id="delete-progress-fill"></div></div>
+        <div id="delete-progress-text"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(progressOverlay);
+
+  const progressFill = document.getElementById('delete-progress-fill');
+  const progressText = document.getElementById('delete-progress-text');
+  progressFill.style.backgroundColor = '#3498db';
+
+  let currentIndex = 0;
+  const failedMoves = [];
+
+  function moveSingleItem(item, index) {
+    return new Promise((resolve, reject) => {
+      let destPath = destFolder;
+      if (!destPath.endsWith('/')) destPath += '/';
+      destPath += item.name;
+
+      const formData = new FormData();
+      formData.append('sourcePath', item.path);
+      formData.append('destPath', destPath);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/move', true);
+
+      progressText.textContent = `Moving ${item.name} (${index + 1}/${items.length})`;
+
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          const percent = Math.round(((index + 1) / items.length) * 100);
+          progressFill.style.width = percent + '%';
+          resolve();
+        } else {
+          reject(new Error(xhr.responseText || 'Move failed'));
+        }
+      };
+
+      xhr.onerror = function () {
+        reject(new Error('Network error'));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
+  function moveNextItem() {
+    if (currentIndex >= items.length) {
+      // All items processed
+      if (failedMoves.length === 0) {
+        progressFill.style.backgroundColor = '#4caf50';
+        progressText.textContent = 'All items moved successfully!';
+        setTimeout(() => {
+          document.body.removeChild(progressOverlay);
+          hydrate();
+        }, 1000);
+      } else {
+        progressFill.style.backgroundColor = '#e74c3c';
+        const failedList = failedMoves.map(f => f.name).join(', ');
+        progressText.textContent = `${items.length - failedMoves.length}/${items.length} moved. Failed: ${failedList}`;
+        
+        setTimeout(() => {
+          document.body.removeChild(progressOverlay);
+          alert(`Failed to move: ${failedList}\n\nPlease try again or check server logs.`);
+          hydrate();
+        }, 3000);
+      }
+      return;
+    }
+
+    const item = items[currentIndex];
+    
+    moveSingleItem(item, currentIndex)
+      .then(() => {
+        currentIndex++;
+        moveNextItem();
+      })
+      .catch((error) => {
+        failedMoves.push({ name: item.name, error: error.message });
+        currentIndex++;
+        moveNextItem();
+      });
+  }
+
+  moveNextItem();
 }
 
   function createFolder() {
