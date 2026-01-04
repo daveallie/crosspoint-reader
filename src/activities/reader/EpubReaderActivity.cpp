@@ -385,30 +385,34 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
     pagesUntilFullRefresh--;
   }
 
-  // Save bw buffer to reset buffer state after grayscale data sync
-  renderer.storeBwBuffer();
+  // Skip grayscale font rendering for image pages
+  // Images already have proper dithering from JPEG-to-BMP conversion
+  if (!page->hasImages()) {
+    // Save bw buffer to reset buffer state after grayscale data sync
+    renderer.storeBwBuffer();
 
-  // grayscale rendering
-  // TODO: Only do this if font supports it
-  if (SETTINGS.textAntiAliasing) {
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-    renderer.copyGrayscaleLsbBuffers();
+    // grayscale rendering
+    // TODO: Only do this if font supports it
+    if (SETTINGS.textAntiAliasing) {
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
+      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+      renderer.copyGrayscaleLsbBuffers();
 
-    // Render and copy to MSB buffer
-    renderer.clearScreen(0x00);
-    renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
-    page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
-    renderer.copyGrayscaleMsbBuffers();
+      // Render and copy to MSB buffer
+      renderer.clearScreen(0x00);
+      renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
+      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);
+      renderer.copyGrayscaleMsbBuffers();
 
-    // display grayscale part
-    renderer.displayGrayBuffer();
-    renderer.setRenderMode(GfxRenderer::BW);
+      // display grayscale part
+      renderer.displayGrayBuffer();
+      renderer.setRenderMode(GfxRenderer::BW);
+    }
+
+    // restore the bw data
+    renderer.restoreBwBuffer();
   }
-
-  // restore the bw data
-  renderer.restoreBwBuffer();
 }
 
 void EpubReaderActivity::renderStatusBar(const int orientedMarginRight, const int orientedMarginBottom,

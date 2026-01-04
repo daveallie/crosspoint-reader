@@ -45,6 +45,7 @@ class Epub {
   const std::string& getTitle() const;
   const std::string& getAuthor() const;
   std::string getCoverBmpPath(bool cropped = false) const;
+  std::string getImageCachePath(int spineIndex, int imageIndex) const;
   bool generateCoverBmp(bool cropped = false) const;
   std::string getThumbBmpPath() const;
   bool generateThumbBmp() const;

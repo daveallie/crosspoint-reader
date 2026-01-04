@@ -324,6 +324,10 @@ void Epub::setupCacheDir() const {
   }
 
   SdMan.mkdir(cachePath.c_str());
+
+  // Create images subdirectory
+  const auto imagesDir = cachePath + "/images";
+  SdMan.mkdir(imagesDir.c_str());
 }
 
 const std::string& Epub::getCachePath() const { return cachePath; }
@@ -351,6 +355,11 @@ const std::string& Epub::getAuthor() const {
 std::string Epub::getCoverBmpPath(bool cropped) const {
   const auto coverFileName = "cover" + cropped ? "_crop" : "";
   return cachePath + "/" + coverFileName + ".bmp";
+}
+
+std::string Epub::getImageCachePath(const int spineIndex, const int imageIndex) const {
+  const auto imagesDir = cachePath + "/images";
+  return imagesDir + "/" + std::to_string(spineIndex) + "_" + std::to_string(imageIndex) + ".bmp";
 }
 
 bool Epub::generateCoverBmp(bool cropped) const {

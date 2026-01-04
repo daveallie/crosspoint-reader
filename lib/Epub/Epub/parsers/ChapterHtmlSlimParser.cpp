@@ -1,10 +1,15 @@
 #include "ChapterHtmlSlimParser.h"
 
+#include <Bitmap.h>
+#include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <JpegToBmpConverter.h>
+#include <PngToBmpConverter.h>
 #include <SDCardManager.h>
 #include <expat.h>
 
+#include "../../Epub.h"
 #include "../Page.h"
 
 const char* HEADER_TAGS[] = {"h1", "h2", "h3", "h4", "h5", "h6"};
@@ -54,6 +59,145 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
   currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing));
 }
 
+void ChapterHtmlSlimParser::processImageTag(const XML_Char** atts) {
+  // Images only supported if epub context provided
+  if (!epub) {
+    return;
+  }
+
+  // Extract src attribute
+  std::string src;
+  for (int i = 0; atts[i]; i += 2) {
+    if (strcmp(atts[i], "src") == 0) {
+      src = atts[i + 1];
+      break;
+    }
+  }
+
+  if (src.empty()) {
+    Serial.printf("[%lu] [EHP] Image tag without src attribute\n", millis());
+    return;
+  }
+
+  // Detect image type
+  const bool isJpeg = (src.length() >= 4 && src.substr(src.length() - 4) == ".jpg") ||
+                      (src.length() >= 5 && src.substr(src.length() - 5) == ".jpeg");
+  const bool isPng = (src.length() >= 4 && src.substr(src.length() - 4) == ".png");
+
+  if (!isJpeg && !isPng) {
+    Serial.printf("[%lu] [EHP] Skipping unsupported image format: %s\n", millis(), src.c_str());
+    return;
+  }
+
+  Serial.printf("[%lu] [EHP] Processing inline %s image: %s\n", millis(), isJpeg ? "JPEG" : "PNG", src.c_str());
+
+  // Resolve relative path (src is relative to current HTML file's directory)
+  const std::string imagePath = FsHelpers::normalisePath(spineItemDir + src);
+  Serial.printf("[%lu] [EHP] Resolved image path: %s\n", millis(), imagePath.c_str());
+  const std::string cachedBmpPath = epub->getImageCachePath(spineIndex, imageCounter);
+  imageCounter++;
+
+  // Check if BMP already cached
+  if (!SdMan.exists(cachedBmpPath.c_str())) {
+    // Extract image from EPUB to temp file
+    const std::string tempExt = isJpeg ? ".jpg" : ".png";
+    const std::string tempImagePath = epub->getCachePath() + "/.tmp_img" + tempExt;
+
+    FsFile tempImage;
+    if (!SdMan.openFileForWrite("EHP", tempImagePath, tempImage)) {
+      Serial.printf("[%lu] [EHP] Failed to create temp image file\n", millis());
+      return;
+    }
+
+    if (!epub->readItemContentsToStream(imagePath, tempImage, 1024)) {
+      Serial.printf("[%lu] [EHP] Failed to extract image from EPUB: %s\n", millis(), imagePath.c_str());
+      tempImage.close();
+      SdMan.remove(tempImagePath.c_str());
+      return;
+    }
+    tempImage.close();
+
+    // Convert to BMP
+    if (!SdMan.openFileForRead("EHP", tempImagePath, tempImage)) {
+      Serial.printf("[%lu] [EHP] Failed to reopen temp image\n", millis());
+      SdMan.remove(tempImagePath.c_str());
+      return;
+    }
+
+    FsFile bmpFile;
+    if (!SdMan.openFileForWrite("EHP", cachedBmpPath, bmpFile)) {
+      Serial.printf("[%lu] [EHP] Failed to create BMP cache file\n", millis());
+      tempImage.close();
+      SdMan.remove(tempImagePath.c_str());
+      return;
+    }
+
+    // Route to appropriate converter
+    bool success;
+    if (isJpeg) {
+      success = JpegToBmpConverter::jpegFileToBmpStream(tempImage, bmpFile);
+    } else {
+      success = PngToBmpConverter::pngFileToBmpStream(tempImage, bmpFile);
+    }
+
+    tempImage.close();
+    bmpFile.close();
+    SdMan.remove(tempImagePath.c_str());
+
+    if (!success) {
+      Serial.printf("[%lu] [EHP] %s to BMP conversion failed\n", millis(), isJpeg ? "JPEG" : "PNG");
+      SdMan.remove(cachedBmpPath.c_str());
+      return;
+    }
+
+    Serial.printf("[%lu] [EHP] Cached image to: %s\n", millis(), cachedBmpPath.c_str());
+  }
+
+  // Read BMP dimensions to calculate page placement
+  FsFile bmpFile;
+  if (!SdMan.openFileForRead("EHP", cachedBmpPath, bmpFile)) {
+    Serial.printf("[%lu] [EHP] Failed to read cached BMP\n", millis());
+    return;
+  }
+
+  Bitmap bitmap(bmpFile);
+  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+    Serial.printf("[%lu] [EHP] Failed to parse BMP headers\n", millis());
+    bmpFile.close();
+    return;
+  }
+
+  const int imageWidth = bitmap.getWidth();
+  const int imageHeight = bitmap.getHeight();
+  bmpFile.close();
+
+  // Flush current text block to complete current page
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
+    makePages();
+  }
+
+  // Start new page for image
+  if (currentPage) {
+    completePageFn(std::move(currentPage));
+  }
+  currentPage.reset(new Page());
+  currentPageNextY = 0;
+
+  // Add image to page (centered horizontally, top of page)
+  const int xPos = 0;  // GfxRenderer::drawBitmap centers automatically
+  const int yPos = 0;
+
+  currentPage->elements.push_back(std::make_shared<PageImage>(cachedBmpPath, imageWidth, imageHeight, xPos, yPos));
+
+  // Complete the image page
+  completePageFn(std::move(currentPage));
+  currentPage = nullptr;
+  currentPageNextY = 0;
+
+  // Start fresh text block for content after image
+  currentTextBlock.reset(new ParsedText((TextBlock::Style)paragraphAlignment, extraParagraphSpacing));
+}
+
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
@@ -78,27 +222,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-    // TODO: Start processing image tags
-    std::string alt;
-    if (atts != nullptr) {
-      for (int i = 0; atts[i]; i += 2) {
-        if (strcmp(atts[i], "alt") == 0) {
-          alt = "[Image: " + std::string(atts[i + 1]) + "]";
-        }
-      }
-      Serial.printf("[%lu] [EHP] Image alt: %s\n", millis(), alt.c_str());
-
-      self->startNewTextBlock(TextBlock::CENTER_ALIGN);
-      self->italicUntilDepth = min(self->italicUntilDepth, self->depth);
-      self->depth += 1;
-      self->characterData(userData, alt.c_str(), alt.length());
-
-    } else {
-      // Skip for now
-      self->skipUntilDepth = self->depth;
-      self->depth += 1;
-      return;
-    }
+    // Process image tag
+    self->processImageTag(atts);
+    self->skipUntilDepth = self->depth;
+    self->depth += 1;
+    return;
   }
 
   if (matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
@@ -349,7 +477,7 @@ bool ChapterHtmlSlimParser::parseAndBuildPages() {
   file.close();
 
   // Process last page if there is still text
-  if (currentTextBlock) {
+  if (currentTextBlock && !currentTextBlock->isEmpty()) {
     makePages();
     completePageFn(std::move(currentPage));
     currentPage.reset();
