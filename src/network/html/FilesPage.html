@@ -687,10 +687,13 @@
     <h3>✏️ Edit</h3>
     <div class="folder-form">
       <input type="hidden" id="editItemType">
+      <input type="hidden" name="originalName">
+
+
       <label htmlFor="path-input" class="input-label">Path</label>
       <select id="editItemPath" class="text-input" name="path" value="" />
       <label htmlFor="name-input" class="file-info">Name</label>
-      <input id="editItemName" value="" autoFocus type="text" class="folder-input" placeholder="Name" />
+      <input id="editItemName" name="name" value="" autoFocus type="text" class="folder-input" placeholder="Name" />
       <button class="folder-btn" onclick="confirmEdit()">Save</button>
     </div>
   </div>
@@ -699,6 +702,11 @@
 <script>
   // get current path from query parameter
   let currentPath = decodeURIComponent(new URLSearchParams(window.location.search).get('path') || '/');
+  let files = [];
+
+  function joinPath(dirPath, fileName) {
+    return [dirPath.replace(/\/$/, ""), fileName.replace(/^\//, "")].join("/")
+  }
 
   function escapeHtml(unsafe) {
     return unsafe
@@ -757,7 +765,6 @@
       </div>
     `;
 
-    let files = [];
     try {
       const response = await fetch('/api/files?path=' + encodeURIComponent(currentPath));
       if (!response.ok) {
@@ -1139,34 +1146,46 @@ function retryAllFailedUploads() {
   }
 
   // Edit functions
+  
+  const editModal = document.querySelector("#editModal");
   function openEditModal(name, path, isFolder) {
     // document.getElementById('editItemName').textContent = (isFolder ? '📁 ' : '📄 ') + name;
-    document.getElementById('editItemName').value = name;
-    document.getElementById('editItemPath').value = path;
-    document.getElementById('editItemType').value = isFolder ? 'folder' : 'file';
-    document.getElementById('editModal').classList.add('open');
+    editModal.querySelector('#editItemName').value = name;
+    editModal.querySelector('[name="originalName"]').value = name;
+    const pathSelect = editModal.querySelector('#editItemPath');
+    const availableDirectories = files.filter(file => file.isDirectory).map(f => joinPath(currentPath, f.name));
+    availableDirectories.unshift(currentPath)
+    pathSelect.innerHTML = availableDirectories.map(d => `<option value="${d}">${d}</option>`);
+
+    const dirs = path.split("/");
+    const itemPath = dirs.slice(0, dirs.length - 1).join("/") || "/";
+    editModal.querySelector('#editItemPath').value = itemPath;
+    editModal.querySelector('#editItemType').value = isFolder ? 'folder' : 'file';
+    editModal.classList.add('open');
   }
 
   function closeEditModal() {
-    document.getElementById('editModal').classList.remove('open');
+    editModal.classList.remove('open');
   }
 
   function confirmEdit() {
-    const editModal = document.querySelector("#editModal");
-    const path = editModal.querySelector('[name="path"]').value;
-    const newPath = editModal.querySelector('[name="newPath"]').value;
+    const originalPath = currentPath;
+    const originalName = editModal.querySelector('[name="originalName"]').value;
+
+    const newPath = editModal.querySelector('[name="path"]').value;
+    const newName = editModal.querySelector('[name="name"]').value;
 
     const formData = new FormData();
-    formData.append('path', path);
-    formData.append('new_path', newPath);
+    formData.append('path', joinPath(originalPath, originalName));
+    formData.append('new_path', joinPath(newPath, newName));
 
     fetch('/api/move', {
       method: 'POST',
       body: formData,
     }).then(res => {
       if (res.status === 200) {
+        closeEditModal();
         reloadContent();
-        closeDeleteModal();
         return;
       }
       alert('Failed to edit: ' + xhr.responseText);
