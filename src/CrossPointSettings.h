@@ -80,8 +80,8 @@ class CrossPointSettings {
     // Map enum index to milliseconds: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never(0)
     constexpr unsigned long timeouts[] = {
         2UL * 60UL * 1000UL,   // 0: 2 minutes
-        5UL * 60UL * 1000UL,   // 1: 5 minutes
-        10UL * 60UL * 1000UL,  // 2: 10 minutes (default)
+        5UL * 60UL * 1000UL,   // 1: 5 minutes (default)
+        10UL * 60UL * 1000UL,  // 2: 10 minutes
         15UL * 60UL * 1000UL,  // 3: 15 minutes
         20UL * 60UL * 1000UL,  // 4: 20 minutes
         30UL * 60UL * 1000UL,  // 5: 30 minutes
