@@ -98,38 +98,25 @@ void CalibreSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 1) {
-    // Wireless Device - toggle and launch activity if enabling
-    const bool wasEnabled = SETTINGS.calibreWirelessEnabled;
-    SETTINGS.calibreWirelessEnabled = !wasEnabled;
-    SETTINGS.saveToFile();
-
-    if (!wasEnabled) {
-      // Just enabled - launch the wireless activity
-      exitActivity();
-      if (WiFi.status() != WL_CONNECTED) {
-        enterNewActivity(new WifiSelectionActivity(renderer, mappedInput, [this](bool connected) {
-          exitActivity();
-          if (connected) {
-            enterNewActivity(new CalibreWirelessActivity(renderer, mappedInput, [this] {
-              exitActivity();
-              updateRequired = true;
-            }));
-          } else {
-            // WiFi connection failed/cancelled, turn off the setting
-            SETTINGS.calibreWirelessEnabled = 0;
-            SETTINGS.saveToFile();
+    // Wireless Device - launch the activity (handles WiFi connection internally)
+    exitActivity();
+    if (WiFi.status() != WL_CONNECTED) {
+      enterNewActivity(new WifiSelectionActivity(renderer, mappedInput, [this](bool connected) {
+        exitActivity();
+        if (connected) {
+          enterNewActivity(new CalibreWirelessActivity(renderer, mappedInput, [this] {
+            exitActivity();
             updateRequired = true;
-          }
-        }));
-      } else {
-        enterNewActivity(new CalibreWirelessActivity(renderer, mappedInput, [this] {
-          exitActivity();
+          }));
+        } else {
           updateRequired = true;
-        }));
-      }
+        }
+      }));
     } else {
-      // Just disabled - just update the display
-      updateRequired = true;
+      enterNewActivity(new CalibreWirelessActivity(renderer, mappedInput, [this] {
+        exitActivity();
+        updateRequired = true;
+      }));
     }
   }
 
@@ -166,18 +153,12 @@ void CalibreSettingsActivity::render() {
 
     renderer.drawText(UI_10_FONT_ID, 20, settingY, menuNames[i], !isSelected);
 
-    // Draw status
-    const char* status = "";
+    // Draw status for URL setting
     if (i == 0) {
-      // Calibre Web URL
-      status = (strlen(SETTINGS.opdsServerUrl) > 0) ? "[Set]" : "[Not Set]";
-    } else if (i == 1) {
-      // Wireless Device
-      status = SETTINGS.calibreWirelessEnabled ? "ON" : "OFF";
+      const char* status = (strlen(SETTINGS.opdsServerUrl) > 0) ? "[Set]" : "[Not Set]";
+      const auto width = renderer.getTextWidth(UI_10_FONT_ID, status);
+      renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
     }
-
-    const auto width = renderer.getTextWidth(UI_10_FONT_ID, status);
-    renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, status, !isSelected);
   }
 
   // Draw button hints

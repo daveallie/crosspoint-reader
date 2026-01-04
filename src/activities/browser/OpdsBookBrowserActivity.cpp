@@ -2,57 +2,21 @@
 
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
+#include <WiFi.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "ScreenComponents.h"
+#include "WifiCredentialStore.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
+#include "util/StringUtils.h"
+#include "util/UrlUtils.h"
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
 constexpr int SKIP_PAGE_MS = 700;
 constexpr char OPDS_ROOT_PATH[] = "opds";  // No leading slash - relative to server URL
-
-// Prepend http:// if no protocol specified (server will redirect to https if needed)
-std::string ensureProtocol(const std::string& url) {
-  if (url.find("://") == std::string::npos) {
-    return "http://" + url;
-  }
-  return url;
-}
-
-// Extract host with protocol from URL (e.g., "http://example.com" from "http://example.com/path")
-std::string extractHost(const std::string& url) {
-  const size_t protocolEnd = url.find("://");
-  if (protocolEnd == std::string::npos) {
-    // No protocol, find first slash
-    const size_t firstSlash = url.find('/');
-    return firstSlash == std::string::npos ? url : url.substr(0, firstSlash);
-  }
-  // Find the first slash after the protocol
-  const size_t hostStart = protocolEnd + 3;
-  const size_t pathStart = url.find('/', hostStart);
-  return pathStart == std::string::npos ? url : url.substr(0, pathStart);
-}
-
-// Build full URL from server URL and path
-// If path starts with /, it's an absolute path from the host root
-// Otherwise, it's relative to the server URL
-std::string buildUrl(const std::string& serverUrl, const std::string& path) {
-  const std::string urlWithProtocol = ensureProtocol(serverUrl);
-  if (path.empty()) {
-    return urlWithProtocol;
-  }
-  if (path[0] == '/') {
-    // Absolute path - use just the host
-    return extractHost(urlWithProtocol) + path;
-  }
-  // Relative path - append to server URL
-  if (urlWithProtocol.back() == '/') {
-    return urlWithProtocol + path;
-  }
-  return urlWithProtocol + "/" + path;
-}
 }  // namespace
 
 void OpdsBookBrowserActivity::taskTrampoline(void* param) {
@@ -64,13 +28,13 @@ void OpdsBookBrowserActivity::onEnter() {
   Activity::onEnter();
 
   renderingMutex = xSemaphoreCreateMutex();
-  state = BrowserState::LOADING;
+  state = BrowserState::CHECK_WIFI;
   entries.clear();
   navigationHistory.clear();
   currentPath = OPDS_ROOT_PATH;
   selectorIndex = 0;
   errorMessage.clear();
-  statusMessage = "Loading...";
+  statusMessage = "Checking WiFi...";
   updateRequired = true;
 
   xTaskCreate(&OpdsBookBrowserActivity::taskTrampoline, "OpdsBookBrowserTask",
@@ -80,8 +44,8 @@ void OpdsBookBrowserActivity::onEnter() {
               &displayTaskHandle  // Task handle
   );
 
-  // Fetch feed after setting up the display task
-  fetchFeed(currentPath);
+  // Check WiFi and connect if needed, then fetch feed
+  checkAndConnectWifi();
 }
 
 void OpdsBookBrowserActivity::onExit() {
@@ -108,6 +72,14 @@ void OpdsBookBrowserActivity::loop() {
       fetchFeed(currentPath);
     } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
       navigateBack();
+    }
+    return;
+  }
+
+  // Handle WiFi check state - only Back works
+  if (state == BrowserState::CHECK_WIFI) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+      onGoHome();
     }
     return;
   }
@@ -182,6 +154,14 @@ void OpdsBookBrowserActivity::render() const {
 
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Calibre Library", true, EpdFontFamily::BOLD);
 
+  if (state == BrowserState::CHECK_WIFI) {
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
+    const auto labels = mappedInput.mapLabels("« Back", "", "", "");
+    renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+    renderer.displayBuffer();
+    return;
+  }
+
   if (state == BrowserState::LOADING) {
     renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2, statusMessage.c_str());
     const auto labels = mappedInput.mapLabels("« Back", "", "", "");
@@ -200,13 +180,14 @@ void OpdsBookBrowserActivity::render() const {
   }
 
   if (state == BrowserState::DOWNLOADING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 20, "Downloading...");
-    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 10, statusMessage.c_str());
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 40, "Downloading...");
+    renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 - 10, statusMessage.c_str());
     if (downloadTotal > 0) {
-      const int percent = (downloadProgress * 100) / downloadTotal;
-      char progressText[32];
-      snprintf(progressText, sizeof(progressText), "%d%%", percent);
-      renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 40, progressText);
+      const int barWidth = pageWidth - 100;
+      constexpr int barHeight = 20;
+      constexpr int barX = 50;
+      const int barY = pageHeight / 2 + 20;
+      ScreenComponents::drawProgressBar(renderer, barX, barY, barWidth, barHeight, downloadProgress, downloadTotal);
     }
     renderer.displayBuffer();
     return;
@@ -262,7 +243,7 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     return;
   }
 
-  std::string url = buildUrl(serverUrl, path);
+  std::string url = UrlUtils::buildUrl(serverUrl, path);
   Serial.printf("[%lu] [OPDS] Fetching: %s\n", millis(), url.c_str());
 
   std::string content;
@@ -336,10 +317,14 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   updateRequired = true;
 
   // Build full download URL
-  std::string downloadUrl = buildUrl(SETTINGS.opdsServerUrl, book.href);
+  std::string downloadUrl = UrlUtils::buildUrl(SETTINGS.opdsServerUrl, book.href);
 
-  // Create sanitized filename
-  std::string filename = "/" + sanitizeFilename(book.title) + ".epub";
+  // Create sanitized filename: "Title - Author.epub" or just "Title.epub" if no author
+  std::string baseName = book.title;
+  if (!book.author.empty()) {
+    baseName += " - " + book.author;
+  }
+  std::string filename = "/" + StringUtils::sanitizeFilename(baseName) + ".epub";
 
   Serial.printf("[%lu] [OPDS] Downloading: %s -> %s\n", millis(), downloadUrl.c_str(), filename.c_str());
 
@@ -361,33 +346,51 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   }
 }
 
-std::string OpdsBookBrowserActivity::sanitizeFilename(const std::string& title) const {
-  std::string result;
-  result.reserve(title.size());
-
-  for (char c : title) {
-    // Replace invalid filename characters with underscore
-    if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
-      result += '_';
-    } else if (c >= 32 && c < 127) {
-      // Keep printable ASCII characters
-      result += c;
-    }
-    // Skip non-printable characters
+void OpdsBookBrowserActivity::checkAndConnectWifi() {
+  // Already connected?
+  if (WiFi.status() == WL_CONNECTED) {
+    state = BrowserState::LOADING;
+    statusMessage = "Loading...";
+    updateRequired = true;
+    fetchFeed(currentPath);
+    return;
   }
 
-  // Trim leading/trailing spaces and dots
-  size_t start = result.find_first_not_of(" .");
-  if (start == std::string::npos) {
-    return "book";  // Fallback if title is all invalid characters
-  }
-  size_t end = result.find_last_not_of(" .");
-  result = result.substr(start, end - start + 1);
+  // Try to connect using saved credentials
+  statusMessage = "Connecting to WiFi...";
+  updateRequired = true;
 
-  // Limit filename length (SD card FAT32 has 255 char limit, but let's be safe)
-  if (result.length() > 100) {
-    result.resize(100);
+  WIFI_STORE.loadFromFile();
+  const auto& credentials = WIFI_STORE.getCredentials();
+  if (credentials.empty()) {
+    state = BrowserState::ERROR;
+    errorMessage = "No WiFi credentials saved";
+    updateRequired = true;
+    return;
   }
 
-  return result.empty() ? "book" : result;
+  // Use the first saved credential
+  const auto& cred = credentials[0];
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(cred.ssid.c_str(), cred.password.c_str());
+
+  // Wait for connection with timeout
+  constexpr int WIFI_TIMEOUT_MS = 10000;
+  const unsigned long startTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT_MS) {
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[%lu] [OPDS] WiFi connected: %s\n", millis(), WiFi.localIP().toString().c_str());
+    state = BrowserState::LOADING;
+    statusMessage = "Loading...";
+    updateRequired = true;
+    fetchFeed(currentPath);
+  } else {
+    state = BrowserState::ERROR;
+    errorMessage = "WiFi connection failed";
+    updateRequired = true;
+  }
 }
+

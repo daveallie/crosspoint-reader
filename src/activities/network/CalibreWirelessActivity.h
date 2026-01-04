@@ -28,11 +28,14 @@ enum class CalibreWirelessState {
  * CalibreWirelessActivity implements Calibre's "wireless device" protocol.
  * This allows Calibre desktop to send books directly to the device over WiFi.
  *
- * Protocol:
- * 1. Device listens on UDP ports 54982, 48123, 39001, 44044, 59678
- * 2. Calibre broadcasts discovery messages
- * 3. Device responds with its TCP server address
- * 4. Calibre connects via TCP and sends JSON commands
+ * Protocol specification sourced from Calibre's smart device driver:
+ * https://github.com/kovidgoyal/calibre/blob/master/src/calibre/devices/smart_device_app/driver.py
+ *
+ * Protocol overview:
+ * 1. Device broadcasts "hello" on UDP ports 54982, 48123, 39001, 44044, 59678
+ * 2. Calibre responds with its TCP server address
+ * 3. Device connects to Calibre's TCP server
+ * 4. Calibre sends JSON commands with length-prefixed messages
  * 5. Books are transferred as binary data after SEND_BOOK command
  */
 class CalibreWirelessActivity final : public Activity {
@@ -47,9 +50,6 @@ class CalibreWirelessActivity final : public Activity {
 
   // UDP discovery
   WiFiUDP udp;
-  static constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
-  static constexpr size_t UDP_PORT_COUNT = 5;
-  static constexpr uint16_t LOCAL_UDP_PORT = 8134;  // Port to receive responses
 
   // TCP connection (we connect to Calibre)
   WiFiClient tcpClient;
@@ -118,7 +118,6 @@ class CalibreWirelessActivity final : public Activity {
   void handleNoop(const std::string& data);
 
   // Utility
-  std::string sanitizeFilename(const std::string& title) const;
   std::string getDeviceUuid() const;
   void setState(CalibreWirelessState newState);
   void setStatus(const std::string& message);

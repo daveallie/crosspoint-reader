@@ -17,6 +17,7 @@
 class OpdsBookBrowserActivity final : public Activity {
  public:
   enum class BrowserState {
+    CHECK_WIFI,   // Checking WiFi connection
     LOADING,      // Fetching OPDS feed
     BROWSING,     // Displaying entries (navigation or books)
     DOWNLOADING,  // Downloading selected EPUB
@@ -52,9 +53,9 @@ class OpdsBookBrowserActivity final : public Activity {
   [[noreturn]] void displayTaskLoop();
   void render() const;
 
+  void checkAndConnectWifi();
   void fetchFeed(const std::string& path);
   void navigateToEntry(const OpdsEntry& entry);
   void navigateBack();
   void downloadBook(const OpdsEntry& book);
-  std::string sanitizeFilename(const std::string& title) const;
 };

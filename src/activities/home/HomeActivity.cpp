@@ -21,7 +21,7 @@ void HomeActivity::taskTrampoline(void* param) {
 int HomeActivity::getMenuItemCount() const {
   int count = 3;  // Browse files, File transfer, Settings
   if (hasContinueReading) count++;
-  if (hasBrowserUrl) count++;
+  if (hasOpdsUrl) count++;
   return count;
 }
 
@@ -33,8 +33,8 @@ void HomeActivity::onEnter() {
   // Check if we have a book to continue reading
   hasContinueReading = !APP_STATE.openEpubPath.empty() && SdMan.exists(APP_STATE.openEpubPath.c_str());
 
-  // Check if browser URL is configured
-  hasBrowserUrl = strlen(SETTINGS.opdsServerUrl) > 0;
+  // Check if OPDS browser URL is configured
+  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;
 
   if (hasContinueReading) {
     // Extract filename from path for display
@@ -102,7 +102,7 @@ void HomeActivity::loop() {
     int idx = 0;
     const int continueIdx = hasContinueReading ? idx++ : -1;
     const int browseFilesIdx = idx++;
-    const int browseBookIdx = hasBrowserUrl ? idx++ : -1;
+    const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
     const int fileTransferIdx = idx++;
     const int settingsIdx = idx;
 
@@ -110,8 +110,8 @@ void HomeActivity::loop() {
       onContinueReading();
     } else if (selectorIndex == browseFilesIdx) {
       onReaderOpen();
-    } else if (selectorIndex == browseBookIdx) {
-      onBrowserOpen();
+    } else if (selectorIndex == opdsLibraryIdx) {
+      onOpdsBrowserOpen();
     } else if (selectorIndex == fileTransferIdx) {
       onFileTransferOpen();
     } else if (selectorIndex == settingsIdx) {
@@ -289,13 +289,11 @@ void HomeActivity::render() const {
 
   // --- Bottom menu tiles ---
   // Build menu items dynamically
-  std::vector<const char*> menuItems;
-  menuItems.push_back("Browse Files");
-  if (hasBrowserUrl) {
-    menuItems.push_back("Calibre Library");
+  std::vector<const char*> menuItems = {"Browse Files", "File Transfer", "Settings"};
+  if (hasOpdsUrl) {
+    // Insert Calibre Library after Browse Files
+    menuItems.insert(menuItems.begin() + 1, "Calibre Library");
   }
-  menuItems.push_back("File Transfer");
-  menuItems.push_back("Settings");
 
   const int menuTileWidth = pageWidth - 2 * margin;
   constexpr int menuTileHeight = 45;

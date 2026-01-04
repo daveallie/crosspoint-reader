@@ -1,17 +1,21 @@
 #include "CalibreWirelessActivity.h"
 
 #include <GfxRenderer.h>
+#include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <WiFi.h>
 
 #include <cstring>
 
-#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "ScreenComponents.h"
 #include "fontIds.h"
+#include "util/StringUtils.h"
 
-// Define static constexpr members
-constexpr uint16_t CalibreWirelessActivity::UDP_PORTS[];
+namespace {
+constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
+constexpr uint16_t LOCAL_UDP_PORT = 8134;  // Port to receive responses
+}  // namespace
 
 void CalibreWirelessActivity::displayTaskTrampoline(void* param) {
   auto* self = static_cast<CalibreWirelessActivity*>(param);
@@ -57,10 +61,6 @@ void CalibreWirelessActivity::onEnter() {
 void CalibreWirelessActivity::onExit() {
   Activity::onExit();
 
-  // Always turn off the setting when exiting so it shows OFF in settings
-  SETTINGS.calibreWirelessEnabled = 0;
-  SETTINGS.saveToFile();
-
   // Stop UDP listening
   udp.stop();
 
@@ -74,13 +74,15 @@ void CalibreWirelessActivity::onExit() {
     currentFile.close();
   }
 
-  // Delete network task first (it may be blocked on network operations)
+  // Acquire stateMutex before deleting network task to avoid race condition
+  xSemaphoreTake(stateMutex, portMAX_DELAY);
   if (networkTaskHandle) {
     vTaskDelete(networkTaskHandle);
     networkTaskHandle = nullptr;
   }
+  xSemaphoreGive(stateMutex);
 
-  // Acquire mutex before deleting display task
+  // Acquire renderingMutex before deleting display task
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -143,8 +145,8 @@ void CalibreWirelessActivity::networkTaskLoop() {
 
 void CalibreWirelessActivity::listenForDiscovery() {
   // Broadcast "hello" on all UDP discovery ports to find Calibre
-  for (size_t i = 0; i < UDP_PORT_COUNT; i++) {
-    udp.beginPacket("255.255.255.255", UDP_PORTS[i]);
+  for (const uint16_t port : UDP_PORTS) {
+    udp.beginPacket("255.255.255.255", port);
     udp.write(reinterpret_cast<const uint8_t*>("hello"), 5);
     udp.endPacket();
   }
@@ -384,9 +386,10 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
 void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& data) {
   // Format: length + [opcode, {data}]
   std::string json = "[" + std::to_string(opcode) + "," + data + "]";
-  std::string packet = std::to_string(json.length()) + json;
+  const std::string lengthPrefix = std::to_string(json.length());
+  json.insert(0, lengthPrefix);
 
-  tcpClient.write(reinterpret_cast<const uint8_t*>(packet.c_str()), packet.length());
+  tcpClient.write(reinterpret_cast<const uint8_t*>(json.c_str()), json.length());
   tcpClient.flush();
 }
 
@@ -418,17 +421,24 @@ void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data)
       break;
     case OP_SET_CALIBRE_DEVICE_INFO:
     case OP_SET_CALIBRE_DEVICE_NAME:
-      // Just acknowledge
+      // These set metadata about the connected Calibre instance.
+      // We don't need this info, just acknowledge receipt.
       sendJsonResponse(OP_OK, "{}");
       break;
     case OP_SET_LIBRARY_INFO:
+      // Library metadata (name, UUID) - not needed for receiving books
+      sendJsonResponse(OP_OK, "{}");
+      break;
     case OP_SEND_BOOKLISTS:
+      // Calibre asking us to send our book list. We report 0 books in
+      // handleGetBookCount, so this is effectively a no-op.
       sendJsonResponse(OP_OK, "{}");
       break;
     case OP_TOTAL_SPACE:
       handleFreeSpace();
       break;
     default:
+      Serial.printf("[%lu] [CAL] Unknown opcode: %d\n", millis(), opcode);
       sendJsonResponse(OP_OK, "{}");
       break;
   }
@@ -453,8 +463,11 @@ void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& dat
   response += "\"canStreamBooks\":true,";
   response += "\"canStreamMetadata\":true,";
   response += "\"canUseCachedMetadata\":true,";
-  response += "\"ccVersionNumber\":212,";  // Match a known CC version
-  response += "\"coverHeight\":240,";
+  // ccVersionNumber: Calibre Companion protocol version. 212 matches CC 5.4.20+.
+  // Using a known version ensures compatibility with Calibre's feature detection.
+  response += "\"ccVersionNumber\":212,";
+  // coverHeight: Max cover image height. We don't process covers, so this is informational only.
+  response += "\"coverHeight\":800,";
   response += "\"deviceKind\":\"CrossPoint\",";
   response += "\"deviceName\":\"CrossPoint\",";
   response += "\"extensionPathLengths\":{\"epub\":37},";
@@ -472,17 +485,18 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
   response += "\"device_info\":{";
   response += "\"device_store_uuid\":\"" + getDeviceUuid() + "\",";
   response += "\"device_name\":\"CrossPoint Reader\",";
-  response += "\"device_version\":\"1.0\"";
+  response += "\"device_version\":\"" CROSSPOINT_VERSION "\"";
   response += "},";
   response += "\"version\":1,";
-  response += "\"device_version\":\"1.0\"";
+  response += "\"device_version\":\"" CROSSPOINT_VERSION "\"";
   response += "}";
 
   sendJsonResponse(OP_OK, response);
 }
 
 void CalibreWirelessActivity::handleFreeSpace() {
-  // Report 10GB free space
+  // TODO: Report actual SD card free space instead of hardcoded value
+  // Report 10GB free space for now
   sendJsonResponse(OP_OK, "{\"free_space_on_device\":10737418240}");
 }
 
@@ -558,7 +572,7 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   }
 
   // Sanitize and create full path
-  currentFilename = "/" + sanitizeFilename(filename);
+  currentFilename = "/" + StringUtils::sanitizeFilename(filename);
   if (currentFilename.find(".epub") == std::string::npos) {
     currentFilename += ".epub";
   }
@@ -684,20 +698,11 @@ void CalibreWirelessActivity::render() const {
 
   // Draw progress if receiving
   if (state == CalibreWirelessState::RECEIVING && currentFileSize > 0) {
-    const int percent = static_cast<int>((bytesReceived * 100) / currentFileSize);
-
-    // Progress bar
     const int barWidth = pageWidth - 100;
-    const int barHeight = 20;
-    const int barX = 50;
+    constexpr int barHeight = 20;
+    constexpr int barX = 50;
     const int barY = statusY + 20;
-
-    renderer.drawRect(barX, barY, barWidth, barHeight);
-    renderer.fillRect(barX + 2, barY + 2, (barWidth - 4) * percent / 100, barHeight - 4);
-
-    // Percentage text
-    const std::string percentText = std::to_string(percent) + "%";
-    renderer.drawCenteredText(UI_10_FONT_ID, barY + barHeight + 15, percentText.c_str());
+    ScreenComponents::drawProgressBar(renderer, barX, barY, barWidth, barHeight, bytesReceived, currentFileSize);
   }
 
   // Draw error if present
@@ -710,31 +715,6 @@ void CalibreWirelessActivity::render() const {
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
-}
-
-std::string CalibreWirelessActivity::sanitizeFilename(const std::string& name) const {
-  std::string result;
-  result.reserve(name.size());
-
-  for (char c : name) {
-    if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
-      result += '_';
-    } else if (c >= 32 && c < 127) {
-      result += c;
-    }
-  }
-
-  // Trim leading/trailing spaces and dots
-  size_t start = 0;
-  while (start < result.size() && (result[start] == ' ' || result[start] == '.')) {
-    start++;
-  }
-  size_t end = result.size();
-  while (end > start && (result[end - 1] == ' ' || result[end - 1] == '.')) {
-    end--;
-  }
-
-  return result.substr(start, end - start);
 }
 
 std::string CalibreWirelessActivity::getDeviceUuid() const {
