@@ -127,19 +127,9 @@
               buildScript
               pythonEnv
 
-              # C/C++ language server
               pkgs.clang-tools
-
-              # Python language server
               pkgs.python3Packages.python-lsp-server
-
-              # Nix language server
               pkgs.nixd
-
-              # Git for submodules
-              pkgs.git
-
-              # Useful utilities
               pkgs.esptool
             ];
 
@@ -161,30 +151,31 @@
               echo "  nixd     - Nix LSP"
             '';
           };
+          apps = {
+            build = {
+              type = "app";
+              program = "${buildScript}/bin/build-firmware";
+            };
 
-          apps.build = {
-            type = "app";
-            program = "${buildScript}/bin/build-firmware";
-          };
+            fontconvert = {
+              type = "app";
+              program = "${fontconvertScript}/bin/fontconvert";
+            };
 
-          apps.fontconvert = {
-            type = "app";
-            program = "${fontconvertScript}/bin/fontconvert";
-          };
+            convert-builtin-fonts = {
+              type = "app";
+              program = "${convertBuiltinFontsScript}/bin/convert-builtin-fonts";
+            };
 
-          apps.convert-builtin-fonts = {
-            type = "app";
-            program = "${convertBuiltinFontsScript}/bin/convert-builtin-fonts";
-          };
+            build-font-ids = {
+              type = "app";
+              program = "${buildFontIdsScript}/bin/build-font-ids";
+            };
 
-          apps.build-font-ids = {
-            type = "app";
-            program = "${buildFontIdsScript}/bin/build-font-ids";
-          };
-
-          apps.regenerate-fonts = {
-            type = "app";
-            program = "${regenerateFontsScript}/bin/regenerate-fonts";
+            regenerate-fonts = {
+              type = "app";
+              program = "${regenerateFontsScript}/bin/regenerate-fonts";
+            };
           };
         };
     };
