@@ -1,6 +1,7 @@
 #include "KOReaderSettingsActivity.h"
 
 #include <GfxRenderer.h>
+
 #include <cstring>
 
 #include "KOReaderAuthActivity.h"

@@ -1,6 +1,7 @@
 #include "SettingsActivity.h"
 
 #include <GfxRenderer.h>
+
 #include <cstring>
 
 #include "CrossPointSettings.h"
