@@ -8,6 +8,7 @@ class CrossPointState {
 
  public:
   std::string openEpubPath;
+  std::string lastBrowsedFolder = "/";
   ~CrossPointState() = default;
 
   // Get singleton instance

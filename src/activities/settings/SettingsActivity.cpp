@@ -3,13 +3,14 @@
 #include <GfxRenderer.h>
 
 #include "CrossPointSettings.h"
+#include "FolderPickerActivity.h"
 #include "MappedInputManager.h"
 #include "OtaUpdateActivity.h"
 #include "fontIds.h"
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 14;
+constexpr int settingsCount = 17;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     {"Sleep Screen", SettingType::ENUM, &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover"}},
@@ -34,11 +35,20 @@ const SettingInfo settingsList[settingsCount] = {
      {"Bookerly", "Noto Sans", "Open Dyslexic"}},
     {"Reader Font Size", SettingType::ENUM, &CrossPointSettings::fontSize, {"Small", "Medium", "Large", "X Large"}},
     {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}},
+    {"Screen Refresh Interval",
+     SettingType::ENUM,
+     &CrossPointSettings::refreshInterval,
+     {"Every page", "Every 3 pages", "Every 5 pages", "Every 10 pages", "Every 15 pages", "Every 20 pages"}},
     {"Cover Art Picker", SettingType::TOGGLE, &CrossPointSettings::useCoverArtPicker, {}},
     {"Auto Sleep Timeout",
      SettingType::ENUM,
      &CrossPointSettings::autoSleepMinutes,
      {"2 min", "5 min", "10 min", "15 min", "20 min", "30 min", "60 min", "Never"}},
+    {"Default Folder",
+     SettingType::ENUM,
+     &CrossPointSettings::defaultFolder,
+     {"Root", "Custom", "Last Used"}},
+    {"Choose Custom Folder", SettingType::ACTION, nullptr, {}},
     {"Bluetooth", SettingType::TOGGLE, &CrossPointSettings::bluetoothEnabled, {}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };
@@ -140,6 +150,23 @@ void SettingsActivity::toggleCurrentSetting() {
         updateRequired = true;
       }));
       xSemaphoreGive(renderingMutex);
+    } else if (std::string(setting.name) == "Choose Custom Folder") {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      exitActivity();
+      enterNewActivity(new FolderPickerActivity(
+          renderer, mappedInput,
+          [this](const std::string& path) {
+            SETTINGS.customDefaultFolder = path;
+            SETTINGS.saveToFile();
+            exitActivity();
+            updateRequired = true;
+          },
+          [this] {
+            exitActivity();
+            updateRequired = true;
+          },
+          "/"));  // Start from root directory
+      xSemaphoreGive(renderingMutex);
     }
   } else {
     // Only toggle if it's a toggle type and has a value pointer
@@ -189,6 +216,11 @@ void SettingsActivity::render() const {
     } else if (settingsList[i].type == SettingType::ENUM && settingsList[i].valuePtr != nullptr) {
       const uint8_t value = SETTINGS.*(settingsList[i].valuePtr);
       valueText = settingsList[i].enumValues[value];
+    } else if (settingsList[i].type == SettingType::ACTION) {
+      // Show current value for "Choose Custom Folder"
+      if (std::string(settingsList[i].name) == "Choose Custom Folder") {
+        valueText = SETTINGS.customDefaultFolder;
+      }
     }
     const auto width = renderer.getTextWidth(UI_10_FONT_ID, valueText.c_str());
     renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, valueText.c_str(), i != selectedSettingIndex);

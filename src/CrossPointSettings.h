@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <iosfwd>
+#include <string>
 
 class CrossPointSettings {
  private:
@@ -44,6 +45,9 @@ class CrossPointSettings {
   enum FONT_SIZE { SMALL = 0, MEDIUM = 1, LARGE = 2, EXTRA_LARGE = 3 };
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
 
+  // Default folder options
+  enum DEFAULT_FOLDER { FOLDER_ROOT = 0, FOLDER_CUSTOM = 1, FOLDER_LAST_USED = 2 };
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Status bar settings
@@ -68,6 +72,13 @@ class CrossPointSettings {
   uint8_t useCoverArtPicker = 0;
   // Auto-sleep timeout (enum index: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never)
   uint8_t autoSleepMinutes = 1;  // Default to 5 minutes
+  // Screen refresh interval (enum index: 0=1pg, 1=3pg, 2=5pg, 3=10pg, 4=15pg, 5=20pg)
+  uint8_t refreshInterval = 4;  // Default to 15 pages (current behavior)
+  // Default folder for file browser (enum index: 0=Root, 1=Custom, 2=Last Used)
+  uint8_t defaultFolder = FOLDER_LAST_USED;  // Default to last used (current behavior)
+
+  // Custom default folder path (used when defaultFolder == FOLDER_CUSTOM)
+  std::string customDefaultFolder = "/books";
 
   ~CrossPointSettings() = default;
 
@@ -89,6 +100,19 @@ class CrossPointSettings {
         0UL                    // 7: Never (disabled)
     };
     return (autoSleepMinutes < 8) ? timeouts[autoSleepMinutes] : timeouts[2];
+  }
+
+  int getRefreshIntervalPages() const {
+    // Map enum index to pages: 0=1, 1=3, 2=5, 3=10, 4=15 (default), 5=20
+    constexpr int intervals[] = {1, 3, 5, 10, 15, 20};
+    return (refreshInterval < 6) ? intervals[refreshInterval] : 15;
+  }
+
+  const char* getDefaultFolderPath() const {
+    // Returns the configured default folder path (doesn't handle FOLDER_LAST_USED)
+    if (defaultFolder == FOLDER_ROOT) return "/";
+    if (defaultFolder == FOLDER_CUSTOM) return customDefaultFolder.c_str();
+    return "/";  // Fallback
   }
 
   bool saveToFile() const;

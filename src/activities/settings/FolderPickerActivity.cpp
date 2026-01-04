@@ -1,36 +1,35 @@
-#include "FileSelectionActivity.h"
+#include "FolderPickerActivity.h"
 
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
-#include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "fontIds.h"
 
 namespace {
 constexpr int PAGE_ITEMS = 23;
-constexpr int SKIP_PAGE_MS = 700;
 constexpr unsigned long GO_HOME_MS = 1000;
 }  // namespace
 
-void sortFileList(std::vector<std::string>& strs) {
+void sortFolderList(std::vector<std::string>& strs) {
   std::sort(begin(strs), end(strs), [](const std::string& str1, const std::string& str2) {
-    if (str1.back() == '/' && str2.back() != '/') return true;
-    if (str1.back() != '/' && str2.back() == '/') return false;
     return lexicographical_compare(
         begin(str1), end(str1), begin(str2), end(str2),
         [](const char& char1, const char& char2) { return tolower(char1) < tolower(char2); });
   });
 }
 
-void FileSelectionActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<FileSelectionActivity*>(param);
+void FolderPickerActivity::taskTrampoline(void* param) {
+  auto* self = static_cast<FolderPickerActivity*>(param);
   self->displayTaskLoop();
 }
 
-void FileSelectionActivity::loadFiles() {
-  files.clear();
+void FolderPickerActivity::loadFolders() {
+  folders.clear();
   selectorIndex = 0;
+
+  // Add option to select current folder
+  folders.emplace_back("[Select This Folder]");
 
   auto root = SdMan.open(basepath.c_str());
   if (!root || !root.isDirectory()) {
@@ -49,34 +48,32 @@ void FileSelectionActivity::loadFiles() {
     }
 
     if (file.isDirectory()) {
-      files.emplace_back(std::string(name) + "/");
-    } else {
-      auto filename = std::string(name);
-      std::string ext4 = filename.length() >= 4 ? filename.substr(filename.length() - 4) : "";
-      std::string ext5 = filename.length() >= 5 ? filename.substr(filename.length() - 5) : "";
-      if (ext5 == ".epub" || ext5 == ".xtch" || ext4 == ".xtc") {
-        files.emplace_back(filename);
-      }
+      folders.emplace_back(std::string(name) + "/");
     }
     file.close();
   }
   root.close();
-  sortFileList(files);
+  // Sort only the actual folders (skip the first item which is "[Select This Folder]")
+  if (folders.size() > 1) {
+    std::vector<std::string> actualFolders(folders.begin() + 1, folders.end());
+    sortFolderList(actualFolders);
+    std::copy(actualFolders.begin(), actualFolders.end(), folders.begin() + 1);
+  }
 }
 
-void FileSelectionActivity::onEnter() {
+void FolderPickerActivity::onEnter() {
   Activity::onEnter();
 
   renderingMutex = xSemaphoreCreateMutex();
+  entryTime = millis();
 
-  // basepath is set via constructor parameter (defaults to "/" if not specified)
-  loadFiles();
+  loadFolders();
   selectorIndex = 0;
 
   // Trigger first update
   updateRequired = true;
 
-  xTaskCreate(&FileSelectionActivity::taskTrampoline, "FileSelectionActivityTask",
+  xTaskCreate(&FolderPickerActivity::taskTrampoline, "FolderPickerActivityTask",
               2048,               // Stack size
               this,               // Parameters
               1,                  // Priority
@@ -84,7 +81,7 @@ void FileSelectionActivity::onEnter() {
   );
 }
 
-void FileSelectionActivity::onExit() {
+void FolderPickerActivity::onExit() {
   Activity::onExit();
 
   // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
@@ -95,17 +92,20 @@ void FileSelectionActivity::onExit() {
   }
   vSemaphoreDelete(renderingMutex);
   renderingMutex = nullptr;
-  files.clear();
+  folders.clear();
 }
 
-void FileSelectionActivity::loop() {
+void FolderPickerActivity::loop() {
+  // Ignore button presses for 200ms after entry to avoid processing the button that opened this activity
+  if (millis() - entryTime < 200) {
+    return;
+  }
+
   // Long press BACK (1s+) goes to root folder
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS) {
     if (basepath != "/") {
       basepath = "/";
-      APP_STATE.lastBrowsedFolder = basepath;
-      APP_STATE.saveToFile();
-      loadFiles();
+      loadFolders();
       updateRequired = true;
     }
     return;
@@ -116,55 +116,43 @@ void FileSelectionActivity::loop() {
   const bool nextReleased = mappedInput.wasReleased(MappedInputManager::Button::Down) ||
                             mappedInput.wasReleased(MappedInputManager::Button::Right);
 
-  const bool skipPage = mappedInput.getHeldTime() > SKIP_PAGE_MS;
-
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (files.empty()) {
+    if (folders.empty()) {
       return;
     }
 
-    if (basepath.back() != '/') basepath += "/";
-    if (files[selectorIndex].back() == '/') {
-      basepath += files[selectorIndex].substr(0, files[selectorIndex].length() - 1);
-      APP_STATE.lastBrowsedFolder = basepath;
-      APP_STATE.saveToFile();
-      loadFiles();
+    if (selectorIndex == 0) {
+      // "[Select This Folder]" option selected
+      onSelect(basepath);
+    } else if (selectorIndex < folders.size()) {
+      // Navigate into the selected folder
+      if (basepath.back() != '/') basepath += "/";
+      basepath += folders[selectorIndex].substr(0, folders[selectorIndex].length() - 1);
+      loadFolders();
       updateRequired = true;
-    } else {
-      onSelect(basepath + files[selectorIndex]);
     }
   } else if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    // Short press: go up one directory, or go home if at root
+    // Short press: go up one directory, or cancel if at root
     if (mappedInput.getHeldTime() < GO_HOME_MS) {
       if (basepath != "/") {
         basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
         if (basepath.empty()) basepath = "/";
-        APP_STATE.lastBrowsedFolder = basepath;
-        APP_STATE.saveToFile();
-        loadFiles();
+        loadFolders();
         updateRequired = true;
       } else {
-        onGoHome();
+        onCancel();
       }
     }
-  } else if (prevReleased) {
-    if (skipPage) {
-      selectorIndex = ((selectorIndex / PAGE_ITEMS - 1) * PAGE_ITEMS + files.size()) % files.size();
-    } else {
-      selectorIndex = (selectorIndex + files.size() - 1) % files.size();
-    }
+  } else if (prevReleased && !folders.empty()) {
+    selectorIndex = (selectorIndex + folders.size() - 1) % folders.size();
     updateRequired = true;
-  } else if (nextReleased) {
-    if (skipPage) {
-      selectorIndex = ((selectorIndex / PAGE_ITEMS + 1) * PAGE_ITEMS) % files.size();
-    } else {
-      selectorIndex = (selectorIndex + 1) % files.size();
-    }
+  } else if (nextReleased && !folders.empty()) {
+    selectorIndex = (selectorIndex + 1) % folders.size();
     updateRequired = true;
   }
 }
 
-void FileSelectionActivity::displayTaskLoop() {
+void FolderPickerActivity::displayTaskLoop() {
   while (true) {
     if (updateRequired) {
       updateRequired = false;
@@ -176,26 +164,30 @@ void FileSelectionActivity::displayTaskLoop() {
   }
 }
 
-void FileSelectionActivity::render() const {
+void FolderPickerActivity::render() const {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
-  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Books", true, BOLD);
+  renderer.drawCenteredText(UI_12_FONT_ID, 15, "Choose Default Folder", true, BOLD);
+
+  // Display current path
+  auto truncatedPath = renderer.truncatedText(SMALL_FONT_ID, basepath.c_str(), pageWidth - 40);
+  renderer.drawText(SMALL_FONT_ID, 20, 35, truncatedPath.c_str());
 
   // Help text
-  const auto labels = mappedInput.mapLabels("« Home", "Open", "", "");
+  const auto labels = mappedInput.mapLabels("« Cancel", "Select", "", "");
   renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  if (files.empty()) {
-    renderer.drawText(UI_10_FONT_ID, 20, 60, "No books found");
+  if (folders.empty()) {
+    renderer.drawText(UI_10_FONT_ID, 20, 60, "No subfolders. Press Select to use this folder.");
     renderer.displayBuffer();
     return;
   }
 
   const auto pageStartIndex = selectorIndex / PAGE_ITEMS * PAGE_ITEMS;
   renderer.fillRect(0, 60 + (selectorIndex % PAGE_ITEMS) * 30 - 2, pageWidth - 1, 30);
-  for (int i = pageStartIndex; i < files.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
-    auto item = renderer.truncatedText(UI_10_FONT_ID, files[i].c_str(), renderer.getScreenWidth() - 40);
+  for (int i = pageStartIndex; i < folders.size() && i < pageStartIndex + PAGE_ITEMS; i++) {
+    auto item = renderer.truncatedText(UI_10_FONT_ID, folders[i].c_str(), renderer.getScreenWidth() - 40);
     renderer.drawText(UI_10_FONT_ID, 20, 60 + (i % PAGE_ITEMS) * 30, item.c_str(), i != selectorIndex);
   }
 

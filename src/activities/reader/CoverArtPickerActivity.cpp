@@ -6,6 +6,7 @@
 #include <Xtc.h>
 
 #include "Bitmap.h"
+#include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "fontIds.h"
 
@@ -103,6 +104,8 @@ void CoverArtPickerActivity::loop() {
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= GO_HOME_MS) {
     if (basepath != "/") {
       basepath = "/";
+      APP_STATE.lastBrowsedFolder = basepath;
+      APP_STATE.saveToFile();
       loadFiles();
       updateRequired = true;
     }
@@ -124,6 +127,8 @@ void CoverArtPickerActivity::loop() {
     if (basepath.back() != '/') basepath += "/";
     if (files[selectorIndex].back() == '/') {
       basepath += files[selectorIndex].substr(0, files[selectorIndex].length() - 1);
+      APP_STATE.lastBrowsedFolder = basepath;
+      APP_STATE.saveToFile();
       loadFiles();
       updateRequired = true;
     } else {
@@ -135,6 +140,8 @@ void CoverArtPickerActivity::loop() {
       if (basepath != "/") {
         basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
         if (basepath.empty()) basepath = "/";
+        APP_STATE.lastBrowsedFolder = basepath;
+        APP_STATE.saveToFile();
         loadFiles();
         updateRequired = true;
       } else {
