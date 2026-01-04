@@ -175,11 +175,21 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                          viewportHeight);
   std::vector<uint32_t> lut = {};
 
+  // Get spine item directory for resolving relative image paths
+  std::string spineItemDir;
+  if (epub) {
+    const auto spineEntry = epub->getSpineItem(spineIndex);
+    const auto lastSlash = spineEntry.href.find_last_of('/');
+    if (lastSlash != std::string::npos) {
+      spineItemDir = spineEntry.href.substr(0, lastSlash + 1);
+    }
+  }
+
   ChapterHtmlSlimParser visitor(
       tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
       viewportHeight,
-      [this, &lut](std::unique_ptr<Page> page) { lut.emplace_back(this->onPageComplete(std::move(page))); },
-      progressFn);
+      [this, &lut](std::unique_ptr<Page> page) { lut.emplace_back(this->onPageComplete(std::move(page))); }, progressFn,
+      epub, spineIndex, spineItemDir);
   success = visitor.parseAndBuildPages();
 
   SdMan.remove(tmpHtmlPath.c_str());
