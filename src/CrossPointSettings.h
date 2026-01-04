@@ -75,6 +75,9 @@ class CrossPointSettings {
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
 
+  // Reader screen margin settings
+  uint8_t screenMargin = 5;
+
   ~CrossPointSettings() = default;
 
   // Get singleton instance
@@ -89,6 +92,7 @@ class CrossPointSettings {
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
+  int getReaderScreenMargin() const;
 };
 
 // Helper macro to access settings
