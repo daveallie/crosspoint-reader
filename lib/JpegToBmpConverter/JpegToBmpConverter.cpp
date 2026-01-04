@@ -762,7 +762,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
           // 1-bit output with Atkinson dithering for better quality
           for (int x = 0; x < outWidth; x++) {
             const uint8_t gray = mcuRowBuffer[bufferY * imageInfo.m_width + x];
-            const uint8_t bit = atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(gray, x) : quantize1bit(gray, x, y);
+            const uint8_t bit =
+                atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(gray, x) : quantize1bit(gray, x, y);
             // Pack 1-bit value: MSB first, 8 pixels per byte
             const int byteIndex = x / 8;
             const int bitOffset = 7 - (x % 8);
@@ -837,7 +838,8 @@ bool JpegToBmpConverter::jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bm
             // 1-bit output with Atkinson dithering for better quality
             for (int x = 0; x < outWidth; x++) {
               const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
-              const uint8_t bit = atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(gray, x) : quantize1bit(gray, x, currentOutY);
+              const uint8_t bit = atkinson1BitDitherer ? atkinson1BitDitherer->processPixel(gray, x)
+                                                       : quantize1bit(gray, x, currentOutY);
               // Pack 1-bit value: MSB first, 8 pixels per byte
               const int byteIndex = x / 8;
               const int bitOffset = 7 - (x % 8);
@@ -916,6 +918,6 @@ bool JpegToBmpConverter::jpegFileToBmpStreamWithSize(FsFile& jpegFile, Print& bm
 
 // Convert to 1-bit BMP (black and white only, no grays) for fast home screen rendering
 bool JpegToBmpConverter::jpegFileTo1BitBmpStreamWithSize(FsFile& jpegFile, Print& bmpOut, int targetMaxWidth,
-                                                          int targetMaxHeight) {
+                                                         int targetMaxHeight) {
   return jpegFileToBmpStreamInternal(jpegFile, bmpOut, targetMaxWidth, targetMaxHeight, true);
 }

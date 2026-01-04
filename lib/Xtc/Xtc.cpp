@@ -522,7 +522,7 @@ bool Xtc::generateThumbBmp() const {
       // Hash-based noise dithering for 1-bit output
       uint32_t hash = static_cast<uint32_t>(dstX) * 374761393u + static_cast<uint32_t>(dstY) * 668265263u;
       hash = (hash ^ (hash >> 13)) * 1274126177u;
-      const int threshold = static_cast<int>(hash >> 24);  // 0-255
+      const int threshold = static_cast<int>(hash >> 24);           // 0-255
       const int adjustedThreshold = 128 + ((threshold - 128) / 2);  // Range: 64-192
 
       // Quantize to 1-bit: 0=black, 1=white
@@ -534,7 +534,7 @@ bool Xtc::generateThumbBmp() const {
       // Bounds check for row buffer access
       if (byteIndex < rowSize) {
         if (oneBit) {
-          rowBuffer[byteIndex] |= (1 << bitOffset);   // Set bit for white
+          rowBuffer[byteIndex] |= (1 << bitOffset);  // Set bit for white
         } else {
           rowBuffer[byteIndex] &= ~(1 << bitOffset);  // Clear bit for black
         }

@@ -257,18 +257,18 @@ void HomeActivity::render() {
           const int centerX = bookmarkX + bookmarkWidth / 2;
 
           const int xPoints[5] = {
-              bookmarkX,                      // top-left
-              bookmarkX + bookmarkWidth,      // top-right
-              bookmarkX + bookmarkWidth,      // bottom-right
-              centerX,                        // center notch point
-              bookmarkX                       // bottom-left
+              bookmarkX,                  // top-left
+              bookmarkX + bookmarkWidth,  // top-right
+              bookmarkX + bookmarkWidth,  // bottom-right
+              centerX,                    // center notch point
+              bookmarkX                   // bottom-left
           };
           const int yPoints[5] = {
-              bookmarkY,                              // top-left
-              bookmarkY,                              // top-right
-              bookmarkY + bookmarkHeight,             // bottom-right
+              bookmarkY,                                // top-left
+              bookmarkY,                                // top-right
+              bookmarkY + bookmarkHeight,               // bottom-right
               bookmarkY + bookmarkHeight - notchDepth,  // center notch point
-              bookmarkY + bookmarkHeight              // bottom-left
+              bookmarkY + bookmarkHeight                // bottom-left
           };
 
           // Draw bookmark ribbon (white normally, will be inverted if selected)
@@ -308,18 +308,18 @@ void HomeActivity::render() {
       const int centerX = bookmarkX + bookmarkWidth / 2;
 
       const int xPoints[5] = {
-          bookmarkX,                      // top-left
-          bookmarkX + bookmarkWidth,      // top-right
-          bookmarkX + bookmarkWidth,      // bottom-right
-          centerX,                        // center notch point
-          bookmarkX                       // bottom-left
+          bookmarkX,                  // top-left
+          bookmarkX + bookmarkWidth,  // top-right
+          bookmarkX + bookmarkWidth,  // bottom-right
+          centerX,                    // center notch point
+          bookmarkX                   // bottom-left
       };
       const int yPoints[5] = {
-          bookmarkY,                              // top-left
-          bookmarkY,                              // top-right
-          bookmarkY + bookmarkHeight,             // bottom-right
+          bookmarkY,                                // top-left
+          bookmarkY,                                // top-right
+          bookmarkY + bookmarkHeight,               // bottom-right
           bookmarkY + bookmarkHeight - notchDepth,  // center notch point
-          bookmarkY + bookmarkHeight              // bottom-left
+          bookmarkY + bookmarkHeight                // bottom-left
       };
 
       // Draw black filled bookmark ribbon (inverted)
