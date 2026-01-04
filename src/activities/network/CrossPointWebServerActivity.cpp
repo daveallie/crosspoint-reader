@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 #include <qrcode.h>
 
 #include <cstddef>
@@ -308,9 +309,14 @@ void CrossPointWebServerActivity::loop() {
       // Call handleClient multiple times to process pending requests faster
       // This is critical for upload performance - HTTP file uploads send data
       // in chunks and each handleClient() call processes incoming data
-      constexpr int HANDLE_CLIENT_ITERATIONS = 10;
+      // Reduced from 10 to 3 to prevent watchdog timer issues
+      constexpr int HANDLE_CLIENT_ITERATIONS = 3;
       for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
+        // Feed the watchdog timer between iterations to prevent resets
+        esp_task_wdt_reset();
+        // Yield to other tasks to prevent starvation
+        yield();
       }
       lastHandleClientTime = millis();
     }

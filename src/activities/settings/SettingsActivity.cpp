@@ -38,7 +38,7 @@ const SettingInfo settingsList[settingsCount] = {
     {"Auto Sleep Timeout",
      SettingType::ENUM,
      &CrossPointSettings::autoSleepMinutes,
-     {"5 min", "10 min", "15 min", "20 min", "30 min", "60 min", "Never"}},
+     {"2 min", "5 min", "10 min", "15 min", "20 min", "30 min", "60 min", "Never"}},
     {"Bluetooth", SettingType::TOGGLE, &CrossPointSettings::bluetoothEnabled, {}},
     {"Check for updates", SettingType::ACTION, nullptr, {}},
 };

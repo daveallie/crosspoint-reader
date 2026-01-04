@@ -66,8 +66,8 @@ class CrossPointSettings {
   uint8_t bluetoothEnabled = 0;
   // File browser settings
   uint8_t useCoverArtPicker = 0;
-  // Auto-sleep timeout (enum index: 0=5min, 1=10min, 2=15min, 3=20min, 4=30min, 5=60min, 6=Never)
-  uint8_t autoSleepMinutes = 1;  // Default to 10 minutes
+  // Auto-sleep timeout (enum index: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never)
+  uint8_t autoSleepMinutes = 1;  // Default to 5 minutes
 
   ~CrossPointSettings() = default;
 
@@ -77,17 +77,18 @@ class CrossPointSettings {
   uint16_t getPowerButtonDuration() const { return shortPwrBtn ? 10 : 400; }
   int getReaderFontId() const;
   unsigned long getAutoSleepTimeoutMs() const {
-    // Map enum index to milliseconds: 0=5min, 1=10min, 2=15min, 3=20min, 4=30min, 5=60min, 6=Never(0)
+    // Map enum index to milliseconds: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never(0)
     constexpr unsigned long timeouts[] = {
-        5UL * 60UL * 1000UL,   // 0: 5 minutes
-        10UL * 60UL * 1000UL,  // 1: 10 minutes (default)
-        15UL * 60UL * 1000UL,  // 2: 15 minutes
-        20UL * 60UL * 1000UL,  // 3: 20 minutes
-        30UL * 60UL * 1000UL,  // 4: 30 minutes
-        60UL * 60UL * 1000UL,  // 5: 60 minutes
-        0UL                    // 6: Never (disabled)
+        2UL * 60UL * 1000UL,   // 0: 2 minutes
+        5UL * 60UL * 1000UL,   // 1: 5 minutes
+        10UL * 60UL * 1000UL,  // 2: 10 minutes (default)
+        15UL * 60UL * 1000UL,  // 3: 15 minutes
+        20UL * 60UL * 1000UL,  // 4: 20 minutes
+        30UL * 60UL * 1000UL,  // 5: 30 minutes
+        60UL * 60UL * 1000UL,  // 6: 60 minutes
+        0UL                    // 7: Never (disabled)
     };
-    return (autoSleepMinutes < 7) ? timeouts[autoSleepMinutes] : timeouts[1];
+    return (autoSleepMinutes < 8) ? timeouts[autoSleepMinutes] : timeouts[2];
   }
 
   bool saveToFile() const;

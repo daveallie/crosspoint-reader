@@ -6,6 +6,7 @@
 #include <SDCardManager.h>
 #include <SPI.h>
 #include <builtinFonts/all.h>
+#include <esp_task_wdt.h>
 
 #include "Battery.h"
 #include "CrossPointSettings.h"
@@ -358,6 +359,9 @@ void loop() {
                     activityDuration);
     }
   }
+
+  // Feed the watchdog timer to prevent resets during long-running operations
+  esp_task_wdt_reset();
 
   // Add delay at the end of the loop to prevent tight spinning
   // When an activity requests skip loop delay (e.g., webserver running), use yield() for faster response
