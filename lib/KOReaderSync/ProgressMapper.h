@@ -8,9 +8,9 @@
  * CrossPoint position representation.
  */
 struct CrossPointPosition {
-  int spineIndex;   // Current spine item (chapter) index
-  int pageNumber;   // Current page within the spine item
-  int totalPages;   // Total pages in the current spine item
+  int spineIndex;  // Current spine item (chapter) index
+  int pageNumber;  // Current page within the spine item
+  int totalPages;  // Total pages in the current spine item
 };
 
 /**

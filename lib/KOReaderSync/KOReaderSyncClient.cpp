@@ -1,9 +1,10 @@
 #include "KOReaderSyncClient.h"
 
 #include <ArduinoJson.h>
-#include <HardwareSerial.h>
 #include <HTTPClient.h>
+#include <HardwareSerial.h>
 #include <WiFiClientSecure.h>
+
 #include <ctime>
 
 #include "KOReaderCredentialStore.h"

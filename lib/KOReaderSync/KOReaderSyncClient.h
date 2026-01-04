@@ -5,12 +5,12 @@
  * Progress data from KOReader sync server.
  */
 struct KOReaderProgress {
-  std::string document;   // Document hash
-  std::string progress;   // XPath-like progress string
-  float percentage;       // Progress percentage (0.0 to 1.0)
-  std::string device;     // Device name
-  std::string deviceId;   // Device ID
-  int64_t timestamp;      // Unix timestamp of last update
+  std::string document;  // Document hash
+  std::string progress;  // XPath-like progress string
+  float percentage;      // Progress percentage (0.0 to 1.0)
+  std::string device;    // Device name
+  std::string deviceId;  // Device ID
+  int64_t timestamp;     // Unix timestamp of last update
 };
 
 /**
@@ -29,15 +29,7 @@ struct KOReaderProgress {
  */
 class KOReaderSyncClient {
  public:
-  enum Error {
-    OK = 0,
-    NO_CREDENTIALS,
-    NETWORK_ERROR,
-    AUTH_FAILED,
-    SERVER_ERROR,
-    JSON_ERROR,
-    NOT_FOUND
-  };
+  enum Error { OK = 0, NO_CREDENTIALS, NETWORK_ERROR, AUTH_FAILED, SERVER_ERROR, JSON_ERROR, NOT_FOUND };
 
   /**
    * Authenticate with the sync server (validate credentials).

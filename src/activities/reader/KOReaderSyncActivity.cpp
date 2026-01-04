@@ -207,8 +207,8 @@ void KOReaderSyncActivity::onEnter() {
 
   // Launch WiFi selection subactivity
   Serial.printf("[%lu] [KOSync] Launching WifiSelectionActivity...\n", millis());
-  enterNewActivity(
-      new WifiSelectionActivity(renderer, mappedInput, [this](const bool connected) { onWifiSelectionComplete(connected); }));
+  enterNewActivity(new WifiSelectionActivity(renderer, mappedInput,
+                                             [this](const bool connected) { onWifiSelectionComplete(connected); }));
 }
 
 void KOReaderSyncActivity::onExit() {
@@ -275,10 +275,11 @@ void KOReaderSyncActivity::render() {
     // Get chapter names from TOC
     const int remoteTocIndex = epub->getTocIndexForSpineIndex(remotePosition.spineIndex);
     const int localTocIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
-    const std::string remoteChapter =
-        (remoteTocIndex >= 0) ? epub->getTocItem(remoteTocIndex).title : ("Section " + std::to_string(remotePosition.spineIndex + 1));
-    const std::string localChapter =
-        (localTocIndex >= 0) ? epub->getTocItem(localTocIndex).title : ("Section " + std::to_string(currentSpineIndex + 1));
+    const std::string remoteChapter = (remoteTocIndex >= 0)
+                                          ? epub->getTocItem(remoteTocIndex).title
+                                          : ("Section " + std::to_string(remotePosition.spineIndex + 1));
+    const std::string localChapter = (localTocIndex >= 0) ? epub->getTocItem(localTocIndex).title
+                                                          : ("Section " + std::to_string(currentSpineIndex + 1));
 
     // Remote progress - chapter and page
     renderer.drawText(UI_10_FONT_ID, 20, 160, "Remote:", true);
@@ -286,7 +287,8 @@ void KOReaderSyncActivity::render() {
     snprintf(remoteChapterStr, sizeof(remoteChapterStr), "  %s", remoteChapter.c_str());
     renderer.drawText(UI_10_FONT_ID, 20, 185, remoteChapterStr);
     char remotePageStr[64];
-    snprintf(remotePageStr, sizeof(remotePageStr), "  Page %d, %.0f%% overall", remotePosition.pageNumber + 1, remoteProgress.percentage * 100);
+    snprintf(remotePageStr, sizeof(remotePageStr), "  Page %d, %.0f%% overall", remotePosition.pageNumber + 1,
+             remoteProgress.percentage * 100);
     renderer.drawText(UI_10_FONT_ID, 20, 210, remotePageStr);
 
     if (!remoteProgress.device.empty()) {
@@ -301,7 +303,8 @@ void KOReaderSyncActivity::render() {
     snprintf(localChapterStr, sizeof(localChapterStr), "  %s", localChapter.c_str());
     renderer.drawText(UI_10_FONT_ID, 20, 295, localChapterStr);
     char localPageStr[64];
-    snprintf(localPageStr, sizeof(localPageStr), "  Page %d/%d, %.0f%% overall", currentPage + 1, totalPagesInSpine, localProgress.percentage * 100);
+    snprintf(localPageStr, sizeof(localPageStr), "  Page %d/%d, %.0f%% overall", currentPage + 1, totalPagesInSpine,
+             localProgress.percentage * 100);
     renderer.drawText(UI_10_FONT_ID, 20, 320, localPageStr);
 
     // Options
