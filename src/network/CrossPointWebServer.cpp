@@ -67,20 +67,23 @@ void CrossPointWebServer::begin() {
 
   // Setup routes
   Serial.printf("[%lu] [WEB] Setting up routes...\n", millis());
-  server->on("/", HTTP_GET, [this] { handleRoot(); });
+  server->on("/", HTTP_GET, [this] { handleStatusPage(); });
   server->on("/files", HTTP_GET, [this] { handleFileList(); });
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
 
   // Upload endpoint with special handling for multipart form data
-  server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
+  server->on("/api/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
 
   // Create folder endpoint
-  server->on("/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
+  server->on("/api/mkdir", HTTP_POST, [this] { handleCreateFolder(); });
+
+  // Move file/folder endpoint
+  server->on("/api/move", HTTP_POST, [this] { handleMove(); });
 
   // Delete file/folder endpoint
-  server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+  server->on("/api/delete", HTTP_POST, [this] { handleDelete(); });
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -150,8 +153,10 @@ void CrossPointWebServer::handleClient() const {
   server->handleClient();
 }
 
-void CrossPointWebServer::handleRoot() const {
-  server->send(200, "text/html", HomePageHtml);
+void CrossPointWebServer::handleStatusPage() const {
+  server->setContentLength(HomePageHtml_size);
+  server->send(200, "text/html", "");
+  server->sendContent((char*)HomePageHtml_data, HomePageHtml_size);
   Serial.printf("[%lu] [WEB] Served root page\n", millis());
 }
 
@@ -241,7 +246,11 @@ bool CrossPointWebServer::isEpubFile(const String& filename) const {
   return lower.endsWith(".epub");
 }
 
-void CrossPointWebServer::handleFileList() const { server->send(200, "text/html", FilesPageHtml); }
+void CrossPointWebServer::handleFileList() const {
+  server->setContentLength(FilesPageHtml_size);
+  server->send(200, "text/html", "");
+  server->sendContent((char*)FilesPageHtml_data, FilesPageHtml_size);
+}
 
 void CrossPointWebServer::handleFileListData() const {
   // Get current path from query string (default to root)
@@ -553,5 +562,71 @@ void CrossPointWebServer::handleDelete() const {
   } else {
     Serial.printf("[%lu] [WEB] Failed to delete: %s\n", millis(), itemPath.c_str());
     server->send(500, "text/plain", "Failed to delete item");
+  }
+}
+
+void CrossPointWebServer::handleMove() const {
+  // Get path from form data
+  if (!server->hasArg("path")) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+
+  if (!server->hasArg("new_path")) {
+    server->send(400, "text/plain", "Missing new path");
+    return;
+  }
+
+  String itemPath = server->arg("path");
+  String newItemPath = server->arg("new_path");
+  const String itemType = server->hasArg("type") ? server->arg("type") : "file";
+
+  // Validate path
+  if (itemPath.isEmpty() || itemPath == "/") {
+    server->send(400, "text/plain", "Cannot move root directory");
+    return;
+  }
+
+  // Ensure path starts with /
+  if (!itemPath.startsWith("/")) {
+    itemPath = "/" + itemPath;
+  }
+
+  // Security check: prevent renaming of protected items
+  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
+
+  // Check if item starts with a dot (hidden/system file)
+  if (itemName.startsWith(".")) {
+    Serial.printf("[%lu] [WEB] Move rejected - hidden/system item: %s\n", millis(), itemPath.c_str());
+    server->send(403, "text/plain", "Cannot move system files");
+    return;
+  }
+
+  // Check against explicitly protected items
+  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+    if (itemName.equals(HIDDEN_ITEMS[i])) {
+      Serial.printf("[%lu] [WEB] Move rejected - protected item: %s\n", millis(), itemPath.c_str());
+      server->send(403, "text/plain", "Cannot move protected items");
+      return;
+    }
+  }
+
+  // Check if item exists
+  if (!SdMan.exists(itemPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Move failed - item not found: %s\n", millis(), itemPath.c_str());
+    server->send(404, "text/plain", "Item not found");
+    return;
+  }
+
+  Serial.printf("[%lu] [WEB] Attempting to move %s: %s\n", millis(), itemType.c_str(), itemPath.c_str());
+
+  bool success = SdMan.rename(itemPath.c_str(), newItemPath.c_str());
+
+  if (success) {
+    Serial.printf("[%lu] [WEB] Successfully moved: %s\n", millis(), itemPath.c_str());
+    server->send(200, "text/plain", "Moved successfully");
+  } else {
+    Serial.printf("[%lu] [WEB] Failed to move: %s\n", millis(), itemPath.c_str());
+    server->send(500, "text/plain", "Failed to move item");
   }
 }
