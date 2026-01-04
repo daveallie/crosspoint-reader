@@ -742,8 +742,6 @@
       <p class="file-info" id="deleteModalQuestion">Are you sure you want to delete:</p>
       <p class="delete-item-name" id="deleteItemName" style="display: none;"></p>
       <div class="delete-items-list" id="deleteItemsList" style="display: none;"></div>
-      <input type="hidden" id="deleteItemPath">
-      <input type="hidden" id="deleteItemType">
       <button class="delete-btn-confirm" onclick="confirmDelete()">Delete</button>
       <button class="delete-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
     </div>
@@ -840,7 +838,6 @@
           let folderPath = currentPath;
           if (!folderPath.endsWith("/")) folderPath += "/";
           folderPath += file.name;
-
           fileTableContent += '<tr class="folder-row">';
           fileTableContent += `<td class="checkbox-col"><input type="checkbox" class="file-checkbox" data-path="${folderPath.replaceAll('"', '&quot;')}" data-name="${escapeHtml(file.name)}" data-type="folder" onchange="updateDeleteButton()"></td>`;
           fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span></td>`;
@@ -903,44 +900,6 @@
   }
 
 let failedUploadsGlobal = [];
-
-/**
- * Generic function to process items sequentially with progress updates
- * @param {Array} items - Array of items to process
- * @param {Function} processItem - Function to process each item, returns a Promise
- * @param {Function} updateProgress - Function to update progress UI
- * @param {Function} onComplete - Function called when all items are processed
- * @param {String} itemType - Type of items being processed (for display purposes)
- */
-async function processItemsSequentially(items, processItem, updateProgress, onComplete, itemType = 'item') {
-  let currentIndex = 0;
-  const failedItems = [];
-
-  async function processNext() {
-    if (currentIndex >= items.length) {
-      // All items processed
-      onComplete(failedItems);
-      return;
-    }
-
-    const item = items[currentIndex];
-    updateProgress(item, currentIndex, items.length, 'in-progress');
-
-    try {
-      await processItem(item, currentIndex);
-      // Success - move to next
-      currentIndex++;
-      processNext();
-    } catch (error) {
-      // Failure - track it and continue
-      failedItems.push({ item, error: error.message || 'Unknown error' });
-      currentIndex++;
-      processNext();
-    }
-  }
-
-  processNext();
-}
 
 // Checkbox management functions
 function toggleSelectAll(checkbox) {
@@ -1212,8 +1171,6 @@ function deleteSelectedFiles() {
     document.getElementById('deleteItemName').textContent = (isFolder ? '📁 ' : '📄 ') + name;
     document.getElementById('deleteItemName').style.display = 'block';
     document.getElementById('deleteItemsList').style.display = 'none';
-    document.getElementById('deleteItemPath').value = path;
-    document.getElementById('deleteItemType').value = isFolder ? 'folder' : 'file';
     document.getElementById('deleteModal').classList.add('open');
   }
 
