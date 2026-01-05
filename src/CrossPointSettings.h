@@ -46,8 +46,6 @@ class CrossPointSettings {
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
   enum PARAGRAPH_ALIGNMENT { JUSTIFIED = 0, LEFT_ALIGN = 1, CENTER_ALIGN = 2, RIGHT_ALIGN = 3 };
 
-  enum HYPHENATION { DISABLED = 0, ENABLED = 1 };
-
   // Auto-sleep timeout options (in minutes)
   enum SLEEP_TIMEOUT { SLEEP_1_MIN = 0, SLEEP_5_MIN = 1, SLEEP_10_MIN = 2, SLEEP_15_MIN = 3, SLEEP_30_MIN = 4 };
 
@@ -79,7 +77,7 @@ class CrossPointSettings {
   uint8_t sleepTimeout = SLEEP_10_MIN;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
-  uint8_t hyphenationEnabled = DISABLED;
+  uint8_t hyphenationEnabled = 0;
 
   // Reader screen margin settings
   uint8_t screenMargin = 5;
