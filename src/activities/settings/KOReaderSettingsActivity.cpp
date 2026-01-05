@@ -11,8 +11,8 @@
 #include "fontIds.h"
 
 namespace {
-constexpr int MENU_ITEMS = 4;
-const char* menuNames[MENU_ITEMS] = {"Username", "Password", "Sync Server URL", "Authenticate"};
+constexpr int MENU_ITEMS = 5;
+const char* menuNames[MENU_ITEMS] = {"Username", "Password", "Sync Server URL", "Document Matching", "Authenticate"};
 }  // namespace
 
 void KOReaderSettingsActivity::taskTrampoline(void* param) {
@@ -129,6 +129,14 @@ void KOReaderSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 3) {
+    // Document Matching - toggle between Filename and Binary
+    const auto current = KOREADER_STORE.getMatchMethod();
+    const auto newMethod = (current == DocumentMatchMethod::FILENAME) ? DocumentMatchMethod::BINARY
+                                                                      : DocumentMatchMethod::FILENAME;
+    KOREADER_STORE.setMatchMethod(newMethod);
+    KOREADER_STORE.saveToFile();
+    updateRequired = true;
+  } else if (selectedIndex == 4) {
     // Authenticate
     if (!KOREADER_STORE.hasCredentials()) {
       // Can't authenticate without credentials - just show message briefly
@@ -184,6 +192,8 @@ void KOReaderSettingsActivity::render() {
     } else if (i == 2) {
       status = KOREADER_STORE.getServerUrl().empty() ? "[Not Set]" : "[Set]";
     } else if (i == 3) {
+      status = KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME ? "[Filename]" : "[Binary]";
+    } else if (i == 4) {
       status = KOREADER_STORE.hasCredentials() ? "" : "[Set credentials first]";
     }
 

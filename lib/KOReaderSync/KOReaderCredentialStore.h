@@ -1,5 +1,12 @@
 #pragma once
+#include <cstdint>
 #include <string>
+
+// Document matching method for KOReader sync
+enum class DocumentMatchMethod : uint8_t {
+  FILENAME = 0,  // Match by filename (simpler, works across different file sources)
+  BINARY = 1,    // Match by partial MD5 of file content (more accurate, but files must be identical)
+};
 
 /**
  * Singleton class for storing KOReader sync credentials on the SD card.
@@ -11,7 +18,8 @@ class KOReaderCredentialStore {
   static KOReaderCredentialStore instance;
   std::string username;
   std::string password;
-  std::string serverUrl;  // Custom sync server URL (empty = default)
+  std::string serverUrl;                                            // Custom sync server URL (empty = default)
+  DocumentMatchMethod matchMethod = DocumentMatchMethod::FILENAME;  // Default to filename for compatibility
 
   // Private constructor for singleton
   KOReaderCredentialStore() = default;
@@ -51,6 +59,10 @@ class KOReaderCredentialStore {
 
   // Get base URL for API calls (with https:// normalization, falls back to default)
   std::string getBaseUrl() const;
+
+  // Document matching method
+  void setMatchMethod(DocumentMatchMethod method);
+  DocumentMatchMethod getMatchMethod() const { return matchMethod; }
 };
 
 // Helper macro to access credential store

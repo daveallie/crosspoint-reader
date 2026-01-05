@@ -4,6 +4,33 @@
 #include <MD5Builder.h>
 #include <SDCardManager.h>
 
+namespace {
+// Extract filename from path (everything after last '/')
+std::string getFilename(const std::string& path) {
+  const size_t pos = path.rfind('/');
+  if (pos == std::string::npos) {
+    return path;
+  }
+  return path.substr(pos + 1);
+}
+}  // namespace
+
+std::string KOReaderDocumentId::calculateFromFilename(const std::string& filePath) {
+  const std::string filename = getFilename(filePath);
+  if (filename.empty()) {
+    return "";
+  }
+
+  MD5Builder md5;
+  md5.begin();
+  md5.add(filename.c_str());
+  md5.calculate();
+
+  std::string result = md5.toString().c_str();
+  Serial.printf("[%lu] [KODoc] Filename hash: %s (from '%s')\n", millis(), result.c_str(), filename.c_str());
+  return result;
+}
+
 size_t KOReaderDocumentId::getOffset(int i) {
   // Offset = 1024 << (2*i)
   // For i = -1: 1024 >> 2 = 256

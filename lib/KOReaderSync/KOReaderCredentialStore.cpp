@@ -54,6 +54,9 @@ bool KOReaderCredentialStore::saveToFile() const {
   // Write server URL
   serialization::writeString(file, serverUrl);
 
+  // Write match method
+  serialization::writePod(file, static_cast<uint8_t>(matchMethod));
+
   file.close();
   Serial.printf("[%lu] [KRS] Saved KOReader credentials to file\n", millis());
   return true;
@@ -95,6 +98,15 @@ bool KOReaderCredentialStore::loadFromFile() {
     serialization::readString(file, serverUrl);
   } else {
     serverUrl.clear();
+  }
+
+  // Read match method
+  if (file.available()) {
+    uint8_t method;
+    serialization::readPod(file, method);
+    matchMethod = static_cast<DocumentMatchMethod>(method);
+  } else {
+    matchMethod = DocumentMatchMethod::FILENAME;
   }
 
   file.close();
@@ -147,4 +159,10 @@ std::string KOReaderCredentialStore::getBaseUrl() const {
   }
 
   return serverUrl;
+}
+
+void KOReaderCredentialStore::setMatchMethod(DocumentMatchMethod method) {
+  matchMethod = method;
+  Serial.printf("[%lu] [KRS] Set match method: %s\n", millis(),
+                method == DocumentMatchMethod::FILENAME ? "Filename" : "Binary");
 }

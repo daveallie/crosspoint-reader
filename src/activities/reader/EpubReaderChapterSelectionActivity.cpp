@@ -10,15 +10,26 @@
 namespace {
 // Time threshold for treating a long press as a page-up/page-down
 constexpr int SKIP_PAGE_MS = 700;
-
-// Sync option is shown at index 0 if credentials are configured
-constexpr int SYNC_ITEM_INDEX = 0;
 }  // namespace
 
+bool EpubReaderChapterSelectionActivity::hasSyncOption() const { return KOREADER_STORE.hasCredentials(); }
+
 int EpubReaderChapterSelectionActivity::getTotalItems() const {
-  // Add 1 for sync option if credentials are configured
-  const int syncOffset = KOREADER_STORE.hasCredentials() ? 1 : 0;
-  return epub->getTocItemsCount() + syncOffset;
+  // Add 2 for sync options (top and bottom) if credentials are configured
+  const int syncCount = hasSyncOption() ? 2 : 0;
+  return epub->getTocItemsCount() + syncCount;
+}
+
+bool EpubReaderChapterSelectionActivity::isSyncItem(int index) const {
+  if (!hasSyncOption()) return false;
+  // First item and last item are sync options
+  return index == 0 || index == getTotalItems() - 1;
+}
+
+int EpubReaderChapterSelectionActivity::tocIndexFromItemIndex(int itemIndex) const {
+  // Account for the sync option at the top
+  const int offset = hasSyncOption() ? 1 : 0;
+  return itemIndex - offset;
 }
 
 int EpubReaderChapterSelectionActivity::getPageItems() const {
@@ -52,12 +63,12 @@ void EpubReaderChapterSelectionActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   // Account for sync option offset when finding current TOC index
-  const int syncOffset = KOREADER_STORE.hasCredentials() ? 1 : 0;
+  const int syncOffset = hasSyncOption() ? 1 : 0;
   selectorIndex = epub->getTocIndexForSpineIndex(currentSpineIndex);
   if (selectorIndex == -1) {
     selectorIndex = 0;
   }
-  selectorIndex += syncOffset;  // Offset for sync option
+  selectorIndex += syncOffset;  // Offset for top sync option
 
   // Trigger first update
   updateRequired = true;
@@ -114,17 +125,16 @@ void EpubReaderChapterSelectionActivity::loop() {
   const bool skipPage = mappedInput.getHeldTime() > SKIP_PAGE_MS;
   const int pageItems = getPageItems();
   const int totalItems = getTotalItems();
-  const int syncOffset = KOREADER_STORE.hasCredentials() ? 1 : 0;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    // Check if sync option is selected
-    if (syncOffset > 0 && selectorIndex == SYNC_ITEM_INDEX) {
+    // Check if sync option is selected (first or last item)
+    if (isSyncItem(selectorIndex)) {
       launchSyncActivity();
       return;
     }
 
-    // Get TOC index (account for sync offset)
-    const int tocIndex = selectorIndex - syncOffset;
+    // Get TOC index (account for top sync offset)
+    const int tocIndex = tocIndexFromItemIndex(selectorIndex);
     const auto newSpineIndex = epub->getSpineIndexForTocIndex(tocIndex);
     if (newSpineIndex == -1) {
       onGoBack();
@@ -168,7 +178,6 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
   const auto pageWidth = renderer.getScreenWidth();
   const int pageItems = getPageItems();
   const int totalItems = getTotalItems();
-  const int syncOffset = KOREADER_STORE.hasCredentials() ? 1 : 0;
 
   const std::string title =
       renderer.truncatedText(UI_12_FONT_ID, epub->getTitle().c_str(), pageWidth - 40, EpdFontFamily::BOLD);
@@ -181,12 +190,12 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
     const int displayY = 60 + (itemIndex % pageItems) * 30;
     const bool isSelected = (itemIndex == selectorIndex);
 
-    if (syncOffset > 0 && itemIndex == SYNC_ITEM_INDEX) {
-      // Draw sync option
+    if (isSyncItem(itemIndex)) {
+      // Draw sync option (at top or bottom)
       renderer.drawText(UI_10_FONT_ID, 20, displayY, ">> Sync Progress", !isSelected);
     } else {
-      // Draw TOC item (account for sync offset)
-      const int tocIndex = itemIndex - syncOffset;
+      // Draw TOC item (account for top sync offset)
+      const int tocIndex = tocIndexFromItemIndex(itemIndex);
       auto item = epub->getTocItem(tocIndex);
       renderer.drawText(UI_10_FONT_ID, 20 + (item.level - 1) * 15, displayY, item.title.c_str(), !isSelected);
     }

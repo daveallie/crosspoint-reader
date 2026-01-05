@@ -12,6 +12,11 @@
 
 namespace {
 void syncTimeWithNTP() {
+  // Stop SNTP if already running (can't reconfigure while running)
+  if (esp_sntp_enabled()) {
+    esp_sntp_stop();
+  }
+
   // Configure SNTP
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
   esp_sntp_setservername(0, "pool.ntp.org");
@@ -67,8 +72,12 @@ void KOReaderSyncActivity::onWifiSelectionComplete(const bool success) {
 }
 
 void KOReaderSyncActivity::performSync() {
-  // Calculate document hash
-  documentHash = KOReaderDocumentId::calculate(epubPath);
+  // Calculate document hash based on user's preferred method
+  if (KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME) {
+    documentHash = KOReaderDocumentId::calculateFromFilename(epubPath);
+  } else {
+    documentHash = KOReaderDocumentId::calculate(epubPath);
+  }
   if (documentHash.empty()) {
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     state = SYNC_FAILED;
@@ -413,7 +422,11 @@ void KOReaderSyncActivity::loop() {
     if (mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
       // Calculate hash if not done yet
       if (documentHash.empty()) {
-        documentHash = KOReaderDocumentId::calculate(epubPath);
+        if (KOREADER_STORE.getMatchMethod() == DocumentMatchMethod::FILENAME) {
+          documentHash = KOReaderDocumentId::calculateFromFilename(epubPath);
+        } else {
+          documentHash = KOReaderDocumentId::calculate(epubPath);
+        }
       }
       performUpload();
     }
