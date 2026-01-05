@@ -97,7 +97,6 @@ class CrossPointSettings {
   float getReaderLineCompression() const;
   unsigned long getSleepTimeoutMs() const;
   int getRefreshFrequency() const;
-  int getReaderScreenMargin() const;
 };
 
 // Helper macro to access settings

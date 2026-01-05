@@ -396,4 +396,3 @@ void OpdsBookBrowserActivity::checkAndConnectWifi() {
     updateRequired = true;
   }
 }
-

@@ -42,7 +42,7 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
 }
 
 void ScreenComponents::drawProgressBar(const GfxRenderer& renderer, const int x, const int y, const int width,
-                                        const int height, const size_t current, const size_t total) {
+                                       const int height, const size_t current, const size_t total) {
   if (total == 0) {
     return;
   }
