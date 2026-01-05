@@ -95,29 +95,39 @@ void HomeActivity::loop() {
   const int menuCount = getMenuItemCount();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    // Menu order: [Continue Reading], [Recent Books], Browse, File transfer, Settings
-    // Calculate index offsets based on what's shown
-    int idx = selectorIndex;
-
-    if (hasContinueReading && idx == 0) {
-      onContinueReading();
-      return;
-    }
-    if (hasContinueReading) idx--;
-
-    if (hasRecentBooks && idx == 0) {
-      onRecentBooksOpen();
-      return;
-    }
-    if (hasRecentBooks) idx--;
-
-    // Now idx is 0-based for: Browse, File transfer, Settings
-    if (idx == 0) {
-      onReaderOpen();
-    } else if (idx == 1) {
-      onFileTransferOpen();
-    } else if (idx == 2) {
-      onSettingsOpen();
+    if (hasContinueReading && hasRecentBooks) {
+      // Menu: Continue Reading, Recent Books, Browse, File transfer, Settings
+      if (selectorIndex == 0) {
+        onContinueReading();
+      } else if (selectorIndex == 1) {
+        onRecentBooksOpen();
+      } else if (selectorIndex == 2) {
+        onReaderOpen();
+      } else if (selectorIndex == 3) {
+        onFileTransferOpen();
+      } else if (selectorIndex == 4) {
+        onSettingsOpen();
+      }
+    } else if (hasContinueReading) {
+      // Menu: Continue Reading, Browse, File transfer, Settings
+      if (selectorIndex == 0) {
+        onContinueReading();
+      } else if (selectorIndex == 1) {
+        onReaderOpen();
+      } else if (selectorIndex == 2) {
+        onFileTransferOpen();
+      } else if (selectorIndex == 3) {
+        onSettingsOpen();
+      }
+    } else {
+      // Menu: Browse, File transfer, Settings
+      if (selectorIndex == 0) {
+        onReaderOpen();
+      } else if (selectorIndex == 1) {
+        onFileTransferOpen();
+      } else if (selectorIndex == 2) {
+        onSettingsOpen();
+      }
     }
   } else if (prevPressed) {
     selectorIndex = (selectorIndex + menuCount - 1) % menuCount;
