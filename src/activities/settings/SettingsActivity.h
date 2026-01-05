@@ -28,7 +28,6 @@ struct SettingInfo {
   // Bounds/step for VALUE type settings
   ValueRange valueRange;
 
-
   // Static constructors
   static SettingInfo Toggle(const char* name, uint8_t CrossPointSettings::* ptr) {
     return {name, SettingType::TOGGLE, ptr};
