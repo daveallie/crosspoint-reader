@@ -258,7 +258,8 @@ void setup() {
     Serial.println("!!! HEAP CORRUPTION DETECTED AT BOOT !!!");
     setupDisplayAndFonts();
     exitActivity();
-    enterNewActivity(new FullScreenMessageActivity(renderer, mappedInputManager, "Heap corruption", EpdFontFamily::BOLD));
+    enterNewActivity(
+        new FullScreenMessageActivity(renderer, mappedInputManager, "Heap corruption", EpdFontFamily::BOLD));
     return;
   }
 
