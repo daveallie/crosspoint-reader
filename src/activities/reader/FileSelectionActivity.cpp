@@ -201,7 +201,6 @@ void FileSelectionActivity::render() const {
 
 int FileSelectionActivity::findEntry(const std::string& name) const {
   for (size_t i = 0; i < files.size(); i++)
-    if (files[i] == name) 
-      return i;
+    if (files[i] == name) return i;
   return 0;
 }
