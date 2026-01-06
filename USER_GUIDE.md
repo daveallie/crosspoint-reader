@@ -7,10 +7,10 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
 The device utilises the standard buttons on the Xtink X4 (in the same layout as the manufacturer firmware, by default):
 
 ### Button Layout
-| Location        | Buttons                                    |
-|-----------------|--------------------------------------------|
-| **Bottom Edge** | **Back**, **Confirm**, **Left**, **Right** |
-| **Right Side**  | **Power**, **Volume Up**, **Volume Down**  |
+| Location        | Buttons                                              |
+| --------------- | ---------------------------------------------------- |
+| **Bottom Edge** | **Back**, **Confirm**, **Left**, **Right**           |
+| **Right Side**  | **Power**, **Volume Up**, **Volume Down**, **Reset** |
 
 Button layout can be customized in **[Settings](#35-settings)**.
 
@@ -21,6 +21,8 @@ Button layout can be customized in **[Settings](#35-settings)**.
 ### Power On / Off
 
 To turn the device on or off, **press and hold the Power button for half a second**. In **[Settings](#35-settings)** you can configure the power button to trigger on a short press instead of a long one.
+
+To reboot the device (for example if it's frozen, or after a firmware update), press and release the Reset button, and then hold the Power button for a few seconds.
 
 ### First Launch
 
@@ -112,7 +114,7 @@ Once you have opened a book, the button layout changes to facilitate reading.
 
 ### Page Turning
 | Action            | Buttons                              |
-|-------------------|--------------------------------------|
+| ----------------- | ------------------------------------ |
 | **Previous Page** | Press **Left** _or_ **Volume Up**    |
 | **Next Page**     | Press **Right** _or_ **Volume Down** |
 
