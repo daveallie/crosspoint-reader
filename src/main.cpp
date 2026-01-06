@@ -14,7 +14,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
-#include "activities/network/CrossPointWebServerActivity.h"
+#include "activities/network/FileTransferActivity.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
 #include "activities/util/FullScreenMessageActivity.h"
@@ -214,7 +214,7 @@ void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
 void onGoToFileTransfer() {
   exitActivity();
-  enterNewActivity(new CrossPointWebServerActivity(renderer, mappedInputManager, onGoHome));
+  enterNewActivity(new FileTransferActivity(renderer, mappedInputManager, onGoHome));
 }
 
 void onGoToSettings() {

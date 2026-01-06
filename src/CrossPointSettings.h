@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <iosfwd>
+#include <string>
 
 class CrossPointSettings {
  private:
@@ -74,6 +75,12 @@ class CrossPointSettings {
   uint8_t sleepTimeout = SLEEP_10_MIN;
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
+
+  // Network credentials for FTP and HTTP servers
+  std::string ftpUsername = "crosspoint";
+  std::string ftpPassword = "reader";
+  std::string httpUsername = "crosspoint";
+  std::string httpPassword = "reader";
 
   ~CrossPointSettings() = default;
 
