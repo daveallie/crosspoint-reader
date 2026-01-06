@@ -11,6 +11,7 @@
 
 class Page;
 class GfxRenderer;
+class Epub;
 
 #define MAX_WORD_SIZE 200
 
@@ -36,8 +37,13 @@ class ChapterHtmlSlimParser {
   uint8_t paragraphAlignment;
   uint16_t viewportWidth;
   uint16_t viewportHeight;
+  std::shared_ptr<Epub> epub;
+  int spineIndex;
+  std::string spineItemDir;
+  int imageCounter;
 
   void startNewTextBlock(TextBlock::Style style);
+  void processImageTag(const XML_Char** atts);
   void makePages();
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
@@ -50,7 +56,9 @@ class ChapterHtmlSlimParser {
                                  const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                                  const uint16_t viewportHeight,
                                  const std::function<void(std::unique_ptr<Page>)>& completePageFn,
-                                 const std::function<void(int)>& progressFn = nullptr)
+                                 const std::function<void(int)>& progressFn = nullptr,
+                                 std::shared_ptr<Epub> epub = nullptr, int spineIndex = 0,
+                                 const std::string& spineItemDir = "")
       : filepath(filepath),
         renderer(renderer),
         fontId(fontId),
@@ -60,7 +68,11 @@ class ChapterHtmlSlimParser {
         viewportWidth(viewportWidth),
         viewportHeight(viewportHeight),
         completePageFn(completePageFn),
-        progressFn(progressFn) {}
+        progressFn(progressFn),
+        epub(std::move(epub)),
+        spineIndex(spineIndex),
+        spineItemDir(spineItemDir),
+        imageCounter(0) {}
   ~ChapterHtmlSlimParser() = default;
   bool parseAndBuildPages();
   void addLineToPage(std::shared_ptr<TextBlock> line);
