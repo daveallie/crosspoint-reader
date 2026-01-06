@@ -30,7 +30,6 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
 
   // Apply fixed transforms before any per-line layout work.
   applyParagraphIndent();
-  ensureHyphenationFitsViewport(renderer, fontId, viewportWidth);
 
   const int pageWidth = viewportWidth;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
@@ -153,100 +152,6 @@ void ParsedText::applyParagraphIndent() {
   }
 
   words.front().insert(0, "\xe2\x80\x83");
-}
-
-void ParsedText::ensureHyphenationFitsViewport(const GfxRenderer& renderer, const int fontId, const int viewportWidth) {
-  if (!hyphenationEnabled || viewportWidth <= 0) {
-    return;
-  }
-
-  auto wordIt = words.begin();
-  auto styleIt = wordStyles.begin();
-
-  while (wordIt != words.end() && styleIt != wordStyles.end()) {
-    const int wordWidth = renderer.getTextWidth(fontId, wordIt->c_str(), *styleIt);
-    if (wordWidth <= viewportWidth) {
-      ++wordIt;
-      ++styleIt;
-      continue;
-    }
-
-    auto chunks = hyphenateWordToFit(*wordIt, renderer, fontId, *styleIt, viewportWidth);
-    if (chunks.empty()) {
-      ++wordIt;
-      ++styleIt;
-      continue;
-    }
-
-    *wordIt = chunks.front();
-
-    auto wordInsertPos = std::next(wordIt);
-    auto styleInsertPos = std::next(styleIt);
-    for (size_t idx = 1; idx < chunks.size(); ++idx) {
-      wordInsertPos = words.insert(wordInsertPos, chunks[idx]);
-      styleInsertPos = wordStyles.insert(styleInsertPos, *styleIt);
-      ++wordInsertPos;
-      ++styleInsertPos;
-    }
-
-    ++wordIt;
-    ++styleIt;
-  }
-}
-
-std::vector<std::string> ParsedText::hyphenateWordToFit(const std::string& word, const GfxRenderer& renderer,
-                                                        const int fontId, const EpdFontFamily::Style style,
-                                                        const int viewportWidth) const {
-  std::vector<std::string> chunks;
-  if (word.empty() || viewportWidth <= 0) {
-    return chunks;
-  }
-
-  const int hyphenWidth = renderer.getTextWidth(fontId, "-", style);
-  std::string remaining = word;
-
-  while (!remaining.empty()) {
-    const int remainingWidth = renderer.getTextWidth(fontId, remaining.c_str(), style);
-    if (remainingWidth <= viewportWidth) {
-      chunks.push_back(remaining);
-      break;
-    }
-
-    const auto breakOffsets = Hyphenator::breakOffsets(remaining, true);
-    if (breakOffsets.empty()) {
-      return {};
-    }
-
-    size_t chosenOffset = 0;
-    int chosenWidth = -1;
-    for (const size_t offset : breakOffsets) {
-      if (offset == 0 || offset >= remaining.size()) {
-        continue;
-      }
-
-      const std::string candidate = remaining.substr(0, offset);
-      const int candidateWidth = renderer.getTextWidth(fontId, candidate.c_str(), style) + hyphenWidth;
-      if (candidateWidth > viewportWidth) {
-        continue;
-      }
-
-      if (candidateWidth > chosenWidth) {
-        chosenWidth = candidateWidth;
-        chosenOffset = offset;
-      }
-    }
-
-    if (chosenWidth < 0) {
-      return {};
-    }
-
-    std::string chunk = remaining.substr(0, chosenOffset);
-    chunk.push_back('-');
-    chunks.push_back(std::move(chunk));
-    remaining.erase(0, chosenOffset);
-  }
-
-  return chunks;
 }
 
 // Builds break indices while opportunistically splitting the word that would overflow the current line.
