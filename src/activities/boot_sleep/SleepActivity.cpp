@@ -45,11 +45,11 @@ void SleepActivity::onEnter() {
   }
 
   if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT_PAGE) {
-    return renderCoverSleepScreen();
+    return renderPageSleepScreen();
   }
 
   if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::DARK_PAGE) {
-    return renderCoverSleepScreen();
+    return renderPageSleepScreen();
   }
 
   renderDefaultSleepScreen();
@@ -273,5 +273,14 @@ void SleepActivity::renderCoverSleepScreen() const {
 
 void SleepActivity::renderBlankSleepScreen() const {
   renderer.clearScreen();
+  renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
+}
+
+void SleepActivity::renderPageSleepScreen() const {
+  renderer.clearScreen();
+  onContinueReading();
+  if (SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT_PAGE) {
+    renderer.invertScreen();
+  }
   renderer.displayBuffer(EInkDisplay::HALF_REFRESH);
 }
