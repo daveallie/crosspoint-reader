@@ -46,7 +46,8 @@ class CrossPointSettings {
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
   enum PARAGRAPH_ALIGNMENT { JUSTIFIED = 0, LEFT_ALIGN = 1, CENTER_ALIGN = 2, RIGHT_ALIGN = 3 };
 
-  // Auto-sleep timeout options (enum index to minutes: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never)
+  // Auto-sleep timeout options (enum index to minutes: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min,
+  // 7=Never)
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY { REFRESH_1 = 0, REFRESH_5 = 1, REFRESH_10 = 2, REFRESH_15 = 3, REFRESH_30 = 4 };
