@@ -1,6 +1,7 @@
 #include "SettingsActivity.h"
 
 #include <GfxRenderer.h>
+#include <HardwareSerial.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -66,7 +67,6 @@ void SettingsActivity::taskTrampoline(void* param) {
 
 void SettingsActivity::onEnter() {
   Activity::onEnter();
-
   renderingMutex = xSemaphoreCreateMutex();
 
   // Reset selection to first item
@@ -76,7 +76,7 @@ void SettingsActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&SettingsActivity::taskTrampoline, "SettingsActivityTask",
-              2048,               // Stack size
+              4096,               // Stack size
               this,               // Parameters
               1,                  // Priority
               &displayTaskHandle  // Task handle
@@ -123,11 +123,9 @@ void SettingsActivity::loop() {
     updateRequired = true;
   } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
              mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-    // Move selection down
-    if (selectedSettingIndex < settingsCount - 1) {
-      selectedSettingIndex++;
-      updateRequired = true;
-    }
+    // Move selection down (with wrap around)
+    selectedSettingIndex = (selectedSettingIndex < settingsCount - 1) ? (selectedSettingIndex + 1) : 0;
+    updateRequired = true;
   }
 }
 
