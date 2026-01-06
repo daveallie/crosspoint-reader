@@ -45,8 +45,7 @@ class CrossPointSettings {
   enum LINE_COMPRESSION { TIGHT = 0, NORMAL = 1, WIDE = 2 };
   enum PARAGRAPH_ALIGNMENT { JUSTIFIED = 0, LEFT_ALIGN = 1, CENTER_ALIGN = 2, RIGHT_ALIGN = 3 };
 
-  // Auto-sleep timeout options (in minutes)
-  enum SLEEP_TIMEOUT { SLEEP_1_MIN = 0, SLEEP_5_MIN = 1, SLEEP_10_MIN = 2, SLEEP_15_MIN = 3, SLEEP_30_MIN = 4 };
+  // Auto-sleep timeout options (enum index to minutes: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never)
 
   // E-ink refresh frequency (pages between full refreshes)
   enum REFRESH_FREQUENCY { REFRESH_1 = 0, REFRESH_5 = 1, REFRESH_10 = 2, REFRESH_15 = 3, REFRESH_30 = 4 };
@@ -70,8 +69,8 @@ class CrossPointSettings {
   uint8_t fontSize = MEDIUM;
   uint8_t lineSpacing = NORMAL;
   uint8_t paragraphAlignment = JUSTIFIED;
-  // Auto-sleep timeout setting (default 10 minutes)
-  uint8_t sleepTimeout = SLEEP_10_MIN;
+  // Auto-sleep timeout (enum index: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never)
+  uint8_t autoSleepMinutes = 1;  // Default to 5 minutes
   // E-ink refresh frequency (default 15 pages)
   uint8_t refreshFrequency = REFRESH_15;
 
@@ -87,7 +86,20 @@ class CrossPointSettings {
   bool loadFromFile();
 
   float getReaderLineCompression() const;
-  unsigned long getSleepTimeoutMs() const;
+  unsigned long getAutoSleepTimeoutMs() const {
+    // Map enum index to milliseconds: 0=2min, 1=5min, 2=10min, 3=15min, 4=20min, 5=30min, 6=60min, 7=Never(0)
+    constexpr unsigned long timeouts[] = {
+        2UL * 60UL * 1000UL,   // 0: 2 minutes
+        5UL * 60UL * 1000UL,   // 1: 5 minutes (default)
+        10UL * 60UL * 1000UL,  // 2: 10 minutes
+        15UL * 60UL * 1000UL,  // 3: 15 minutes
+        20UL * 60UL * 1000UL,  // 4: 20 minutes
+        30UL * 60UL * 1000UL,  // 5: 30 minutes
+        60UL * 60UL * 1000UL,  // 6: 60 minutes
+        0UL                    // 7: Never (disabled)
+    };
+    return (autoSleepMinutes < 8) ? timeouts[autoSleepMinutes] : timeouts[2];
+  }
   int getRefreshFrequency() const;
 };
 

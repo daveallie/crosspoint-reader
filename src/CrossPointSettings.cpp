@@ -38,7 +38,7 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, fontSize);
   serialization::writePod(outputFile, lineSpacing);
   serialization::writePod(outputFile, paragraphAlignment);
-  serialization::writePod(outputFile, sleepTimeout);
+  serialization::writePod(outputFile, autoSleepMinutes);
   serialization::writePod(outputFile, refreshFrequency);
   outputFile.close();
 
@@ -88,7 +88,7 @@ bool CrossPointSettings::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, paragraphAlignment);
     if (++settingsRead >= fileSettingsCount) break;
-    serialization::readPod(inputFile, sleepTimeout);
+    serialization::readPod(inputFile, autoSleepMinutes);
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, refreshFrequency);
     if (++settingsRead >= fileSettingsCount) break;
@@ -132,22 +132,6 @@ float CrossPointSettings::getReaderLineCompression() const {
         case WIDE:
           return 1.0f;
       }
-  }
-}
-
-unsigned long CrossPointSettings::getSleepTimeoutMs() const {
-  switch (sleepTimeout) {
-    case SLEEP_1_MIN:
-      return 1UL * 60 * 1000;
-    case SLEEP_5_MIN:
-      return 5UL * 60 * 1000;
-    case SLEEP_10_MIN:
-    default:
-      return 10UL * 60 * 1000;
-    case SLEEP_15_MIN:
-      return 15UL * 60 * 1000;
-    case SLEEP_30_MIN:
-      return 30UL * 60 * 1000;
   }
 }
 

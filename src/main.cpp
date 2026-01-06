@@ -316,16 +316,16 @@ void loop() {
     lastMemPrint = millis();
   }
 
-  // Check for any user activity (button press or release) or active background work
+  // Check for any user activity (button press or release)
   static unsigned long lastActivityTime = millis();
-  if (inputManager.wasAnyPressed() || inputManager.wasAnyReleased() ||
-      (currentActivity && currentActivity->preventAutoSleep())) {
+  if (inputManager.wasAnyPressed() || inputManager.wasAnyReleased()) {
     lastActivityTime = millis();  // Reset inactivity timer
   }
 
-  const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
-  if (millis() - lastActivityTime >= sleepTimeoutMs) {
-    Serial.printf("[%lu] [SLP] Auto-sleep triggered after %lu ms of inactivity\n", millis(), sleepTimeoutMs);
+  // Check auto-sleep timeout (if enabled - 0 means never sleep)
+  const unsigned long autoSleepTimeout = SETTINGS.getAutoSleepTimeoutMs();
+  if (autoSleepTimeout > 0 && millis() - lastActivityTime >= autoSleepTimeout) {
+    Serial.printf("[%lu] [SLP] Auto-sleep triggered after %lu ms of inactivity\n", millis(), autoSleepTimeout);
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;
