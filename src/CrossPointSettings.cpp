@@ -4,6 +4,8 @@
 #include <SDCardManager.h>
 #include <Serialization.h>
 
+#include <cstring>
+
 #include "fontIds.h"
 
 // Initialize the static instance
@@ -43,6 +45,7 @@ bool CrossPointSettings::saveToFile() const {
   serialization::writePod(outputFile, textAntiAliasing);
   serialization::writePod(outputFile, screenMargin);
   serialization::writePod(outputFile, sleepScreenCoverMode);
+  serialization::writeString(outputFile, std::string(opdsServerUrl));
   outputFile.close();
 
   Serial.printf("[%lu] [CPS] Settings saved to file\n", millis());
@@ -101,6 +104,12 @@ bool CrossPointSettings::loadFromFile() {
     if (++settingsRead >= fileSettingsCount) break;
     serialization::readPod(inputFile, sleepScreenCoverMode);
     if (++settingsRead >= fileSettingsCount) break;
+    {
+      std::string urlStr;
+      serialization::readString(inputFile, urlStr);
+      strncpy(opdsServerUrl, urlStr.c_str(), sizeof(opdsServerUrl) - 1);
+      opdsServerUrl[sizeof(opdsServerUrl) - 1] = '\0';
+    }
   } while (false);
 
   inputFile.close();
