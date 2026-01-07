@@ -142,4 +142,3 @@ bool hasOnlyAlphabetic(const std::vector<CodepointInfo>& cps) {
   }
   return true;
 }
-

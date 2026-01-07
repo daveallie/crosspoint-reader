@@ -4,8 +4,8 @@
 #include <Serialization.h>
 
 #include "Page.h"
-#include "parsers/ChapterHtmlSlimParser.h"
 #include "hyphenation/Hyphenator.h"
+#include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
 constexpr uint8_t SECTION_FILE_VERSION = 9;
