@@ -49,7 +49,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   auto dir = SdMan.open("/sleep");
   if (dir && dir.isDirectory()) {
     std::vector<std::string> files;
-    char name[128];
+    char name[500];
     // collect all valid BMP files
     for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
       if (file.isDirectory()) {
