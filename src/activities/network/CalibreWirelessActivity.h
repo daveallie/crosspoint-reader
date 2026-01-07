@@ -1,28 +1,15 @@
 #pragma once
 #include <SDCardManager.h>
-#include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-#include <cstdint>
 #include <functional>
 #include <string>
 
 #include "activities/Activity.h"
-
-// Calibre wireless device states
-enum class CalibreWirelessState {
-  DISCOVERING,   // Listening for Calibre server broadcasts
-  CONNECTING,    // Establishing TCP connection
-  WAITING,       // Connected, waiting for commands
-  RECEIVING,     // Receiving a book file
-  COMPLETE,      // Transfer complete
-  DISCONNECTED,  // Calibre disconnected
-  ERROR          // Connection/transfer error
-};
 
 /**
  * CalibreWirelessActivity implements Calibre's "wireless device" protocol.
@@ -39,13 +26,48 @@ enum class CalibreWirelessState {
  * 5. Books are transferred as binary data after SEND_BOOK command
  */
 class CalibreWirelessActivity final : public Activity {
+  // Calibre wireless device states
+  enum class WirelessState {
+    DISCOVERING,   // Listening for Calibre server broadcasts
+    CONNECTING,    // Establishing TCP connection
+    WAITING,       // Connected, waiting for commands
+    RECEIVING,     // Receiving a book file
+    COMPLETE,      // Transfer complete
+    DISCONNECTED,  // Calibre disconnected
+    ERROR          // Connection/transfer error
+  };
+
+  // Calibre protocol opcodes (from calibre/devices/smart_device_app/driver.py)
+  enum OpCode : uint8_t {
+    OK = 0,
+    SET_CALIBRE_DEVICE_INFO = 1,
+    SET_CALIBRE_DEVICE_NAME = 2,
+    GET_DEVICE_INFORMATION = 3,
+    TOTAL_SPACE = 4,
+    FREE_SPACE = 5,
+    GET_BOOK_COUNT = 6,
+    SEND_BOOKLISTS = 7,
+    SEND_BOOK = 8,
+    GET_INITIALIZATION_INFO = 9,
+    BOOK_DONE = 11,
+    NOOP = 12,  // Was incorrectly 18
+    DELETE_BOOK = 13,
+    GET_BOOK_FILE_SEGMENT = 14,
+    GET_BOOK_METADATA = 15,
+    SEND_BOOK_METADATA = 16,
+    DISPLAY_MESSAGE = 17,
+    CALIBRE_BUSY = 18,
+    SET_LIBRARY_INFO = 19,
+    ERROR = 20,
+  };
+
   TaskHandle_t displayTaskHandle = nullptr;
   TaskHandle_t networkTaskHandle = nullptr;
   SemaphoreHandle_t renderingMutex = nullptr;
   SemaphoreHandle_t stateMutex = nullptr;
   bool updateRequired = false;
 
-  CalibreWirelessState state = CalibreWirelessState::DISCOVERING;
+  WirelessState state = WirelessState::DISCOVERING;
   const std::function<void()> onComplete;
 
   // UDP discovery
@@ -71,28 +93,6 @@ class CalibreWirelessActivity final : public Activity {
   FsFile currentFile;
   std::string recvBuffer;  // Buffer for incoming data (like KOReader)
 
-  // Calibre protocol opcodes (from calibre/devices/smart_device_app/driver.py)
-  static constexpr int OP_OK = 0;
-  static constexpr int OP_SET_CALIBRE_DEVICE_INFO = 1;
-  static constexpr int OP_SET_CALIBRE_DEVICE_NAME = 2;
-  static constexpr int OP_GET_DEVICE_INFORMATION = 3;
-  static constexpr int OP_TOTAL_SPACE = 4;
-  static constexpr int OP_FREE_SPACE = 5;
-  static constexpr int OP_GET_BOOK_COUNT = 6;
-  static constexpr int OP_SEND_BOOKLISTS = 7;
-  static constexpr int OP_SEND_BOOK = 8;
-  static constexpr int OP_GET_INITIALIZATION_INFO = 9;
-  static constexpr int OP_BOOK_DONE = 11;
-  static constexpr int OP_NOOP = 12;  // Was incorrectly 18
-  static constexpr int OP_DELETE_BOOK = 13;
-  static constexpr int OP_GET_BOOK_FILE_SEGMENT = 14;
-  static constexpr int OP_GET_BOOK_METADATA = 15;
-  static constexpr int OP_SEND_BOOK_METADATA = 16;
-  static constexpr int OP_DISPLAY_MESSAGE = 17;
-  static constexpr int OP_CALIBRE_BUSY = 18;
-  static constexpr int OP_SET_LIBRARY_INFO = 19;
-  static constexpr int OP_ERROR = 20;
-
   static void displayTaskTrampoline(void* param);
   static void networkTaskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -103,8 +103,8 @@ class CalibreWirelessActivity final : public Activity {
   void listenForDiscovery();
   void handleTcpClient();
   bool readJsonMessage(std::string& message);
-  void sendJsonResponse(int opcode, const std::string& data);
-  void handleCommand(int opcode, const std::string& data);
+  void sendJsonResponse(OpCode opcode, const std::string& data);
+  void handleCommand(OpCode opcode, const std::string& data);
   void receiveBinaryData();
 
   // Protocol handlers
@@ -119,7 +119,7 @@ class CalibreWirelessActivity final : public Activity {
 
   // Utility
   std::string getDeviceUuid() const;
-  void setState(CalibreWirelessState newState);
+  void setState(WirelessState newState);
   void setStatus(const std::string& message);
   void setError(const std::string& message);
 

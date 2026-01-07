@@ -33,7 +33,7 @@ void CalibreWirelessActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
   stateMutex = xSemaphoreCreateMutex();
 
-  state = CalibreWirelessState::DISCOVERING;
+  state = WirelessState::DISCOVERING;
   statusMessage = "Discovering Calibre...";
   errorMessage.clear();
   calibreHostname.clear();
@@ -124,19 +124,19 @@ void CalibreWirelessActivity::networkTaskLoop() {
     xSemaphoreGive(stateMutex);
 
     switch (currentState) {
-      case CalibreWirelessState::DISCOVERING:
+      case WirelessState::DISCOVERING:
         listenForDiscovery();
         break;
 
-      case CalibreWirelessState::CONNECTING:
-      case CalibreWirelessState::WAITING:
-      case CalibreWirelessState::RECEIVING:
+      case WirelessState::CONNECTING:
+      case WirelessState::WAITING:
+      case WirelessState::RECEIVING:
         handleTcpClient();
         break;
 
-      case CalibreWirelessState::COMPLETE:
-      case CalibreWirelessState::DISCONNECTED:
-      case CalibreWirelessState::ERROR:
+      case WirelessState::COMPLETE:
+      case WirelessState::DISCONNECTED:
+      case WirelessState::ERROR:
         // Just wait, user will exit
         vTaskDelay(100 / portTICK_PERIOD_MS);
         break;
@@ -219,7 +219,7 @@ void CalibreWirelessActivity::listenForDiscovery() {
 
       if (calibrePort > 0) {
         // Connect to Calibre's TCP server - try main port first, then alt port
-        setState(CalibreWirelessState::CONNECTING);
+        setState(WirelessState::CONNECTING);
         setStatus("Connecting to " + calibreHostname + "...");
 
         // Small delay before connecting
@@ -241,11 +241,11 @@ void CalibreWirelessActivity::listenForDiscovery() {
         }
 
         if (connected) {
-          setState(CalibreWirelessState::WAITING);
+          setState(WirelessState::WAITING);
           setStatus("Connected to " + calibreHostname + "\nWaiting for commands...");
         } else {
           // Don't set error yet, keep trying discovery
-          setState(CalibreWirelessState::DISCOVERING);
+          setState(WirelessState::DISCOVERING);
           setStatus("Discovering Calibre...\n(Connection failed, retrying)");
           calibrePort = 0;
           calibreAltPort = 0;
@@ -257,7 +257,7 @@ void CalibreWirelessActivity::listenForDiscovery() {
 
 void CalibreWirelessActivity::handleTcpClient() {
   if (!tcpClient.connected()) {
-    setState(CalibreWirelessState::DISCONNECTED);
+    setState(WirelessState::DISCONNECTED);
     setStatus("Calibre disconnected");
     return;
   }
@@ -276,7 +276,13 @@ void CalibreWirelessActivity::handleTcpClient() {
       start++;
       size_t end = message.find(',', start);
       if (end != std::string::npos) {
-        const int opcode = std::stoi(message.substr(start, end - start));
+        const int opcodeInt = std::stoi(message.substr(start, end - start));
+        if (opcodeInt < 0 || opcodeInt >= OpCode::ERROR) {
+          Serial.printf("[%lu] [CAL] Invalid opcode: %d\n", millis(), opcodeInt);
+          sendJsonResponse(OpCode::OK, "{}");
+          return;
+        }
+        const auto opcode = static_cast<OpCode>(opcodeInt);
 
         // Extract data object (everything after the comma until the last ']')
         size_t dataStart = end + 1;
@@ -386,7 +392,7 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
   return true;
 }
 
-void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& data) {
+void CalibreWirelessActivity::sendJsonResponse(const OpCode opcode, const std::string& data) {
   // Format: length + [opcode, {data}]
   std::string json = "[" + std::to_string(opcode) + "," + data + "]";
   const std::string lengthPrefix = std::to_string(json.length());
@@ -396,59 +402,59 @@ void CalibreWirelessActivity::sendJsonResponse(int opcode, const std::string& da
   tcpClient.flush();
 }
 
-void CalibreWirelessActivity::handleCommand(int opcode, const std::string& data) {
+void CalibreWirelessActivity::handleCommand(const OpCode opcode, const std::string& data) {
   switch (opcode) {
-    case OP_GET_INITIALIZATION_INFO:
+    case OpCode::GET_INITIALIZATION_INFO:
       handleGetInitializationInfo(data);
       break;
-    case OP_GET_DEVICE_INFORMATION:
+    case OpCode::GET_DEVICE_INFORMATION:
       handleGetDeviceInformation();
       break;
-    case OP_FREE_SPACE:
+    case OpCode::FREE_SPACE:
       handleFreeSpace();
       break;
-    case OP_GET_BOOK_COUNT:
+    case OpCode::GET_BOOK_COUNT:
       handleGetBookCount();
       break;
-    case OP_SEND_BOOK:
+    case OpCode::SEND_BOOK:
       handleSendBook(data);
       break;
-    case OP_SEND_BOOK_METADATA:
+    case OpCode::SEND_BOOK_METADATA:
       handleSendBookMetadata(data);
       break;
-    case OP_DISPLAY_MESSAGE:
+    case OpCode::DISPLAY_MESSAGE:
       handleDisplayMessage(data);
       break;
-    case OP_NOOP:
+    case OpCode::NOOP:
       handleNoop(data);
       break;
-    case OP_SET_CALIBRE_DEVICE_INFO:
-    case OP_SET_CALIBRE_DEVICE_NAME:
+    case OpCode::SET_CALIBRE_DEVICE_INFO:
+    case OpCode::SET_CALIBRE_DEVICE_NAME:
       // These set metadata about the connected Calibre instance.
       // We don't need this info, just acknowledge receipt.
-      sendJsonResponse(OP_OK, "{}");
+      sendJsonResponse(OpCode::OK, "{}");
       break;
-    case OP_SET_LIBRARY_INFO:
+    case OpCode::SET_LIBRARY_INFO:
       // Library metadata (name, UUID) - not needed for receiving books
-      sendJsonResponse(OP_OK, "{}");
+      sendJsonResponse(OpCode::OK, "{}");
       break;
-    case OP_SEND_BOOKLISTS:
+    case OpCode::SEND_BOOKLISTS:
       // Calibre asking us to send our book list. We report 0 books in
       // handleGetBookCount, so this is effectively a no-op.
-      sendJsonResponse(OP_OK, "{}");
+      sendJsonResponse(OpCode::OK, "{}");
       break;
-    case OP_TOTAL_SPACE:
+    case OpCode::TOTAL_SPACE:
       handleFreeSpace();
       break;
     default:
       Serial.printf("[%lu] [CAL] Unknown opcode: %d\n", millis(), opcode);
-      sendJsonResponse(OP_OK, "{}");
+      sendJsonResponse(OpCode::OK, "{}");
       break;
   }
 }
 
 void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& data) {
-  setState(CalibreWirelessState::WAITING);
+  setState(WirelessState::WAITING);
   setStatus("Connected to " + calibreHostname +
             "\nWaiting for transfer...\n\nIf transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice "
             "plugin settings.");
@@ -480,7 +486,7 @@ void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& dat
   response += "\"versionOK\":true";
   response += "}";
 
-  sendJsonResponse(OP_OK, response);
+  sendJsonResponse(OpCode::OK, response);
 }
 
 void CalibreWirelessActivity::handleGetDeviceInformation() {
@@ -494,19 +500,19 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
   response += "\"device_version\":\"" CROSSPOINT_VERSION "\"";
   response += "}";
 
-  sendJsonResponse(OP_OK, response);
+  sendJsonResponse(OpCode::OK, response);
 }
 
 void CalibreWirelessActivity::handleFreeSpace() {
   // TODO: Report actual SD card free space instead of hardcoded value
   // Report 10GB free space for now
-  sendJsonResponse(OP_OK, "{\"free_space_on_device\":10737418240}");
+  sendJsonResponse(OpCode::OK, "{\"free_space_on_device\":10737418240}");
 }
 
 void CalibreWirelessActivity::handleGetBookCount() {
   // We report 0 books - Calibre will send books without checking for duplicates
   std::string response = "{\"count\":0,\"willStream\":true,\"willScan\":false}";
-  sendJsonResponse(OP_OK, response);
+  sendJsonResponse(OpCode::OK, response);
 }
 
 void CalibreWirelessActivity::handleSendBook(const std::string& data) {
@@ -563,7 +569,7 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   }
 
   if (lpath.empty() || length == 0) {
-    sendJsonResponse(OP_ERROR, "{\"message\":\"Invalid book data\"}");
+    sendJsonResponse(OpCode::ERROR, "{\"message\":\"Invalid book data\"}");
     return;
   }
 
@@ -582,18 +588,18 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
   currentFileSize = length;
   bytesReceived = 0;
 
-  setState(CalibreWirelessState::RECEIVING);
+  setState(WirelessState::RECEIVING);
   setStatus("Receiving: " + filename);
 
   // Open file for writing
   if (!SdMan.openFileForWrite("CAL", currentFilename.c_str(), currentFile)) {
     setError("Failed to create file");
-    sendJsonResponse(OP_ERROR, "{\"message\":\"Failed to create file\"}");
+    sendJsonResponse(OpCode::ERROR, "{\"message\":\"Failed to create file\"}");
     return;
   }
 
   // Send OK to start receiving binary data
-  sendJsonResponse(OP_OK, "{}");
+  sendJsonResponse(OpCode::OK, "{}");
 
   // Switch to binary mode
   inBinaryMode = true;
@@ -612,7 +618,7 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
 
 void CalibreWirelessActivity::handleSendBookMetadata(const std::string& data) {
   // We receive metadata after the book - just acknowledge
-  sendJsonResponse(OP_OK, "{}");
+  sendJsonResponse(OpCode::OK, "{}");
 }
 
 void CalibreWirelessActivity::handleDisplayMessage(const std::string& data) {
@@ -621,16 +627,16 @@ void CalibreWirelessActivity::handleDisplayMessage(const std::string& data) {
   if (data.find("\"messageKind\":1") != std::string::npos) {
     setError("Password required");
   }
-  sendJsonResponse(OP_OK, "{}");
+  sendJsonResponse(OpCode::OK, "{}");
 }
 
 void CalibreWirelessActivity::handleNoop(const std::string& data) {
   // Check for ejecting flag
   if (data.find("\"ejecting\":true") != std::string::npos) {
-    setState(CalibreWirelessState::DISCONNECTED);
+    setState(WirelessState::DISCONNECTED);
     setStatus("Calibre disconnected");
   }
-  sendJsonResponse(OP_NOOP, "{}");
+  sendJsonResponse(OpCode::NOOP, "{}");
 }
 
 void CalibreWirelessActivity::receiveBinaryData() {
@@ -661,11 +667,11 @@ void CalibreWirelessActivity::receiveBinaryData() {
       currentFile.close();
       inBinaryMode = false;
 
-      setState(CalibreWirelessState::WAITING);
+      setState(WirelessState::WAITING);
       setStatus("Received: " + currentFilename + "\nWaiting for more...");
 
       // Send OK to acknowledge completion
-      sendJsonResponse(OP_OK, "{}");
+      sendJsonResponse(OpCode::OK, "{}");
     }
   }
 }
@@ -700,7 +706,7 @@ void CalibreWirelessActivity::render() const {
   }
 
   // Draw progress if receiving
-  if (state == CalibreWirelessState::RECEIVING && currentFileSize > 0) {
+  if (state == WirelessState::RECEIVING && currentFileSize > 0) {
     const int barWidth = pageWidth - 100;
     constexpr int barHeight = 20;
     constexpr int barX = 50;
@@ -732,7 +738,7 @@ std::string CalibreWirelessActivity::getDeviceUuid() const {
   return std::string(uuid);
 }
 
-void CalibreWirelessActivity::setState(CalibreWirelessState newState) {
+void CalibreWirelessActivity::setState(WirelessState newState) {
   xSemaphoreTake(stateMutex, portMAX_DELAY);
   state = newState;
   xSemaphoreGive(stateMutex);
@@ -746,5 +752,5 @@ void CalibreWirelessActivity::setStatus(const std::string& message) {
 
 void CalibreWirelessActivity::setError(const std::string& message) {
   errorMessage = message;
-  setState(CalibreWirelessState::ERROR);
+  setState(WirelessState::ERROR);
 }
