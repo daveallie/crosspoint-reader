@@ -290,14 +290,11 @@ bool nextToApostrophe(const std::vector<CodepointInfo>& cps, const size_t index)
 // Returns byte indexes where the word may break according to English syllable rules.
 std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
   std::vector<size_t> indexes;
-  if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
-    return indexes;
-  }
+  const size_t wordSize = cps.size();
 
-  const auto lowerWord = lowercaseLatinWord(cps);
   std::vector<size_t> vowelPositions;
-  vowelPositions.reserve(cps.size());
-  for (size_t i = 0; i < cps.size(); ++i) {
+  vowelPositions.reserve(wordSize / 2);
+  for (size_t i = 0; i < wordSize; ++i) {
     if (isLatinVowel(cps[i].value)) {
       vowelPositions.push_back(i);
     }
@@ -321,7 +318,7 @@ std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
     const size_t clusterStart = leftVowel + 1;
     const size_t clusterEnd = rightVowel;
     const size_t onsetLen = englishOnsetLength(cps, clusterStart, clusterEnd);
-    size_t breakIndex = clusterEnd - onsetLen;
+    const size_t breakIndex = clusterEnd - onsetLen;
 
     if (!englishBreakAllowed(cps, breakIndex)) {
       continue;
@@ -329,10 +326,14 @@ std::vector<size_t> englishBreakIndexes(const std::vector<CodepointInfo>& cps) {
     indexes.push_back(breakIndex);
   }
 
+  const auto lowerWord = lowercaseLatinWord(cps);
+  const size_t preDedupeCount = indexes.size();
   appendMorphologyBreaks(cps, lowerWord, indexes);
 
-  std::sort(indexes.begin(), indexes.end());
-  indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+  if (indexes.size() > preDedupeCount) {
+    std::sort(indexes.begin(), indexes.end());
+    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+  }
   return indexes;
 }
 

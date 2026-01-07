@@ -333,68 +333,68 @@ void appendMorphologyBreaks(const std::vector<CodepointInfo>& cps, const std::ve
 // Produces syllable break indexes tailored to Russian phonotactics.
 std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
   std::vector<size_t> indexes;
-  if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
-    return indexes;
-  }
+  const size_t wordSize = cps.size();
 
-  const auto lowerWord = lowercaseCyrillicWord(cps);
-
+  // Collect vowel positions.
   std::vector<size_t> vowelPositions;
-  vowelPositions.reserve(cps.size());
-  for (size_t i = 0; i < cps.size(); ++i) {
+  vowelPositions.reserve(wordSize / 2);  // Typical estimate: ~50% vowels
+  for (size_t i = 0; i < wordSize; ++i) {
     if (isCyrillicVowel(cps[i].value)) {
       vowelPositions.push_back(i);
     }
   }
 
+  // Need at least 2 vowels to create a syllable break.
   if (vowelPositions.size() < 2) {
     return indexes;
   }
 
+  // Process inter-vowel clusters for hyphenation points.
   for (size_t v = 0; v + 1 < vowelPositions.size(); ++v) {
     const size_t leftVowel = vowelPositions[v];
     const size_t rightVowel = vowelPositions[v + 1];
+    const size_t suffixLen = wordSize - rightVowel;
 
+    // Adjacent vowels: can break between them if constraints allow.
     if (rightVowel - leftVowel == 1) {
-      if (rightVowel >= MIN_PREFIX_CP && cps.size() - rightVowel >= MIN_SUFFIX_CP && !nextToSoftSign(cps, rightVowel) &&
+      if (rightVowel >= MIN_PREFIX_CP && suffixLen >= MIN_SUFFIX_CP && !nextToSoftSign(cps, rightVowel) &&
           russianBreakAllowed(cps, rightVowel)) {
         indexes.push_back(rightVowel);
       }
       continue;
     }
 
+    // Consonant cluster between vowels: find optimal break point.
     const size_t clusterStart = leftVowel + 1;
     const size_t clusterEnd = rightVowel;
 
-    size_t breakIndex = std::numeric_limits<size_t>::max();
-    const auto split = doubleConsonantSplit(cps, clusterStart, clusterEnd);
-    if (split != std::numeric_limits<size_t>::max()) {
-      breakIndex = split;
-    } else {
+    // Try double consonant split first (preferred).
+    size_t breakIndex = doubleConsonantSplit(cps, clusterStart, clusterEnd);
+    
+    // Fall back to onset-based split.
+    if (breakIndex == std::numeric_limits<size_t>::max()) {
       const size_t onsetLen = russianOnsetLength(cps, clusterStart, clusterEnd);
       breakIndex = clusterEnd - onsetLen;
     }
 
-    if (breakIndex == std::numeric_limits<size_t>::max()) {
+    // Validate candidate break point.
+    if (breakIndex < MIN_PREFIX_CP || suffixLen < MIN_SUFFIX_CP || nextToSoftSign(cps, breakIndex) ||
+        !russianBreakAllowed(cps, breakIndex)) {
       continue;
     }
 
-    if (breakIndex < MIN_PREFIX_CP || cps.size() - breakIndex < MIN_SUFFIX_CP) {
-      continue;
-    }
-    if (nextToSoftSign(cps, breakIndex)) {
-      continue;
-    }
-    if (!russianBreakAllowed(cps, breakIndex)) {
-      continue;
-    }
     indexes.push_back(breakIndex);
   }
 
+  const auto lowerWord = lowercaseCyrillicWord(cps);
+  const size_t preDedupeCount = indexes.size();
   appendMorphologyBreaks(cps, lowerWord, indexes);
 
-  std::sort(indexes.begin(), indexes.end());
-  indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+  if (indexes.size() > preDedupeCount) {
+    std::sort(indexes.begin(), indexes.end());
+    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+  }
+
   return indexes;
 }
 
