@@ -165,6 +165,7 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
     const size_t lineStart = currentIndex;
     int lineWidth = 0;
 
+    // Consume as many words as possible for current line, splitting when prefixes fit
     while (currentIndex < wordWidths.size()) {
       const bool isFirstWord = currentIndex == lineStart;
       const int spacing = isFirstWord ? 0 : spaceWidth;
@@ -176,17 +177,17 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
         continue;
       }
 
+      // Word would overflow — try to split based on hyphenation points
       const int availableWidth = pageWidth - lineWidth - spacing;
-      const bool allowFallbackBreaks = isFirstWord;  // Only permit fallback splits when even the first word overflows
+      const bool allowFallbackBreaks = isFirstWord;  // Permit soft hyphen tokens only when first word still overflows
       if (availableWidth > 0 &&
           hyphenateWordAtIndex(currentIndex, availableWidth, renderer, fontId, wordWidths, allowFallbackBreaks)) {
-        // Widths updated for the split word; retry with current index
+        // widths vector updated for split prefix; re-evaluate same index
         continue;
       }
 
-      // Word cannot fit on current line (with or without hyphenation).
+      // Could not split: force at least one word per line to avoid infinite loop
       if (currentIndex == lineStart) {
-        // Force place at least one word to prevent stalling.
         lineWidth += candidateWidth;
         currentIndex += 1;
       }
@@ -204,15 +205,18 @@ std::vector<size_t> ParsedText::computeHyphenatedLineBreaks(const GfxRenderer& r
 bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availableWidth, const GfxRenderer& renderer,
                                       const int fontId, std::vector<uint16_t>& wordWidths,
                                       const bool allowFallbackBreaks) {
+  // Guard against invalid indices or zero available width before attempting to split.
   if (availableWidth <= 0 || wordIndex >= words.size()) {
     return false;
   }
 
+  // Position iterators at the target word and its style entry.
   auto wordIt = words.begin();
   auto styleIt = wordStyles.begin();
   std::advance(wordIt, wordIndex);
   std::advance(styleIt, wordIndex);
 
+  // Collect candidate breakpoints (byte offsets and hyphen requirements).
   const auto breakInfos = Hyphenator::breakOffsets(*wordIt, allowFallbackBreaks);
   if (breakInfos.empty()) {
     return false;
@@ -223,6 +227,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   int chosenWidth = -1;
   bool chosenNeedsHyphen = true;
 
+  // Iterate over each legal breakpoint and retain the widest prefix that still fits.
   for (const auto& info : breakInfos) {
     const size_t offset = info.byteOffset;
     if (offset == 0 || offset >= wordIt->size()) {
@@ -247,20 +252,24 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   }
 
   if (chosenWidth < 0) {
+    // No hyphenation point produced a prefix that fits in the remaining space.
     return false;
   }
 
+  // Split the word at the selected breakpoint and append a hyphen if required.
   std::string remainder = wordIt->substr(chosenOffset);
   wordIt->resize(chosenOffset);
   if (chosenNeedsHyphen) {
     wordIt->push_back('-');
   }
 
+  // Insert the remainder word (with matching style) directly after the prefix.
   auto insertWordIt = std::next(wordIt);
   auto insertStyleIt = std::next(styleIt);
   words.insert(insertWordIt, remainder);
   wordStyles.insert(insertStyleIt, style);
 
+  // Update cached widths to reflect the new prefix/remainder pairing.
   wordWidths[wordIndex] = static_cast<uint16_t>(chosenWidth);
   const uint16_t remainderWidth = renderer.getTextWidth(fontId, remainder.c_str(), style);
   wordWidths.insert(wordWidths.begin() + wordIndex + 1, remainderWidth);
