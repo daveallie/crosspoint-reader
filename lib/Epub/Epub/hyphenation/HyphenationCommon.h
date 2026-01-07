@@ -9,8 +9,6 @@ struct CodepointInfo {
   size_t byteOffset;
 };
 
-enum class Script { Latin, Cyrillic, Mixed };
-
 // Minimum number of codepoints required in prefix and suffix for hyphenation.
 constexpr size_t MIN_PREFIX_CP = 2;
 constexpr size_t MIN_SUFFIX_CP = 2;

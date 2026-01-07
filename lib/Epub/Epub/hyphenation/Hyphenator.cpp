@@ -13,25 +13,6 @@
 
 namespace {
 
-// Central registry for language-specific hyphenators supported on device.
-const std::array<const LanguageHyphenator*, 2>& registeredHyphenators() {
-  static const std::array<const LanguageHyphenator*, 2> hyphenators = {
-      &EnglishHyphenator::instance(),
-      &RussianHyphenator::instance(),
-  };
-  return hyphenators;
-}
-
-// Finds the hyphenator matching the detected script.
-const LanguageHyphenator* hyphenatorForScript(const Script script) {
-  for (const auto* hyphenator : registeredHyphenators()) {
-    if (hyphenator->script() == script) {
-      return hyphenator;
-    }
-  }
-  return nullptr;
-}
-
 // Maps a BCP-47 language tag to a language-specific hyphenator.
 const LanguageHyphenator* hyphenatorForLanguage(const std::string& langTag) {
   if (langTag.empty()) return nullptr;
@@ -109,7 +90,6 @@ std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps) {
     return {};
   }
 
-  // Use cached hyphenator to avoid repeated language lookups.
   if (const auto* hyphenator = cachedHyphenator()) {
     auto indexes = hyphenator->breakIndexes(cps);
     return indexes;

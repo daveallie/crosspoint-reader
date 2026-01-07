@@ -405,8 +405,6 @@ const RussianHyphenator& RussianHyphenator::instance() {
   return instance;
 }
 
-Script RussianHyphenator::script() const { return Script::Cyrillic; }
-
 std::vector<size_t> RussianHyphenator::breakIndexes(const std::vector<CodepointInfo>& cps) const {
   return russianBreakIndexes(cps);
 }

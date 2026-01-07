@@ -343,8 +343,6 @@ const EnglishHyphenator& EnglishHyphenator::instance() {
   return instance;
 }
 
-Script EnglishHyphenator::script() const { return Script::Latin; }
-
 std::vector<size_t> EnglishHyphenator::breakIndexes(const std::vector<CodepointInfo>& cps) const {
   return englishBreakIndexes(cps);
 }
