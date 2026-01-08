@@ -370,7 +370,7 @@ std::vector<size_t> russianBreakIndexes(const std::vector<CodepointInfo>& cps) {
 
     // Try double consonant split first (preferred).
     size_t breakIndex = doubleConsonantSplit(cps, clusterStart, clusterEnd);
-    
+
     // Fall back to onset-based split.
     if (breakIndex == std::numeric_limits<size_t>::max()) {
       const size_t onsetLen = russianOnsetLength(cps, clusterStart, clusterEnd);
