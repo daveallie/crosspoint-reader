@@ -4,6 +4,7 @@
 #include <SDCardManager.h>
 #include <miniz.h>
 
+namespace {
 bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t* outputBuf, const size_t inflatedSize) {
   // Setup inflator
   const auto inflator = static_cast<tinfl_decompressor*>(malloc(sizeof(tinfl_decompressor)));
@@ -27,6 +28,7 @@ bool inflateOneShot(const uint8_t* inputBuf, const size_t deflatedSize, uint8_t*
 
   return true;
 }
+}  // namespace
 
 bool ZipFile::loadAllFileStatSlims() {
   const bool wasOpen = isOpen();

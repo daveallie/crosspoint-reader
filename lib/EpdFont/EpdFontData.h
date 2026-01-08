@@ -5,6 +5,7 @@
 #include <cstdint>
 
 /// Font data stored PER GLYPH
+#pragma pack(push, 1)
 typedef struct {
   uint8_t width;        ///< Bitmap dimensions in pixels
   uint8_t height;       ///< Bitmap dimensions in pixels
@@ -13,7 +14,9 @@ typedef struct {
   int16_t top;          ///< Y dist from cursor pos to UL corner
   uint16_t dataLength;  ///< Size of the font data.
   uint32_t dataOffset;  ///< Pointer into EpdFont->bitmap
+  bool compressed;
 } EpdGlyph;
+#pragma pack(pop)
 
 /// Glyph interval structure
 typedef struct {
