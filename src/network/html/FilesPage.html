@@ -297,6 +297,28 @@
       font-size: 0.9em;
       color: #7f8c8d;
     }
+    #delete-progress-container {
+      margin-top: 15px;
+    }
+    #delete-progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #delete-progress-fill {
+      height: 100%;
+      background-color: #e74c3c;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    #delete-progress-text {
+      text-align: center;
+      margin-top: 5px;
+      font-size: 0.9em;
+      color: #7f8c8d;
+    }
     .folder-form {
       margin-top: 10px;
     }
@@ -322,6 +344,38 @@
     .folder-btn:hover {
       background-color: #d68910;
     }
+    .rename-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+    .rename-btn-submit {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+      width: 100%;
+    }
+    .rename-btn-submit:hover {
+      background-color: #2980b9;
+    }
+    .folder-select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
     /* Delete button styles */
     .delete-btn {
       background: none;
@@ -337,9 +391,24 @@
       background-color: #fee;
       color: #e74c3c;
     }
+    .rename-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1em;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #95a5a6;
+      transition: all 0.15s;
+    }
+    .rename-btn:hover {
+      background-color: #e3f2fd;
+      color: #3498db;
+    }
     .actions-col {
-      width: 60px;
+      width: 80px;
       text-align: center;
+      white-space: nowrap;
     }
     /* Failed uploads banner */
     .failed-uploads-banner {
@@ -435,6 +504,28 @@
       font-weight: 600;
       color: #2c3e50;
       word-break: break-all;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      margin: 10px 0;
+      border: 1px solid #e0e0e0;
+    }
+    .delete-items-list {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      margin: 10px 0;
+      border: 1px solid #e0e0e0;
+    }
+    .delete-items-list-item {
+      padding: 8px 5px;
+      border-bottom: 1px solid #e0e0e0;
+      color: #2c3e50;
+    }
+    .delete-items-list-item:last-child {
+      border-bottom: none;
     }
     .delete-btn-confirm {
       background-color: #e74c3c;
@@ -462,6 +553,53 @@
     }
     .delete-btn-cancel:hover {
       background-color: #7f8c8d;
+    }
+    /* Checkbox styles */
+    .checkbox-col {
+      width: 40px;
+      text-align: center;
+    }
+    .file-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .select-all-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .delete-selected-btn {
+      background-color: #e74c3c;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .delete-selected-btn:hover {
+      background-color: #c0392b;
+    }
+    .delete-selected-btn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    .move-selected-btn {
+      background-color: #3498db;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    .move-selected-btn:hover {
+      background-color: #2980b9;
+    }
+    .move-selected-btn:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
     }
     .loader-container {
       display: flex;
@@ -560,6 +698,14 @@
       .actions-col {
         width: 40px;
       }
+      .checkbox-col {
+        width: 30px;
+      }
+      .file-checkbox,
+      .select-all-checkbox {
+        width: 16px;
+        height: 16px;
+      }
       .delete-btn {
         font-size: 1em;
         padding: 2px 4px;
@@ -586,6 +732,8 @@
   <div class="action-buttons">
     <button class="action-btn upload-action-btn" onclick="openUploadModal()">📤 Upload</button>
     <button class="action-btn folder-action-btn" onclick="openFolderModal()">📁 New Folder</button>
+    <button class="move-selected-btn" id="moveSelectedBtn" onclick="openMoveModal()" disabled>📦 Move Selected</button>
+    <button class="delete-selected-btn" id="deleteSelectedBtn" onclick="deleteSelectedFiles()" disabled>🗑️ Delete Selected</button>
   </div>
 </div>
 
@@ -652,15 +800,57 @@
 <div class="modal-overlay" id="deleteModal">
   <div class="modal">
     <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
-    <h3>🗑️ Delete Item</h3>
+    <h3 id="deleteModalTitle">🗑️ Delete Item</h3>
     <div class="folder-form">
       <p class="delete-warning">⚠️ This action cannot be undone!</p>
-      <p class="file-info">Are you sure you want to delete:</p>
-      <p class="delete-item-name" id="deleteItemName"></p>
-      <input type="hidden" id="deleteItemPath">
-      <input type="hidden" id="deleteItemType">
-      <button class="delete-btn-confirm" onclick="confirmDelete()">Delete</button>
+      <div id="deleteModalError" style="display: none; padding: 10px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 10px;"></div>
+      <p class="file-info" id="deleteModalQuestion">Are you sure you want to delete:</p>
+      <p class="delete-item-name" id="deleteItemName" style="display: none;"></p>
+      <div class="delete-items-list" id="deleteItemsList" style="display: none;"></div>
+      <button class="delete-btn-confirm" onclick="confirmDelete()" id="deleteConfirmBtn">Delete</button>
       <button class="delete-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename Modal -->
+<div class="modal-overlay" id="renameModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRenameModal()">&times;</button>
+    <h3>✏️ Rename Item</h3>
+    <div class="folder-form">
+      <p class="file-info">Enter new name:</p>
+      <div style="display: flex; align-items: center; gap: 5px;">
+        <input type="text" id="renameInput" class="rename-input" placeholder="filename" style="flex: 1; margin-bottom: 0;">
+        <span id="renameExtension" style="font-family: monospace; color: #7f8c8d; font-size: 1em; padding: 10px; background-color: #f8f9fa; border: 1px solid #ddd; border-radius: 4px;"></span>
+      </div>
+      <input type="hidden" id="renameOriginalPath">
+      <input type="hidden" id="renameOriginalExtension">
+      <button class="rename-btn-submit" onclick="confirmRename()" style="margin-top: 10px;">Rename</button>
+      <button class="delete-btn-cancel" onclick="closeRenameModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Move Selected Modal -->
+<div class="modal-overlay" id="moveModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeMoveModal()">&times;</button>
+    <h3>📦 Move Selected Items</h3>
+    <div class="folder-form">
+      <p class="file-info">Select destination folder for <strong id="moveItemCount">0</strong> items:</p>
+      <div id="folderListLoading" style="display: none; text-align: center; padding: 20px; color: #7f8c8d;">
+        <div class="loader" style="width: 32px; height: 32px; border-width: 3px; margin: 0 auto 10px;"></div>
+        <div>Loading folders...</div>
+      </div>
+      <div id="folderListError" style="display: none; padding: 10px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 10px;">
+        Failed to load folder list. Please try again.
+      </div>
+      <select id="folderSelect" class="folder-select">
+        <option value="/">/  (Root)</option>
+      </select>
+      <button class="rename-btn-submit" onclick="confirmMove()" id="moveConfirmBtn">Move Here</button>
+      <button class="delete-btn-cancel" onclick="closeMoveModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -739,7 +929,7 @@
       fileTable.innerHTML = '<div class="no-files">This folder is empty</div>';
     } else {
       let fileTableContent = '<table class="file-table">';
-      fileTableContent += '<tr><th>Name</th><th>Type</th><th>Size</th><th class="actions-col">Actions</th></tr>';
+      fileTableContent += '<tr><th class="checkbox-col"><input type="checkbox" class="select-all-checkbox" onchange="toggleSelectAll(this)"></th><th>Name</th><th>Type</th><th>Size</th><th class="actions-col">Actions</th></tr>';
 
       const sortedFiles = files.sort((a, b) => {
         // Directories first, then epub files, then other files, alphabetically within each group
@@ -755,12 +945,12 @@
           let folderPath = currentPath;
           if (!folderPath.endsWith("/")) folderPath += "/";
           folderPath += file.name;
-
           fileTableContent += '<tr class="folder-row">';
+          fileTableContent += `<td class="checkbox-col"><input type="checkbox" class="file-checkbox" data-path="${folderPath.replaceAll('"', '&quot;')}" data-name="${escapeHtml(file.name)}" data-type="folder" onchange="updateDeleteButton()"></td>`;
           fileTableContent += `<td><span class="file-icon">📁</span><a href="/files?path=${encodeURIComponent(folderPath)}" class="folder-link">${escapeHtml(file.name)}</a><span class="folder-badge">FOLDER</span></td>`;
           fileTableContent += '<td>Folder</td>';
           fileTableContent += '<td>-</td>';
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></td>`;
+          fileTableContent += `<td class="actions-col"><button class="rename-btn" onclick="openRenameModal('${folderPath.replaceAll("'", "\\'")}')" title="Rename">✏️</button><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${folderPath.replaceAll("'", "\\'")}', true)" title="Delete folder">🗑️</button></td>`;
           fileTableContent += '</tr>';
         } else {
           let filePath = currentPath;
@@ -768,12 +958,13 @@
           filePath += file.name;
 
           fileTableContent += `<tr class="${file.isEpub ? 'epub-file' : ''}">`;
+          fileTableContent += `<td class="checkbox-col"><input type="checkbox" class="file-checkbox" data-path="${filePath.replaceAll('"', '&quot;')}" data-name="${escapeHtml(file.name)}" data-type="file" onchange="updateDeleteButton()"></td>`;
           fileTableContent += `<td><span class="file-icon">${file.isEpub ? '📗' : '📄'}</span>${escapeHtml(file.name)}`;
           if (file.isEpub) fileTableContent += '<span class="epub-badge">EPUB</span>';
           fileTableContent += '</td>';
           fileTableContent += `<td>${file.name.split('.').pop().toUpperCase()}</td>`;
           fileTableContent += `<td>${formatFileSize(file.size)}</td>`;
-          fileTableContent += `<td class="actions-col"><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button></td>`;
+          fileTableContent += `<td class="actions-col"><button class="rename-btn" onclick="openRenameModal('${filePath.replaceAll("'", "\\'")}')" title="Rename">✏️</button><button class="delete-btn" onclick="openDeleteModal('${file.name.replaceAll("'", "\\'")}', '${filePath.replaceAll("'", "\\'")}', false)" title="Delete file">🗑️</button></td>`;
           fileTableContent += '</tr>';
         }
       });
@@ -817,6 +1008,39 @@
 
 let failedUploadsGlobal = [];
 
+// Checkbox management functions
+function toggleSelectAll(checkbox) {
+  const allCheckboxes = document.querySelectorAll('.file-checkbox');
+  allCheckboxes.forEach(cb => {
+    cb.checked = checkbox.checked;
+  });
+  updateDeleteButton();
+}
+
+function updateDeleteButton() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  const deleteBtn = document.getElementById('deleteSelectedBtn');
+  const moveBtn = document.getElementById('moveSelectedBtn');
+  const hasSelection = checkedBoxes.length > 0;
+  
+  if (deleteBtn) {
+    deleteBtn.disabled = !hasSelection;
+  }
+  if (moveBtn) {
+    moveBtn.disabled = !hasSelection;
+  }
+  
+  // Update select-all checkbox state
+  const allCheckboxes = document.querySelectorAll('.file-checkbox');
+  const selectAllCheckbox = document.querySelector('.select-all-checkbox');
+  if (selectAllCheckbox && allCheckboxes.length > 0) {
+    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+    const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+    selectAllCheckbox.checked = allChecked;
+    selectAllCheckbox.indeterminate = someChecked && !allChecked;
+  }
+}
+
 function uploadFile() {
   const fileInput = document.getElementById('fileInput');
   const files = Array.from(fileInput.files);
@@ -837,6 +1061,42 @@ function uploadFile() {
   let currentIndex = 0;
   const failedFiles = [];
 
+  function uploadSingleFile(file, index) {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload?path=' + encodeURIComponent(currentPath), true);
+
+      progressFill.style.width = '0%';
+      progressFill.style.backgroundColor = '#4caf50';
+      progressText.textContent = `Uploading ${file.name} (${index + 1}/${files.length})`;
+
+      xhr.upload.onprogress = function (e) {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          progressFill.style.width = percent + '%';
+          progressText.textContent = `Uploading ${file.name} (${index + 1}/${files.length}) — ${percent}%`;
+        }
+      };
+
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          resolve();
+        } else {
+          reject(new Error(xhr.responseText || 'Upload failed'));
+        }
+      };
+
+      xhr.onerror = function () {
+        reject(new Error('Network error'));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
   function uploadNextFile() {
     if (currentIndex >= files.length) {
       // All files processed - show summary
@@ -845,67 +1105,36 @@ function uploadFile() {
         progressText.textContent = 'All uploads complete!';
         setTimeout(() => {
           closeUploadModal();
-          hydrate(); // Refresh file list instead of reloading
+          hydrate();
         }, 1000);
       } else {
         progressFill.style.backgroundColor = '#e74c3c';
         const failedList = failedFiles.map(f => f.name).join(', ');
         progressText.textContent = `${files.length - failedFiles.length}/${files.length} uploaded. Failed: ${failedList}`;
         
-        // Store failed files globally and show banner
         failedUploadsGlobal = failedFiles;
         
         setTimeout(() => {
           closeUploadModal();
           showFailedUploadsBanner();
-          hydrate(); // Refresh file list to show successfully uploaded files
+          hydrate();
         }, 2000);
       }
       return;
     }
 
     const file = files[currentIndex];
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const xhr = new XMLHttpRequest();
-    // Include path as query parameter since multipart form data doesn't make
-    // form fields available until after file upload completes
-    xhr.open('POST', '/upload?path=' + encodeURIComponent(currentPath), true);
-
-    progressFill.style.width = '0%';
-    progressFill.style.backgroundColor = '#4caf50';
-    progressText.textContent = `Uploading ${file.name} (${currentIndex + 1}/${files.length})`;
-
-    xhr.upload.onprogress = function (e) {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        progressFill.style.width = percent + '%';
-        progressText.textContent =
-          `Uploading ${file.name} (${currentIndex + 1}/${files.length}) — ${percent}%`;
-      }
-    };
-
-    xhr.onload = function () {
-      if (xhr.status === 200) {
-        currentIndex++;
-        uploadNextFile(); // upload next file
-      } else {
-        // Track failure and continue with next file
-        failedFiles.push({ name: file.name, error: xhr.responseText, file: file });
+    
+    uploadSingleFile(file, currentIndex)
+      .then(() => {
         currentIndex++;
         uploadNextFile();
-      }
-    };
-
-    xhr.onerror = function () {
-      // Track network error and continue with next file
-      failedFiles.push({ name: file.name, error: 'network error', file: file });
-      currentIndex++;
-      uploadNextFile();
-    };
-
-    xhr.send(formData);
+      })
+      .catch((error) => {
+        failedFiles.push({ name: file.name, error: error.message, file: file });
+        currentIndex++;
+        uploadNextFile();
+      });
   }
 
   uploadNextFile();
@@ -988,6 +1217,298 @@ function retryAllFailedUploads() {
   validateFile();
 }
 
+function deleteSelectedFiles() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  
+  if (checkedBoxes.length === 0) {
+    alert('Please select at least one item to delete!');
+    return;
+  }
+
+  const items = Array.from(checkedBoxes).map(checkbox => ({
+    path: checkbox.dataset.path,
+    name: checkbox.dataset.name,
+    type: checkbox.dataset.type
+  }));
+
+  // Open the delete modal with all selected items
+  openDeleteModalMultiple(items);
+}
+
+// Rename/Move functions
+function openRenameModal(currentPath) {
+  document.getElementById('renameOriginalPath').value = currentPath;
+  
+  // Extract just the filename from the path
+  const lastSlash = currentPath.lastIndexOf('/');
+  const filename = currentPath.substring(lastSlash + 1);
+  
+  // Split filename and extension
+  const lastDot = filename.lastIndexOf('.');
+  const hasExtension = lastDot > 0;
+  const nameWithoutExt = hasExtension ? filename.substring(0, lastDot) : filename;
+  const extension = hasExtension ? filename.substring(lastDot) : '';
+  
+  document.getElementById('renameInput').value = nameWithoutExt;
+  document.getElementById('renameOriginalExtension').value = extension;
+  document.getElementById('renameExtension').textContent = extension || '(no extension)';
+  document.getElementById('renameModal').classList.add('open');
+  
+  // Focus and select all text in the input
+  setTimeout(() => {
+    const input = document.getElementById('renameInput');
+    input.focus();
+    input.select();
+  }, 100);
+}
+
+function closeRenameModal() {
+  document.getElementById('renameModal').classList.remove('open');
+}
+
+function confirmRename() {
+  const originalPath = document.getElementById('renameOriginalPath').value;
+  const newNamePart = document.getElementById('renameInput').value.trim();
+  const extension = document.getElementById('renameOriginalExtension').value;
+
+  if (!newNamePart) {
+    alert('Name cannot be empty!');
+    return;
+  }
+
+  // Validate filename (no slashes or dots allowed in name part)
+  if (newNamePart.includes('/') || newNamePart.includes('\\')) {
+    alert('Name cannot contain slashes. Use "Move Selected" to move files to a different folder.');
+    return;
+  }
+  
+  if (newNamePart.includes('.')) {
+    alert('Name cannot contain dots. The file extension is preserved automatically.');
+    return;
+  }
+  
+  // Reconstruct full filename with original extension
+  const newName = newNamePart + extension;
+
+  // Extract directory from original path and construct new path
+  const lastSlash = originalPath.lastIndexOf('/');
+  const directory = originalPath.substring(0, lastSlash + 1);
+  const newPath = directory + newName;
+
+  if (originalPath === newPath) {
+    closeRenameModal();
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('sourcePath', originalPath);
+  formData.append('destPath', newPath);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/move', true);
+
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      closeRenameModal();
+      hydrate();
+    } else {
+      alert('Failed to rename: ' + xhr.responseText);
+    }
+  };
+
+  xhr.onerror = function() {
+    alert('Failed to rename - network error');
+  };
+
+  xhr.send(formData);
+}
+
+// Move selected functions
+function openMoveModal() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  
+  if (checkedBoxes.length === 0) {
+    alert('Please select at least one item to move!');
+    return;
+  }
+
+  document.getElementById('moveItemCount').textContent = checkedBoxes.length;
+  
+  // Build folder list
+  buildFolderList();
+  
+  document.getElementById('moveModal').classList.add('open');
+}
+
+function closeMoveModal() {
+  document.getElementById('moveModal').classList.remove('open');
+}
+
+async function buildFolderList() {
+  const select = document.getElementById('folderSelect');
+  const loading = document.getElementById('folderListLoading');
+  const error = document.getElementById('folderListError');
+  const confirmBtn = document.getElementById('moveConfirmBtn');
+  
+  // Show loading, hide error, disable controls
+  loading.style.display = 'block';
+  error.style.display = 'none';
+  select.disabled = true;
+  confirmBtn.disabled = true;
+  select.innerHTML = '<option value="/">/  (Root)</option>';
+  
+  try {
+    const response = await fetch('/api/folders');
+    if (!response.ok) {
+      throw new Error('Failed to load folders');
+    }
+    
+    const folders = await response.json();
+    
+    // Skip first item (root) since we already added it
+    folders.slice(1).forEach(folder => {
+      const option = document.createElement('option');
+      option.value = folder;
+      option.textContent = folder;
+      select.appendChild(option);
+    });
+    
+    // Set current path as selected
+    if (select.querySelector(`option[value="${currentPath}"]`)) {
+      select.value = currentPath;
+    }
+    
+    // Success - hide loading, enable controls
+    loading.style.display = 'none';
+    select.disabled = false;
+    confirmBtn.disabled = false;
+  } catch (e) {
+    console.error('Failed to load folders:', e);
+    // Error - hide loading, show error
+    loading.style.display = 'none';
+    error.style.display = 'block';
+    select.disabled = true;
+    confirmBtn.disabled = true;
+  }
+}
+
+function confirmMove() {
+  const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
+  const destFolder = document.getElementById('folderSelect').value;
+  
+  if (checkedBoxes.length === 0) {
+    alert('No items selected!');
+    return;
+  }
+
+  const items = Array.from(checkedBoxes).map(checkbox => ({
+    path: checkbox.dataset.path,
+    name: checkbox.dataset.name
+  }));
+
+  closeMoveModal();
+  performMultipleMoves(items, destFolder);
+}
+
+function performMultipleMoves(items, destFolder) {
+  // Create progress overlay
+  const progressOverlay = document.createElement('div');
+  progressOverlay.className = 'modal-overlay open';
+  progressOverlay.innerHTML = `
+    <div class="modal">
+      <h3>📦 Moving items...</h3>
+      <div id="delete-progress-container">
+        <div id="delete-progress-bar"><div id="delete-progress-fill"></div></div>
+        <div id="delete-progress-text"></div>
+      </div>
+      <button id="move-progress-close" class="delete-btn-cancel" style="display: none; margin-top: 15px;">Close</button>
+    </div>
+  `;
+  document.body.appendChild(progressOverlay);
+
+  const progressFill = document.getElementById('delete-progress-fill');
+  const progressText = document.getElementById('delete-progress-text');
+  const closeBtn = document.getElementById('move-progress-close');
+  progressFill.style.backgroundColor = '#3498db';
+
+  let currentIndex = 0;
+  const failedMoves = [];
+
+  function moveSingleItem(item, index) {
+    return new Promise((resolve, reject) => {
+      let destPath = destFolder;
+      if (!destPath.endsWith('/')) destPath += '/';
+      destPath += item.name;
+
+      const formData = new FormData();
+      formData.append('sourcePath', item.path);
+      formData.append('destPath', destPath);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/move', true);
+
+      progressText.textContent = `Moving ${item.name} (${index + 1}/${items.length})`;
+
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          const percent = Math.round(((index + 1) / items.length) * 100);
+          progressFill.style.width = percent + '%';
+          resolve();
+        } else {
+          reject(new Error(xhr.responseText || 'Move failed'));
+        }
+      };
+
+      xhr.onerror = function () {
+        reject(new Error('Network error'));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
+  function moveNextItem() {
+    if (currentIndex >= items.length) {
+      // All items processed
+      if (failedMoves.length === 0) {
+        progressFill.style.backgroundColor = '#4caf50';
+        progressText.textContent = 'All items moved successfully!';
+        setTimeout(() => {
+          document.body.removeChild(progressOverlay);
+          hydrate();
+        }, 1000);
+      } else {
+        progressFill.style.backgroundColor = '#e74c3c';
+        const errorDetails = failedMoves.map(f => `${f.name}: ${f.error}`).join('<br>');
+        progressText.innerHTML = `${items.length - failedMoves.length}/${items.length} moved successfully.<br><br><strong>Failed items:</strong><br>${errorDetails}`;
+        
+        // Show close button for user to dismiss
+        closeBtn.style.display = 'block';
+        closeBtn.onclick = () => {
+          document.body.removeChild(progressOverlay);
+          hydrate();
+        };
+      }
+      return;
+    }
+
+    const item = items[currentIndex];
+    
+    moveSingleItem(item, currentIndex)
+      .then(() => {
+        currentIndex++;
+        moveNextItem();
+      })
+      .catch((error) => {
+        failedMoves.push({ name: item.name, error: error.message });
+        currentIndex++;
+        moveNextItem();
+      });
+  }
+
+  moveNextItem();
+}
+
   function createFolder() {
     const folderName = document.getElementById('folderName').value.trim();
 
@@ -1026,43 +1547,182 @@ function retryAllFailedUploads() {
   }
 
   // Delete functions
+  let itemsToDelete = [];
+
   function openDeleteModal(name, path, isFolder) {
+    // Single item deletion
+    itemsToDelete = [{ name, path, type: isFolder ? 'folder' : 'file' }];
+    
+    document.getElementById('deleteModalTitle').textContent = '🗑️ Delete Item';
+    document.getElementById('deleteModalQuestion').textContent = 'Are you sure you want to delete:';
     document.getElementById('deleteItemName').textContent = (isFolder ? '📁 ' : '📄 ') + name;
-    document.getElementById('deleteItemPath').value = path;
-    document.getElementById('deleteItemType').value = isFolder ? 'folder' : 'file';
+    document.getElementById('deleteItemName').style.display = 'block';
+    document.getElementById('deleteItemsList').style.display = 'none';
+    document.getElementById('deleteModal').classList.add('open');
+  }
+
+  function openDeleteModalMultiple(items) {
+    // Multiple items deletion
+    itemsToDelete = items;
+    
+    document.getElementById('deleteModalTitle').textContent = `🗑️ Delete ${items.length} Items`;
+    document.getElementById('deleteModalQuestion').textContent = `Are you sure you want to delete these ${items.length} items:`;
+    document.getElementById('deleteItemName').style.display = 'none';
+    
+    const listContainer = document.getElementById('deleteItemsList');
+    listContainer.innerHTML = items.map(item => 
+      `<div class="delete-items-list-item">${item.type === 'folder' ? '📁' : '📄'} ${escapeHtml(item.name)}</div>`
+    ).join('');
+    listContainer.style.display = 'block';
+    
     document.getElementById('deleteModal').classList.add('open');
   }
 
   function closeDeleteModal() {
     document.getElementById('deleteModal').classList.remove('open');
+    document.getElementById('deleteModalError').style.display = 'none';
+    document.getElementById('deleteConfirmBtn').disabled = false;
   }
 
   function confirmDelete() {
-    const path = document.getElementById('deleteItemPath').value;
-    const itemType = document.getElementById('deleteItemType').value;
+    const errorDiv = document.getElementById('deleteModalError');
+    const confirmBtn = document.getElementById('deleteConfirmBtn');
+    
+    // Hide any previous error
+    errorDiv.style.display = 'none';
+    
+    if (itemsToDelete.length === 1) {
+      // Single item - simple delete
+      const item = itemsToDelete[0];
+      const formData = new FormData();
+      formData.append('path', item.path);
+      formData.append('type', item.type);
 
-    const formData = new FormData();
-    formData.append('path', path);
-    formData.append('type', itemType);
+      // Disable button during request
+      confirmBtn.disabled = true;
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/delete', true);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/delete', true);
 
-    xhr.onload = function() {
-      if (xhr.status === 200) {
-        window.location.reload();
-      } else {
-        alert('Failed to delete: ' + xhr.responseText);
-        closeDeleteModal();
-      }
-    };
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          closeDeleteModal();
+          hydrate();
+        } else {
+          // Show error in modal
+          errorDiv.textContent = xhr.responseText || 'Failed to delete item';
+          errorDiv.style.display = 'block';
+          confirmBtn.disabled = false;
+        }
+      };
 
-    xhr.onerror = function() {
-      alert('Failed to delete - network error');
+      xhr.onerror = function() {
+        // Show error in modal
+        errorDiv.textContent = 'Failed to delete - network error';
+        errorDiv.style.display = 'block';
+        confirmBtn.disabled = false;
+      };
+
+      xhr.send(formData);
+    } else {
+      // Multiple items - show progress
       closeDeleteModal();
-    };
+      performMultipleDeletes(itemsToDelete);
+    }
+  }
 
-    xhr.send(formData);
+  function performMultipleDeletes(items) {
+    // Create progress overlay
+    const progressOverlay = document.createElement('div');
+    progressOverlay.className = 'modal-overlay open';
+    progressOverlay.innerHTML = `
+      <div class="modal">
+        <h3>🗑️ Deleting items...</h3>
+        <div id="delete-progress-container">
+          <div id="delete-progress-bar"><div id="delete-progress-fill"></div></div>
+          <div id="delete-progress-text"></div>
+        </div>
+        <button id="delete-progress-close" class="delete-btn-cancel" style="display: none; margin-top: 15px;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(progressOverlay);
+
+    const progressFill = document.getElementById('delete-progress-fill');
+    const progressText = document.getElementById('delete-progress-text');
+    const closeBtn = document.getElementById('delete-progress-close');
+
+    let currentIndex = 0;
+    const failedDeletes = [];
+
+    function deleteSingleItem(item, index) {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('path', item.path);
+        formData.append('type', item.type);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/delete', true);
+
+        progressText.textContent = `Deleting ${item.name} (${index + 1}/${items.length})`;
+
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            const percent = Math.round(((index + 1) / items.length) * 100);
+            progressFill.style.width = percent + '%';
+            resolve();
+          } else {
+            reject(new Error(xhr.responseText || 'Delete failed'));
+          }
+        };
+
+        xhr.onerror = function () {
+          reject(new Error('Network error'));
+        };
+
+        xhr.send(formData);
+      });
+    }
+
+    function deleteNextItem() {
+      if (currentIndex >= items.length) {
+        // All items processed
+        if (failedDeletes.length === 0) {
+          progressFill.style.backgroundColor = '#4caf50';
+          progressText.textContent = 'All items deleted successfully!';
+          setTimeout(() => {
+            document.body.removeChild(progressOverlay);
+            hydrate();
+          }, 1000);
+        } else {
+          progressFill.style.backgroundColor = '#e74c3c';
+          const errorDetails = failedDeletes.map(f => `${f.name}: ${f.error}`).join('<br>');
+          progressText.innerHTML = `${items.length - failedDeletes.length}/${items.length} deleted successfully.<br><br><strong>Failed items:</strong><br>${errorDetails}`;
+          
+          // Show close button for user to dismiss
+          closeBtn.style.display = 'block';
+          closeBtn.onclick = () => {
+            document.body.removeChild(progressOverlay);
+            hydrate();
+          };
+        }
+        return;
+      }
+
+      const item = items[currentIndex];
+      
+      deleteSingleItem(item, currentIndex)
+        .then(() => {
+          currentIndex++;
+          deleteNextItem();
+        })
+        .catch((error) => {
+          failedDeletes.push({ name: item.name, error: error.message });
+          currentIndex++;
+          deleteNextItem();
+        });
+    }
+
+    deleteNextItem();
   }
 
   hydrate();
