@@ -578,38 +578,6 @@ void GfxRenderer::restoreBwBuffer() {
 }
 
 /**
- * Copy stored BW buffer to framebuffer without freeing the stored chunks.
- * Use this when you want to restore the buffer but keep it for later reuse.
- * Returns true if buffer was copied successfully.
- */
-bool GfxRenderer::copyStoredBwBuffer() {
-  // Check if all chunks are allocated
-  for (const auto& bwBufferChunk : bwBufferChunks) {
-    if (!bwBufferChunk) {
-      return false;
-    }
-  }
-
-  uint8_t* frameBuffer = einkDisplay.getFrameBuffer();
-  if (!frameBuffer) {
-    return false;
-  }
-
-  for (size_t i = 0; i < BW_BUFFER_NUM_CHUNKS; i++) {
-    const size_t offset = i * BW_BUFFER_CHUNK_SIZE;
-    memcpy(frameBuffer + offset, bwBufferChunks[i], BW_BUFFER_CHUNK_SIZE);
-  }
-
-  return true;
-}
-
-/**
- * Free the stored BW buffer chunks manually.
- * Use this when you no longer need the stored buffer.
- */
-void GfxRenderer::freeStoredBwBuffer() { freeBwBufferChunks(); }
-
-/**
  * Cleanup grayscale buffers using the current frame buffer.
  * Use this when BW buffer was re-rendered instead of stored/restored.
  */

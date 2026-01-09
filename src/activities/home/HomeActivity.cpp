@@ -134,10 +134,49 @@ void HomeActivity::onExit() {
   renderingMutex = nullptr;
 
   // Free the stored cover buffer if any
-  if (coverBufferStored) {
-    renderer.freeStoredBwBuffer();
-    coverBufferStored = false;
+  freeCoverBuffer();
+}
+
+bool HomeActivity::storeCoverBuffer() {
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
   }
+
+  // Free any existing buffer first
+  freeCoverBuffer();
+
+  const size_t bufferSize = GfxRenderer::getBufferSize();
+  coverBuffer = static_cast<uint8_t*>(malloc(bufferSize));
+  if (!coverBuffer) {
+    return false;
+  }
+
+  memcpy(coverBuffer, frameBuffer, bufferSize);
+  return true;
+}
+
+bool HomeActivity::restoreCoverBuffer() {
+  if (!coverBuffer) {
+    return false;
+  }
+
+  uint8_t* frameBuffer = renderer.getFrameBuffer();
+  if (!frameBuffer) {
+    return false;
+  }
+
+  const size_t bufferSize = GfxRenderer::getBufferSize();
+  memcpy(frameBuffer, coverBuffer, bufferSize);
+  return true;
+}
+
+void HomeActivity::freeCoverBuffer() {
+  if (coverBuffer) {
+    free(coverBuffer);
+    coverBuffer = nullptr;
+  }
+  coverBufferStored = false;
 }
 
 void HomeActivity::loop() {
@@ -193,7 +232,7 @@ void HomeActivity::displayTaskLoop() {
 
 void HomeActivity::render() {
   // If we have a stored cover buffer, restore it instead of clearing
-  const bool bufferRestored = coverBufferStored && renderer.copyStoredBwBuffer();
+  const bool bufferRestored = coverBufferStored && restoreCoverBuffer();
   if (!bufferRestored) {
     renderer.clearScreen();
   }
@@ -252,85 +291,60 @@ void HomeActivity::render() {
           // Draw border around the card
           renderer.drawRect(bookX, bookY, bookWidth, bookHeight);
 
-          // Draw bookmark ribbon immediately after cover
-          const int notchDepth = bookmarkHeight / 3;
-          const int centerX = bookmarkX + bookmarkWidth / 2;
+          // No bookmark ribbon when cover is shown - it would just cover the art
 
-          const int xPoints[5] = {
-              bookmarkX,                  // top-left
-              bookmarkX + bookmarkWidth,  // top-right
-              bookmarkX + bookmarkWidth,  // bottom-right
-              centerX,                    // center notch point
-              bookmarkX                   // bottom-left
-          };
-          const int yPoints[5] = {
-              bookmarkY,                                // top-left
-              bookmarkY,                                // top-right
-              bookmarkY + bookmarkHeight,               // bottom-right
-              bookmarkY + bookmarkHeight - notchDepth,  // center notch point
-              bookmarkY + bookmarkHeight                // bottom-left
-          };
-
-          // Draw bookmark ribbon (white normally, will be inverted if selected)
-          renderer.fillPolygon(xPoints, yPoints, 5, false);
-
-          // Store the buffer with cover image AND bookmark for fast navigation
-          coverBufferStored = renderer.storeBwBuffer();
+          // Store the buffer with cover image for fast navigation
+          coverBufferStored = storeCoverBuffer();
           coverRendered = true;
 
           // First render: if selected, draw selection indicators now
           if (bookSelected) {
             renderer.drawRect(bookX + 1, bookY + 1, bookWidth - 2, bookHeight - 2);
             renderer.drawRect(bookX + 2, bookY + 2, bookWidth - 4, bookHeight - 4);
-            // Invert bookmark to black
-            renderer.fillPolygon(xPoints, yPoints, 5, true);
           }
         }
         file.close();
       }
     } else if (!bufferRestored && !coverRendered) {
-      // No cover image: draw border or fill
+      // No cover image: draw border or fill, plus bookmark as visual flair
       if (bookSelected) {
         renderer.fillRect(bookX, bookY, bookWidth, bookHeight);
       } else {
         renderer.drawRect(bookX, bookY, bookWidth, bookHeight);
       }
+
+      // Draw bookmark ribbon when no cover image (visual decoration)
+      if (hasContinueReading) {
+        const int notchDepth = bookmarkHeight / 3;
+        const int centerX = bookmarkX + bookmarkWidth / 2;
+
+        const int xPoints[5] = {
+            bookmarkX,                  // top-left
+            bookmarkX + bookmarkWidth,  // top-right
+            bookmarkX + bookmarkWidth,  // bottom-right
+            centerX,                    // center notch point
+            bookmarkX                   // bottom-left
+        };
+        const int yPoints[5] = {
+            bookmarkY,                                // top-left
+            bookmarkY,                                // top-right
+            bookmarkY + bookmarkHeight,               // bottom-right
+            bookmarkY + bookmarkHeight - notchDepth,  // center notch point
+            bookmarkY + bookmarkHeight                // bottom-left
+        };
+
+        // Draw bookmark ribbon (inverted if selected)
+        renderer.fillPolygon(xPoints, yPoints, 5, !bookSelected);
+      }
     }
 
     // If buffer was restored, draw selection indicators if needed
     if (bufferRestored && bookSelected && coverRendered) {
-      // Draw selection border
+      // Draw selection border (no bookmark inversion needed since cover has no bookmark)
       renderer.drawRect(bookX + 1, bookY + 1, bookWidth - 2, bookHeight - 2);
       renderer.drawRect(bookX + 2, bookY + 2, bookWidth - 4, bookHeight - 4);
-
-      // Invert bookmark color when selected (draw black over the white bookmark)
-      const int notchDepth = bookmarkHeight / 3;
-      const int centerX = bookmarkX + bookmarkWidth / 2;
-
-      const int xPoints[5] = {
-          bookmarkX,                  // top-left
-          bookmarkX + bookmarkWidth,  // top-right
-          bookmarkX + bookmarkWidth,  // bottom-right
-          centerX,                    // center notch point
-          bookmarkX                   // bottom-left
-      };
-      const int yPoints[5] = {
-          bookmarkY,                                // top-left
-          bookmarkY,                                // top-right
-          bookmarkY + bookmarkHeight,               // bottom-right
-          bookmarkY + bookmarkHeight - notchDepth,  // center notch point
-          bookmarkY + bookmarkHeight                // bottom-left
-      };
-
-      // Draw black filled bookmark ribbon (inverted)
-      renderer.fillPolygon(xPoints, yPoints, 5, true);
-    } else if (!coverRendered) {
-      // No cover: draw border for non-cover case
-      renderer.drawRect(bookX, bookY, bookWidth, bookHeight);
-      if (bookSelected) {
-        renderer.drawRect(bookX + 1, bookY + 1, bookWidth - 2, bookHeight - 2);
-        renderer.drawRect(bookX + 2, bookY + 2, bookWidth - 4, bookHeight - 4);
-      }
+    } else if (!coverRendered && !bufferRestored) {
+      // Selection border already handled above in the no-cover case
     }
   }
 

@@ -90,10 +90,8 @@ class GfxRenderer {
   void copyGrayscaleLsbBuffers() const;
   void copyGrayscaleMsbBuffers() const;
   void displayGrayBuffer() const;
-  bool storeBwBuffer();       // Returns true if buffer was stored successfully
-  void restoreBwBuffer();     // Restore and free the stored buffer
-  bool copyStoredBwBuffer();  // Copy stored buffer to framebuffer without freeing
-  void freeStoredBwBuffer();  // Free the stored buffer manually
+  bool storeBwBuffer();    // Returns true if buffer was stored successfully
+  void restoreBwBuffer();  // Restore and free the stored buffer
   void cleanupGrayscaleWithFrameBuffer() const;
 
   // Low level functions
