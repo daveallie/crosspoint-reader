@@ -38,7 +38,7 @@ class CrossPointWebServer {
   std::unique_ptr<WebServer> server = nullptr;
   std::atomic<bool> running{false};
   mutable std::mutex serverMutex;  // Protects server pointer access
-  bool apMode = false;              // true when running in AP mode, false for STA mode
+  bool apMode = false;             // true when running in AP mode, false for STA mode
   uint16_t port = 80;
 
   // Upload state (instance variables with mutex protection)
