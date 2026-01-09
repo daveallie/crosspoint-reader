@@ -8,12 +8,9 @@
 // ============================================================================
 // Note: For cover images, dithering is done in JpegToBmpConverter.cpp
 // This file handles BMP reading - use simple quantization to avoid double-dithering
-constexpr bool USE_FLOYD_STEINBERG = false;  // Disabled - dithering done at JPEG conversion
+// constexpr bool USE_FLOYD_STEINBERG = true;  // Disabled - dithering done at JPEG conversion
 constexpr bool USE_NOISE_DITHERING = false;  // Hash-based noise dithering
-// Brightness adjustments:
-constexpr bool USE_BRIGHTNESS = false;    // true: apply brightness/gamma adjustments
-constexpr int BRIGHTNESS_BOOST = 20;      // Brightness offset (0-50), only if USE_BRIGHTNESS=true
-constexpr bool GAMMA_CORRECTION = false;  // Gamma curve, only if USE_BRIGHTNESS=true
+constexpr bool GAMMA_CORRECTION = true;      // Gamma curve, only if USE_BRIGHTNESS=true
 // ============================================================================
 
 // Integer approximation of gamma correction (brightens midtones)
@@ -28,24 +25,19 @@ static inline int applyGamma(int gray) {
   return x > 255 ? 255 : x;
 }
 
-// Simple quantization without dithering - just divide into 4 levels
-static inline uint8_t quantizeSimple(int gray) {
-  if (USE_BRIGHTNESS) {
-    gray += BRIGHTNESS_BOOST;
+static inline uint8_t boostBrightness(int gray, uint8_t boost) {
+  if (boost > 0) {
+    gray += boost;
     if (gray > 255) gray = 255;
     gray = applyGamma(gray);
   }
-  return static_cast<uint8_t>(gray >> 6);
+  return gray;
 }
+// Simple quantization without dithering - just divide into 4 levels
+static inline uint8_t quantizeSimple(int gray) { return static_cast<uint8_t>(gray >> 6); }
 
 // Hash-based noise dithering - survives downsampling without moiré artifacts
 static inline uint8_t quantizeNoise(int gray, int x, int y) {
-  if (USE_BRIGHTNESS) {
-    gray += BRIGHTNESS_BOOST;
-    if (gray > 255) gray = 255;
-    gray = applyGamma(gray);
-  }
-
   uint32_t hash = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
   hash = (hash ^ (hash >> 13)) * 1274126177u;
   const int threshold = static_cast<int>(hash >> 24);
@@ -75,7 +67,6 @@ static inline uint8_t quantizeFloydSteinberg(int gray, int x, int width, int16_t
                                              bool reverseDir) {
   // Add accumulated error to this pixel
   int adjusted = gray + errorCurRow[x + 1];
-
   // Clamp to valid range
   if (adjusted < 0) adjusted = 0;
   if (adjusted > 255) adjusted = 255;
@@ -245,7 +236,7 @@ BmpReaderError Bitmap::parseHeaders() {
   }
 
   // Allocate Floyd-Steinberg error buffers if enabled
-  if (USE_FLOYD_STEINBERG) {
+  if (useFloydSteinberg) {
     delete[] errorCurRow;
     delete[] errorNextRow;
     errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
@@ -262,7 +253,7 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
   if (file.read(rowBuffer, rowBytes) != rowBytes) return BmpReaderError::ShortReadRow;
 
   // Handle Floyd-Steinberg error buffer progression
-  const bool useFS = USE_FLOYD_STEINBERG && errorCurRow && errorNextRow;
+  const bool useFS = useFloydSteinberg && errorCurRow && errorNextRow;
   if (useFS) {
     if (prevRowY != -1) {
       // Sequential access - swap buffers
@@ -284,10 +275,12 @@ BmpReaderError Bitmap::readNextRow(uint8_t* data, uint8_t* rowBuffer) const {
     uint8_t color;
     if (useFS) {
       // Floyd-Steinberg error diffusion
-      color = quantizeFloydSteinberg(lum, currentX, width, errorCurRow, errorNextRow, false);
+      color = quantizeFloydSteinberg(boostBrightness(lum, brightnessBoost), currentX, width, errorCurRow, errorNextRow,
+                                     false);
     } else {
       // Simple quantization or noise dithering
-      color = quantize(lum, currentX, prevRowY);
+
+      color = quantize(boostBrightness(lum, brightnessBoost), currentX, prevRowY);
     }
     currentOutByte |= (color << bitShift);
     if (bitShift == 0) {
@@ -357,7 +350,7 @@ BmpReaderError Bitmap::rewindToData() const {
   }
 
   // Reset Floyd-Steinberg error buffers when rewinding
-  if (USE_FLOYD_STEINBERG && errorCurRow && errorNextRow) {
+  if (useFloydSteinberg && errorCurRow && errorNextRow) {
     memset(errorCurRow, 0, (width + 2) * sizeof(int16_t));
     memset(errorNextRow, 0, (width + 2) * sizeof(int16_t));
     prevRowY = -1;
