@@ -33,14 +33,6 @@ const LanguageHyphenator*& cachedHyphenator() {
   return hyphenator;
 }
 
-// Asks the language hyphenator for legal break positions inside the word.
-std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, const LanguageHyphenator* hyphenator) {
-  if (hyphenator) {
-    return hyphenator->breakIndexes(cps);
-  }
-  return {};
-}
-
 // Maps a codepoint index back to its byte offset inside the source word.
 size_t byteOffsetForIndex(const std::vector<CodepointInfo>& cps, const size_t index) {
   return (index < cps.size()) ? cps[index].byteOffset : (cps.empty() ? 0 : cps.back().byteOffset);
@@ -99,9 +91,6 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
   const auto* hyphenator = cachedHyphenator();
   const size_t minPrefix = hyphenator ? hyphenator->minPrefix() : LiangWordConfig::kDefaultMinPrefix;
   const size_t minSuffix = hyphenator ? hyphenator->minSuffix() : LiangWordConfig::kDefaultMinSuffix;
-  if (cps.size() < minPrefix + minSuffix) {
-    return {};
-  }
 
   // Explicit hyphen markers (soft or hard) take precedence over heuristic breaks.
   auto explicitBreakInfos = buildExplicitBreakInfos(cps);
@@ -110,7 +99,10 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
   }
 
   // Ask language hyphenator for legal break points.
-  std::vector<size_t> indexes = hasOnlyAlphabetic(cps) ? collectBreakIndexes(cps, hyphenator) : std::vector<size_t>();
+  std::vector<size_t> indexes;
+  if (hyphenator) {
+    indexes = hyphenator->breakIndexes(cps);
+  }
 
   // Only add fallback breaks if needed and deduplicate if both language and fallback breaks exist.
   if (includeFallback) {
@@ -120,8 +112,6 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
     // Only deduplicate if we have both language-specific and fallback breaks.
     std::sort(indexes.begin(), indexes.end());
     indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
-  } else if (indexes.empty()) {
-    return {};
   }
 
   if (indexes.empty()) {
