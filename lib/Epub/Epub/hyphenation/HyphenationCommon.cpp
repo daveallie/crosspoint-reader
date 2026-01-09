@@ -2,6 +2,7 @@
 
 namespace {
 
+// Convert Latin uppercase letters (A-Z) to lowercase (a-z)
 uint32_t toLowerLatinImpl(const uint32_t cp) {
   if (cp >= 'A' && cp <= 'Z') {
     return cp - 'A' + 'a';
@@ -9,6 +10,9 @@ uint32_t toLowerLatinImpl(const uint32_t cp) {
   return cp;
 }
 
+// Convert Cyrillic uppercase letters to lowercase
+// Cyrillic uppercase range 0x0410-0x042F maps to lowercase by adding 0x20
+// Special case: Cyrillic capital IO (0x0401) maps to lowercase io (0x0451)
 uint32_t toLowerCyrillicImpl(const uint32_t cp) {
   if (cp >= 0x0410 && cp <= 0x042F) {
     return cp + 0x20;
@@ -27,35 +31,7 @@ uint32_t toLowerCyrillic(const uint32_t cp) { return toLowerCyrillicImpl(cp); }
 
 bool isLatinLetter(const uint32_t cp) { return (cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z'); }
 
-bool isLatinVowel(uint32_t cp) {
-  cp = toLowerLatinImpl(cp);
-  return cp == 'a' || cp == 'e' || cp == 'i' || cp == 'o' || cp == 'u' || cp == 'y';
-}
-
-bool isLatinConsonant(const uint32_t cp) { return isLatinLetter(cp) && !isLatinVowel(cp); }
-
 bool isCyrillicLetter(const uint32_t cp) { return (cp >= 0x0400 && cp <= 0x052F); }
-
-bool isCyrillicVowel(uint32_t cp) {
-  cp = toLowerCyrillicImpl(cp);
-  switch (cp) {
-    case 0x0430:  // а
-    case 0x0435:  // е
-    case 0x0451:  // ё
-    case 0x0438:  // и
-    case 0x043E:  // о
-    case 0x0443:  // у
-    case 0x044B:  // ы
-    case 0x044D:  // э
-    case 0x044E:  // ю
-    case 0x044F:  // я
-      return true;
-    default:
-      return false;
-  }
-}
-
-bool isCyrillicConsonant(const uint32_t cp) { return isCyrillicLetter(cp) && !isCyrillicVowel(cp); }
 
 bool isAlphabetic(const uint32_t cp) { return isLatinLetter(cp) || isCyrillicLetter(cp); }
 

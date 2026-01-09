@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "EnglishHyphenator.h"
+#include "GermanHyphenator.h"
 #include "HyphenationCommon.h"
 #include "LanguageHyphenator.h"
 #include "RussianHyphenator.h"
@@ -27,6 +28,7 @@ const LanguageHyphenator* hyphenatorForLanguage(const std::string& langTag) {
   if (primary.empty()) return nullptr;
 
   if (primary == "en") return &EnglishHyphenator::instance();
+  if (primary == "de") return &GermanHyphenator::instance();
   if (primary == "ru") return &RussianHyphenator::instance();
   return nullptr;
 }
@@ -78,8 +80,8 @@ void trimTrailingFootnoteReference(std::vector<CodepointInfo>& cps) {
 }
 
 // Asks the language hyphenator for legal break positions inside the word.
-std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps) {
-  if (const auto* hyphenator = cachedHyphenator()) {
+std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, const LanguageHyphenator* hyphenator) {
+  if (hyphenator) {
     return hyphenator->breakIndexes(cps);
   }
   return {};
@@ -140,7 +142,10 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
   auto cps = collectCodepoints(word);
   trimSurroundingPunctuation(cps);
   trimTrailingFootnoteReference(cps);
-  if (cps.size() < MIN_PREFIX_CP + MIN_SUFFIX_CP) {
+  const auto* hyphenator = cachedHyphenator();
+  const size_t minPrefix = hyphenator ? hyphenator->minPrefix() : LanguageHyphenator::kDefaultMinPrefix;
+  const size_t minSuffix = hyphenator ? hyphenator->minSuffix() : LanguageHyphenator::kDefaultMinSuffix;
+  if (cps.size() < minPrefix + minSuffix) {
     return {};
   }
 
@@ -151,11 +156,11 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
   }
 
   // Ask language hyphenator for legal break points.
-  std::vector<size_t> indexes = hasOnlyAlphabetic(cps) ? collectBreakIndexes(cps) : std::vector<size_t>();
+  std::vector<size_t> indexes = hasOnlyAlphabetic(cps) ? collectBreakIndexes(cps, hyphenator) : std::vector<size_t>();
 
   // Only add fallback breaks if needed and deduplicate if both language and fallback breaks exist.
   if (includeFallback) {
-    for (size_t idx = MIN_PREFIX_CP; idx + MIN_SUFFIX_CP <= cps.size(); ++idx) {
+    for (size_t idx = minPrefix; idx + minSuffix <= cps.size(); ++idx) {
       indexes.push_back(idx);
     }
     // Only deduplicate if we have both language-specific and fallback breaks.

@@ -8,6 +8,8 @@ class RussianHyphenator final : public LanguageHyphenator {
   static const RussianHyphenator& instance();
 
   std::vector<size_t> breakIndexes(const std::vector<CodepointInfo>& cps) const override;
+  size_t minPrefix() const override { return 2; }
+  size_t minSuffix() const override { return 2; }
 
  private:
   RussianHyphenator() = default;

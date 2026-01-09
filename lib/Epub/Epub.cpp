@@ -78,12 +78,6 @@ bool Epub::parseContentOpf(BookMetadataCache::BookMetadata& bookMetadata) {
   bookMetadata.coverItemHref = opfParser.coverItemHref;
   bookMetadata.textReferenceHref = opfParser.textReferenceHref;
 
-  if (!bookMetadata.language.empty()) {
-    Serial.printf("[%lu] [EBP] OPF language: %s\n", millis(), bookMetadata.language.c_str());
-  } else {
-    Serial.printf("[%lu] [EBP] OPF language: <none>\n", millis());
-  }
-
   if (!opfParser.tocNcxPath.empty()) {
     tocNcxItem = opfParser.tocNcxPath;
   }
