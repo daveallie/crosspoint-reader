@@ -106,19 +106,6 @@ void trimSurroundingPunctuation(std::vector<CodepointInfo>& cps) {
   }
 }
 
-bool hasOnlyAlphabetic(const std::vector<CodepointInfo>& cps) {
-  if (cps.empty()) {
-    return false;
-  }
-
-  for (const auto& info : cps) {
-    if (!isAlphabetic(info.value)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 std::vector<CodepointInfo> collectCodepoints(const std::string& word) {
   std::vector<CodepointInfo> cps;
   cps.reserve(word.size());

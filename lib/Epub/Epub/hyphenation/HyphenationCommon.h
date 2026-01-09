@@ -22,6 +22,5 @@ bool isAsciiDigit(uint32_t cp);
 bool isExplicitHyphen(uint32_t cp);
 bool isSoftHyphen(uint32_t cp);
 void trimSurroundingPunctuation(std::vector<CodepointInfo>& cps);
-bool hasOnlyAlphabetic(const std::vector<CodepointInfo>& cps);
 std::vector<CodepointInfo> collectCodepoints(const std::string& word);
 void trimTrailingFootnoteReference(std::vector<CodepointInfo>& cps);
