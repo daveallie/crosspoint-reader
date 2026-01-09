@@ -149,8 +149,8 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
     updateRequired = true;
 
     // WiFi performance optimizations for AP mode
-    WiFi.setSleep(false);                      // Disable WiFi sleep
-    WiFi.setTxPower(WIFI_POWER_19_5dBm);      // Maximum TX power for ESP32-C3
+    WiFi.setSleep(false);                 // Disable WiFi sleep
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum TX power for ESP32-C3
 
     startAccessPoint();
   }
@@ -193,8 +193,8 @@ void CrossPointWebServerActivity::startAccessPoint() {
   delay(100);
 
   // WiFi performance optimizations for maximum throughput
-  WiFi.setSleep(false);                      // Disable WiFi sleep
-  WiFi.setTxPower(WIFI_POWER_19_5dBm);      // Maximum TX power for ESP32-C3
+  WiFi.setSleep(false);                 // Disable WiFi sleep
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);  // Maximum TX power for ESP32-C3
 
   Serial.printf("[%lu] [WEBACT] WiFi optimizations applied (sleep disabled, max TX power)\n", millis());
 
