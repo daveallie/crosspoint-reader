@@ -84,9 +84,7 @@ SerializedTrieView parseSerializedTrie(const SerializedHyphenationPatterns& patt
   const uint8_t* cursor = patterns.data + sizeof(SerializedTrieHeader);
   const uint8_t* end = patterns.data + patterns.size;
 
-  const auto requireBytes = [&](size_t bytes) {
-    return bytes <= static_cast<size_t>(end - cursor);
-  };
+  const auto requireBytes = [&](size_t bytes) { return bytes <= static_cast<size_t>(end - cursor); };
 
   const size_t lettersBytes = static_cast<size_t>(header->letterCount) * sizeof(uint32_t);
   if (!requireBytes(lettersBytes)) {
@@ -155,8 +153,7 @@ uint16_t readUint16LE(const uint8_t* ptr) {
 }
 
 uint32_t readUint24LE(const uint8_t* ptr) {
-  return static_cast<uint32_t>(ptr[0]) | (static_cast<uint32_t>(ptr[1]) << 8) |
-         (static_cast<uint32_t>(ptr[2]) << 16);
+  return static_cast<uint32_t>(ptr[0]) | (static_cast<uint32_t>(ptr[1]) << 8) | (static_cast<uint32_t>(ptr[2]) << 16);
 }
 
 // Edges store child indexes and letter indexes in separate, compact arrays. We
@@ -253,8 +250,8 @@ size_t findChild(const SerializedTrieView& trie, const size_t nodeIndex, const u
 }
 
 // Merges the pattern's numeric priorities into the global score array (max per slot).
-void applyPatternValues(const SerializedTrieView& trie, const NodeFields& node,
-                        const size_t startCharIndex, std::vector<uint8_t>& scores) {
+void applyPatternValues(const SerializedTrieView& trie, const NodeFields& node, const size_t startCharIndex,
+                        std::vector<uint8_t>& scores) {
   if (node.valueLength == 0 || node.valueOffset == kNoValueOffset || !trie.values ||
       node.valueOffset >= trie.valueBytes) {
     return;
@@ -272,8 +269,8 @@ void applyPatternValues(const SerializedTrieView& trie, const NodeFields& node,
       break;
     }
     const uint8_t packedByte = packedValues[packedIndex];
-    const uint8_t value = (valueIdx & 1u) ? static_cast<uint8_t>((packedByte >> 4) & 0x0Fu)
-                                          : static_cast<uint8_t>(packedByte & 0x0Fu);
+    const uint8_t value =
+        (valueIdx & 1u) ? static_cast<uint8_t>((packedByte >> 4) & 0x0Fu) : static_cast<uint8_t>(packedByte & 0x0Fu);
     const size_t scoreIdx = startCharIndex + valueIdx;
     if (scoreIdx >= scores.size()) {
       break;
@@ -320,8 +317,7 @@ std::vector<size_t> collectBreakIndexes(const std::vector<CodepointInfo>& cps, c
 }  // namespace
 
 std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
-                                      const SerializedHyphenationPatterns& patterns,
-                                      const LiangWordConfig& config) {
+                                      const SerializedHyphenationPatterns& patterns, const LiangWordConfig& config) {
   // Step 1: convert the input word into the dotted UTF-8 stream the Liang algorithm expects.  A return
   // value of {} means the word contained something outside the language's alphabet and should be left
   // untouched by hyphenation.

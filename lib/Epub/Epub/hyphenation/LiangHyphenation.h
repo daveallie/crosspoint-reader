@@ -28,12 +28,11 @@ struct LiangWordConfig {
 
   // Lightweight aggregate constructor so call sites can declare `const LiangWordConfig config(...)`
   // without verbose member assignment boilerplate.
-  LiangWordConfig(bool (*letterFn)(uint32_t), uint32_t (*lowerFn)(uint32_t),
-                  size_t prefix = kDefaultMinPrefix, size_t suffix = kDefaultMinSuffix)
+  LiangWordConfig(bool (*letterFn)(uint32_t), uint32_t (*lowerFn)(uint32_t), size_t prefix = kDefaultMinPrefix,
+                  size_t suffix = kDefaultMinSuffix)
       : isLetter(letterFn), toLower(lowerFn), minPrefix(prefix), minSuffix(suffix) {}
 };
 
 // Shared Liang pattern evaluator used by every language-specific hyphenator.
 std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
-                                      const SerializedHyphenationPatterns& patterns,
-                                      const LiangWordConfig& config);
+                                      const SerializedHyphenationPatterns& patterns, const LiangWordConfig& config);
