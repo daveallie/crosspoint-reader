@@ -16,6 +16,8 @@ class EpubReaderActivity final : public ActivityWithSubactivity {
   int nextPageNumber = 0;
   int pagesUntilFullRefresh = 0;
   bool updateRequired = false;
+  unsigned long lastPageInteractionMs = 0;
+  uint32_t currentBookSeconds = 0;
   const std::function<void()> onGoBack;
   const std::function<void()> onGoHome;
 
@@ -25,6 +27,9 @@ class EpubReaderActivity final : public ActivityWithSubactivity {
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
   void renderStatusBar(int orientedMarginRight, int orientedMarginBottom, int orientedMarginLeft) const;
+  void recordReadingTimeDelta();
+  void loadReadingStats();
+  void persistReadingStats() const;
 
  public:
   explicit EpubReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Epub> epub,

@@ -4,6 +4,7 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -60,6 +61,8 @@ void HomeActivity::onEnter() {
     } else if (StringUtils::checkFileExtension(lastBookTitle, ".xtc")) {
       lastBookTitle.resize(lastBookTitle.length() - 4);
     }
+
+    loadReadingTime();
   }
 
   selectorIndex = 0;
@@ -256,6 +259,10 @@ void HomeActivity::render() const {
     if (!lastBookAuthor.empty()) {
       totalTextHeight += renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
     }
+    const bool showReadTime = lastBookSeconds > 0;
+    if (showReadTime) {
+      totalTextHeight += renderer.getLineHeight(UI_10_FONT_ID);
+    }
 
     // Vertically center the title block within the card
     int titleYStart = bookY + (bookHeight - totalTextHeight) / 2;
@@ -274,8 +281,15 @@ void HomeActivity::render() const {
         trimmedAuthor.append("...");
       }
       renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, trimmedAuthor.c_str(), !bookSelected);
+      titleYStart += renderer.getLineHeight(UI_10_FONT_ID);
     }
 
+    if (showReadTime) {
+      const std::string timeText = std::string("Read time: ") + formatDuration(lastBookSeconds);
+      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, timeText.c_str(), !bookSelected);
+    }
+
+    // Footer label stays at the bottom of the card
     renderer.drawCenteredText(UI_10_FONT_ID, bookY + bookHeight - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2,
                               "Continue Reading", !bookSelected);
   } else {
@@ -336,4 +350,73 @@ void HomeActivity::render() const {
   ScreenComponents::drawBattery(renderer, batteryX, 10);
 
   renderer.displayBuffer();
+}
+
+void HomeActivity::loadReadingTime() {
+  lastBookSeconds = 0;
+  if (APP_STATE.openEpubPath.empty()) {
+    return;
+  }
+
+  FsFile f;
+  if (!SdMan.openFileForRead("ERS", "/ReadingStats.csv", f)) {
+    return;
+  }
+
+  const size_t fileSize = f.size();
+  if (fileSize == 0) {
+    f.close();
+    return;
+  }
+
+  std::string content;
+  content.resize(fileSize);
+  const auto bytesRead = f.read(reinterpret_cast<uint8_t*>(&content[0]), fileSize);
+  f.close();
+  if (bytesRead != fileSize) {
+    return;
+  }
+
+  size_t pos = 0;
+  while (pos < content.size()) {
+    const size_t eol = content.find('\n', pos);
+    const size_t lineEnd = (eol == std::string::npos) ? content.size() : eol;
+    const auto line = content.substr(pos, lineEnd - pos);
+
+    const auto comma = line.find(',');
+    if (comma != std::string::npos) {
+      const auto path = line.substr(0, comma);
+      if (path == APP_STATE.openEpubPath) {
+        lastBookSeconds = static_cast<uint32_t>(strtoul(line.c_str() + comma + 1, nullptr, 10));
+        break;
+      }
+    }
+
+    if (eol == std::string::npos) {
+      break;
+    }
+    pos = eol + 1;
+  }
+}
+
+std::string HomeActivity::formatDuration(const uint32_t seconds) {
+  if (seconds < 60) {
+    return std::to_string(seconds) + "s";
+  }
+
+  const uint32_t minutesTotal = seconds / 60;
+  if (minutesTotal < 60) {
+    return std::to_string(minutesTotal) + "m";
+  }
+
+  const uint32_t hours = minutesTotal / 60;
+  const uint32_t minutes = minutesTotal % 60;
+
+  if (hours < 24) {
+    return std::to_string(hours) + "h " + std::to_string(minutes) + "m";
+  }
+
+  const uint32_t days = hours / 24;
+  const uint32_t remHours = hours % 24;
+  return std::to_string(days) + "d " + std::to_string(remHours) + "h";
 }

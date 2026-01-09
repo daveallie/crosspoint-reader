@@ -5,6 +5,13 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <utility>
+#include <vector>
+
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderChapterSelectionActivity.h"
@@ -17,6 +24,16 @@ namespace {
 constexpr unsigned long skipChapterMs = 700;
 constexpr unsigned long goHomeMs = 1000;
 constexpr int statusBarMargin = 19;
+constexpr const char* readingStatsFilePath = "/ReadingStats.csv";
+
+std::string formatMinutes(const float minutes) {
+  if (minutes <= 0.0f) {
+    return "";
+  }
+
+  const int totalMinutes = static_cast<int>(std::floor(minutes));
+  return std::to_string(totalMinutes) + "m";
+}
 }  // namespace
 
 void EpubReaderActivity::taskTrampoline(void* param) {
@@ -63,6 +80,9 @@ void EpubReaderActivity::onEnter() {
     }
     f.close();
   }
+
+  loadReadingStats();
+  lastPageInteractionMs = millis();
   // We may want a better condition to detect if we are opening for the first time.
   // This will trigger if the book is re-opened at Chapter 0.
   if (currentSpineIndex == 0) {
@@ -116,6 +136,7 @@ void EpubReaderActivity::loop() {
 
   // Enter chapter selection activity
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    recordReadingTimeDelta();
     // Don't start activity transition while rendering
     xSemaphoreTake(renderingMutex, portMAX_DELAY);
     exitActivity();
@@ -139,12 +160,14 @@ void EpubReaderActivity::loop() {
 
   // Long press BACK (1s+) goes directly to home
   if (mappedInput.isPressed(MappedInputManager::Button::Back) && mappedInput.getHeldTime() >= goHomeMs) {
+    recordReadingTimeDelta();
     onGoHome();
     return;
   }
 
   // Short press BACK goes to file selection
   if (mappedInput.wasReleased(MappedInputManager::Button::Back) && mappedInput.getHeldTime() < goHomeMs) {
+    recordReadingTimeDelta();
     onGoBack();
     return;
   }
@@ -157,6 +180,8 @@ void EpubReaderActivity::loop() {
   if (!prevReleased && !nextReleased) {
     return;
   }
+
+  recordReadingTimeDelta();
 
   // any botton press when at end of the book goes back to the last page
   if (currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount()) {
@@ -407,6 +432,127 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
   // restore the bw data
   renderer.restoreBwBuffer();
+}
+
+void EpubReaderActivity::recordReadingTimeDelta() {
+  if (!epub) {
+    return;
+  }
+
+  const unsigned long now = millis();
+  const unsigned long deltaMs = now - lastPageInteractionMs;
+  lastPageInteractionMs = now;
+
+  const unsigned long sleepTimeoutMs = SETTINGS.getSleepTimeoutMs();
+  if (deltaMs < 1000 || deltaMs > sleepTimeoutMs) {
+    return;  // ignore very short taps and anything longer than the sleep timeout
+  }
+
+  currentBookSeconds += static_cast<uint32_t>(deltaMs / 1000);  // whole seconds only
+  persistReadingStats();
+}
+
+void EpubReaderActivity::loadReadingStats() {
+  currentBookSeconds = 0;
+
+  FsFile f;
+  if (!SdMan.openFileForRead("ERS", readingStatsFilePath, f)) {
+    return;  // No stats file yet
+  }
+
+  const size_t fileSize = f.size();
+  if (fileSize == 0) {
+    f.close();
+    return;
+  }
+
+  std::string content;
+  content.resize(fileSize);
+  const auto bytesRead = f.read(reinterpret_cast<uint8_t*>(&content[0]), fileSize);
+  f.close();
+  if (bytesRead != fileSize) {
+    return;
+  }
+
+  size_t pos = 0;
+  while (pos < content.size()) {
+    const size_t eol = content.find('\n', pos);
+    const size_t lineEnd = (eol == std::string::npos) ? content.size() : eol;
+    const auto line = content.substr(pos, lineEnd - pos);
+
+    const auto comma = line.find(',');
+    if (comma != std::string::npos) {
+      const auto path = line.substr(0, comma);
+      if (path == epub->getPath()) {
+        currentBookSeconds = static_cast<uint32_t>(strtoul(line.c_str() + comma + 1, nullptr, 10));
+        break;
+      }
+    }
+
+    if (eol == std::string::npos) {
+      break;
+    }
+    pos = eol + 1;
+  }
+}
+
+void EpubReaderActivity::persistReadingStats() const {
+  if (!epub) {
+    return;
+  }
+
+  std::vector<std::pair<std::string, uint32_t>> rows;
+
+  FsFile f;
+  if (SdMan.openFileForRead("ERS", readingStatsFilePath, f)) {
+    const size_t fileSize = f.size();
+    if (fileSize > 0) {
+      std::string content;
+      content.resize(fileSize);
+      const auto bytesRead = f.read(reinterpret_cast<uint8_t*>(&content[0]), fileSize);
+      if (bytesRead == fileSize) {
+        size_t pos = 0;
+        while (pos < content.size()) {
+          const size_t eol = content.find('\n', pos);
+          const size_t lineEnd = (eol == std::string::npos) ? content.size() : eol;
+          const auto line = content.substr(pos, lineEnd - pos);
+
+          const auto comma = line.find(',');
+          if (comma != std::string::npos) {
+            const auto path = line.substr(0, comma);
+            const uint32_t seconds = static_cast<uint32_t>(strtoul(line.c_str() + comma + 1, nullptr, 10));
+            rows.emplace_back(path, seconds);
+          }
+
+          if (eol == std::string::npos) {
+            break;
+          }
+          pos = eol + 1;
+        }
+      }
+    }
+    f.close();
+  }
+
+  const auto existing = std::find_if(rows.begin(), rows.end(), [this](const std::pair<std::string, uint32_t>& row) {
+    return row.first == epub->getPath();
+  });
+
+  if (existing != rows.end()) {
+    existing->second = currentBookSeconds;
+  } else {
+    rows.emplace_back(epub->getPath(), currentBookSeconds);
+  }
+
+  if (!SdMan.openFileForWrite("ERS", readingStatsFilePath, f)) {
+    return;
+  }
+
+  for (const auto& row : rows) {
+    const std::string line = row.first + "," + std::to_string(row.second) + "\n";
+    f.write(reinterpret_cast<const uint8_t*>(line.c_str()), line.size());
+  }
+  f.close();
 }
 
 void EpubReaderActivity::renderStatusBar(const int orientedMarginRight, const int orientedMarginBottom,
