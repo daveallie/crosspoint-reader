@@ -74,18 +74,18 @@ static inline uint8_t quantizeFloydSteinberg(int gray, int x, int width, int16_t
   // Quantize to 4 levels (0, 85, 170, 255)
   uint8_t quantized;
   int quantizedValue;
-  if (adjusted < 43) {
+  if (adjusted < 30) {
     quantized = 0;
-    quantizedValue = 0;
-  } else if (adjusted < 128) {
+    quantizedValue = 15;
+  } else if (adjusted < 50) {
     quantized = 1;
-    quantizedValue = 85;
-  } else if (adjusted < 213) {
+    quantizedValue = 30;
+  } else if (adjusted < 140) {
     quantized = 2;
-    quantizedValue = 170;
+    quantizedValue = 80;
   } else {
     quantized = 3;
-    quantizedValue = 255;
+    quantizedValue = 210;
   }
 
   // Calculate error
