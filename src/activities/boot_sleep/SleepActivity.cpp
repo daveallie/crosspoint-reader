@@ -3,6 +3,7 @@
 #include <Epub.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
+#include <Txt.h>
 #include <Xtc.h>
 
 #include "CrossPointSettings.h"
@@ -200,6 +201,7 @@ void SleepActivity::renderCoverSleepScreen() const {
 
   std::string coverBmpPath;
 
+  // Check if the current book is XTC, TXT, or EPUB
   if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtc") ||
       StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtch")) {
     // Handle XTC file
@@ -215,6 +217,20 @@ void SleepActivity::renderCoverSleepScreen() const {
     }
 
     coverBmpPath = lastXtc.getCoverBmpPath();
+  } else if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".txt")) {
+    // Handle TXT file - looks for cover image in the same folder
+    Txt lastTxt(APP_STATE.openEpubPath, "/.crosspoint");
+    if (!lastTxt.load()) {
+      Serial.println("[SLP] Failed to load last TXT");
+      return renderDefaultSleepScreen();
+    }
+
+    if (!lastTxt.generateCoverBmp()) {
+      Serial.println("[SLP] No cover image found for TXT file");
+      return renderDefaultSleepScreen();
+    }
+
+    coverBmpPath = lastTxt.getCoverBmpPath();
   } else if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".epub")) {
     // Handle EPUB file
     Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
