@@ -139,6 +139,7 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
     Serial.printf("[%lu] [WEBACT] Turning on WiFi (STA mode)...\n", millis());
     WiFi.mode(WIFI_STA);
     delay(100);  // Allow WiFi hardware to initialize before proceeding
+    WiFi.setSleep(false);  // Disable WiFi sleep immediately to prevent crashes
 
     state = WebServerActivityState::WIFI_SELECTION;
     Serial.printf("[%lu] [WEBACT] Launching WifiSelectionActivity...\n", millis());
@@ -187,6 +188,7 @@ void CrossPointWebServerActivity::startAccessPoint() {
   // Configure and start the AP
   WiFi.mode(WIFI_AP);
   delay(100);
+  WiFi.setSleep(false);  // Disable WiFi sleep immediately to prevent crashes
 
   // Start soft AP
   bool apStarted;
