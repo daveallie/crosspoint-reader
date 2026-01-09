@@ -62,3 +62,8 @@ class Bitmap {
   mutable int16_t* errorNextRow = nullptr;
   mutable int prevRowY = -1;  // Track row progression for error propagation
 };
+
+// Helper functions
+uint8_t quantize(int gray, int x, int y);
+uint8_t quantizeSimple(int gray);
+int adjustPixel(int gray);
