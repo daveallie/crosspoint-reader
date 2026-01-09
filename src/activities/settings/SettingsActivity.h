@@ -15,9 +15,9 @@ enum class SettingType { TOGGLE, ENUM, ACTION, VALUE };
 
 // Structure to hold setting information
 struct SettingInfo {
-  const char* name;                        // Display name of the setting
-  SettingType type;                        // Type of setting
-  uint8_t CrossPointSettings::* valuePtr;   // Pointer for 8-bit settings (TOGGLE/ENUM)
+  const char* name;                           // Display name of the setting
+  SettingType type;                           // Type of setting
+  uint8_t CrossPointSettings::* valuePtr;     // Pointer for 8-bit settings (TOGGLE/ENUM)
   uint16_t CrossPointSettings::* valuePtr16;  // Pointer for 16-bit VALUE settings
   std::vector<std::string> enumValues;
 
