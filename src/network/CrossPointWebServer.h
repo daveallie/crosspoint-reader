@@ -15,11 +15,6 @@ struct FileInfo {
   bool isDirectory;
 };
 
-// Upload buffer configuration for high-speed transfers
-// 64KB buffer allows WiFi to receive data while SD card writes complete
-constexpr size_t UPLOAD_BUFFER_SIZE = 64 * 1024;       // 64KB circular buffer
-constexpr size_t UPLOAD_BATCH_WRITE_SIZE = 32 * 1024;  // Flush to SD every 32KB
-
 class CrossPointWebServer {
  public:
   CrossPointWebServer();
@@ -66,20 +61,11 @@ class CrossPointWebServer {
   mutable unsigned long uploadStartTime = 0;
   mutable unsigned long lastSpeedCalcTime = 0;
   mutable size_t lastSpeedCalcSize = 0;
-
-  // Upload buffer for decoupling WiFi receive from SD writes
-  mutable uint8_t* uploadBuffer = nullptr;
-  mutable size_t uploadBufferHead = 0;  // Write position
-  mutable size_t uploadBufferTail = 0;  // Read position
   mutable bool cpuBoosted = false;
 
-  // Buffer management
-  bool allocateUploadBuffer() const;
-  void freeUploadBuffer() const;
-  size_t bufferUsed() const;
-  size_t bufferFree() const;
-  bool writeToBuffer(const uint8_t* data, size_t len) const;
-  size_t flushBufferToSD(size_t maxBytes = 0) const;
+  // Diagnostic counters
+  mutable unsigned long totalWriteTimeMs = 0;
+  mutable size_t writeCount = 0;
 
   // CPU frequency management for upload performance
   void boostCPU() const;

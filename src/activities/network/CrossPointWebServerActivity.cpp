@@ -35,17 +35,38 @@ constexpr UBaseType_t WEBSERVER_TASK_PRIORITY = 5;    // Higher priority for res
 constexpr int HANDLE_CLIENT_ITERATIONS = 50;
 }  // namespace
 
-// Apply WiFi performance optimizations
+// Apply WiFi performance optimizations for maximum upload throughput
 static void applyWiFiOptimizations() {
   // Disable WiFi sleep for maximum throughput
   WiFi.setSleep(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);  // Explicitly disable power save
 
   // Set maximum TX power (different for ESP32 variants)
   // ESP32-C3: max 21dBm, ESP32: max 20.5dBm
   // Using 78 (19.5dBm) which is safe for all variants
   esp_wifi_set_max_tx_power(78);
 
-  Serial.printf("[%lu] [WEBACT] WiFi optimizations applied: sleep disabled, TX power maximized\n", millis());
+  // Configure WiFi for maximum throughput
+  // Note: These settings may not all be available on ESP32-C3
+  wifi_config_t conf;
+  if (esp_wifi_get_config(WIFI_IF_STA, &conf) == ESP_OK) {
+    // Log current settings
+    Serial.printf("[%lu] [WEBACT] WiFi SSID: %s, channel: listening\n", millis(), conf.sta.ssid);
+  }
+
+  // Set WiFi protocol to use 802.11n for better throughput
+  // WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+
+  // Get and log WiFi info for debugging
+  int8_t txPower = 0;
+  esp_wifi_get_max_tx_power(&txPower);
+
+  Serial.printf("[%lu] [WEBACT] WiFi optimizations applied:\n", millis());
+  Serial.printf("[%lu] [WEBACT]   - Power save: DISABLED\n", millis());
+  Serial.printf("[%lu] [WEBACT]   - TX power: %d (0.25dBm units = %.2f dBm)\n", millis(), txPower, txPower * 0.25f);
+  Serial.printf("[%lu] [WEBACT]   - Protocol: 802.11b/g/n\n", millis());
+  Serial.printf("[%lu] [WEBACT]   - RSSI: %d dBm\n", millis(), WiFi.RSSI());
 }
 
 void CrossPointWebServerActivity::taskTrampoline(void* param) {

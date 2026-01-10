@@ -4,7 +4,6 @@
 #include <FsHelpers.h>
 #include <SDCardManager.h>
 #include <WiFi.h>
-#include <esp_pm.h>
 
 #include <algorithm>
 
@@ -32,111 +31,10 @@ CrossPointWebServer::CrossPointWebServer() {
 
 CrossPointWebServer::~CrossPointWebServer() {
   stop();
-  freeUploadBuffer();
   if (uploadMutex) {
     vSemaphoreDelete(uploadMutex);
     uploadMutex = nullptr;
   }
-}
-
-// Buffer management functions
-bool CrossPointWebServer::allocateUploadBuffer() const {
-  if (uploadBuffer) return true;  // Already allocated
-
-  uploadBuffer = static_cast<uint8_t*>(malloc(UPLOAD_BUFFER_SIZE));
-  if (!uploadBuffer) {
-    Serial.printf("[%lu] [WEB] [UPLOAD] ERROR: Failed to allocate %d byte upload buffer!\n", millis(),
-                  UPLOAD_BUFFER_SIZE);
-    return false;
-  }
-
-  uploadBufferHead = 0;
-  uploadBufferTail = 0;
-  Serial.printf("[%lu] [WEB] [UPLOAD] Allocated %dKB upload buffer, free heap: %d\n", millis(),
-                UPLOAD_BUFFER_SIZE / 1024, ESP.getFreeHeap());
-  return true;
-}
-
-void CrossPointWebServer::freeUploadBuffer() const {
-  if (uploadBuffer) {
-    free(uploadBuffer);
-    uploadBuffer = nullptr;
-    uploadBufferHead = 0;
-    uploadBufferTail = 0;
-    Serial.printf("[%lu] [WEB] [UPLOAD] Freed upload buffer, free heap: %d\n", millis(), ESP.getFreeHeap());
-  }
-}
-
-size_t CrossPointWebServer::bufferUsed() const {
-  if (uploadBufferHead >= uploadBufferTail) {
-    return uploadBufferHead - uploadBufferTail;
-  }
-  return UPLOAD_BUFFER_SIZE - uploadBufferTail + uploadBufferHead;
-}
-
-size_t CrossPointWebServer::bufferFree() const { return UPLOAD_BUFFER_SIZE - bufferUsed() - 1; }
-
-bool CrossPointWebServer::writeToBuffer(const uint8_t* data, size_t len) const {
-  if (!uploadBuffer || len > bufferFree()) {
-    return false;
-  }
-
-  // Use memcpy for efficiency - handle wrap-around case
-  const size_t spaceToEnd = UPLOAD_BUFFER_SIZE - uploadBufferHead;
-  if (len <= spaceToEnd) {
-    // Single copy - no wrap
-    memcpy(uploadBuffer + uploadBufferHead, data, len);
-    uploadBufferHead = (uploadBufferHead + len) % UPLOAD_BUFFER_SIZE;
-  } else {
-    // Two copies - wrap around
-    memcpy(uploadBuffer + uploadBufferHead, data, spaceToEnd);
-    memcpy(uploadBuffer, data + spaceToEnd, len - spaceToEnd);
-    uploadBufferHead = len - spaceToEnd;
-  }
-  return true;
-}
-
-size_t CrossPointWebServer::flushBufferToSD(size_t maxBytes) const {
-  if (!uploadBuffer || !uploadFile) return 0;
-
-  const size_t available = bufferUsed();
-  if (available == 0) return 0;
-
-  size_t toWrite = maxBytes > 0 ? std::min(available, maxBytes) : available;
-  size_t totalWritten = 0;
-
-  // Write larger chunks for better SD performance (16KB)
-  constexpr size_t CHUNK_SIZE = 16384;
-  static uint8_t chunk[CHUNK_SIZE];  // Static to avoid stack allocation
-
-  while (toWrite > 0) {
-    const size_t chunkLen = std::min(toWrite, CHUNK_SIZE);
-
-    // Use memcpy - handle wrap-around case
-    const size_t dataToEnd = UPLOAD_BUFFER_SIZE - uploadBufferTail;
-    if (chunkLen <= dataToEnd) {
-      // Single copy - no wrap
-      memcpy(chunk, uploadBuffer + uploadBufferTail, chunkLen);
-      uploadBufferTail = (uploadBufferTail + chunkLen) % UPLOAD_BUFFER_SIZE;
-    } else {
-      // Two copies - wrap around
-      memcpy(chunk, uploadBuffer + uploadBufferTail, dataToEnd);
-      memcpy(chunk + dataToEnd, uploadBuffer, chunkLen - dataToEnd);
-      uploadBufferTail = chunkLen - dataToEnd;
-    }
-
-    const size_t written = uploadFile.write(chunk, chunkLen);
-    totalWritten += written;
-
-    if (written != chunkLen) {
-      Serial.printf("[%lu] [WEB] [UPLOAD] SD write error: expected %d, wrote %d\n", millis(), chunkLen, written);
-      break;
-    }
-
-    toWrite -= chunkLen;
-  }
-
-  return totalWritten;
 }
 
 // CPU frequency management
@@ -224,9 +122,6 @@ void CrossPointWebServer::begin() {
   // This is critical for reliable web server operation on ESP32.
   WiFi.setSleep(false);
 
-  // Note: WebServer class doesn't have setNoDelay() in the standard ESP32 library.
-  // We rely on disabling WiFi sleep for responsiveness.
-
   Serial.printf("[%lu] [WEB] [MEM] Free heap after WebServer allocation: %d bytes\n", millis(), ESP.getFreeHeap());
 
   if (!server) {
@@ -291,8 +186,6 @@ void CrossPointWebServer::stop() {
   Serial.printf("[%lu] [WEB] Web server stopped and deleted\n", millis());
   Serial.printf("[%lu] [WEB] [MEM] Free heap after delete server: %d bytes\n", millis(), ESP.getFreeHeap());
 
-  // Note: Static upload variables (uploadFileName, uploadPath, uploadError) are declared
-  // later in the file and will be cleared when they go out of scope or on next upload
   Serial.printf("[%lu] [WEB] [MEM] Free heap final: %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
@@ -484,6 +377,8 @@ void CrossPointWebServer::handleUpload() const {
     lastSpeedCalcSize = 0;
     uploadSpeedKBps = 0.0f;
     uploadInProgress = true;
+    totalWriteTimeMs = 0;
+    writeCount = 0;
 
     // Get upload path from query parameter
     if (server->hasArg("path")) {
@@ -502,15 +397,6 @@ void CrossPointWebServer::handleUpload() const {
 
     Serial.printf("[%lu] [WEB] [UPLOAD] START: %s to path: %s\n", millis(), uploadFileName.c_str(), uploadPath.c_str());
     Serial.printf("[%lu] [WEB] [UPLOAD] Free heap: %d bytes\n", millis(), ESP.getFreeHeap());
-
-    // Allocate upload buffer and boost CPU
-    if (!allocateUploadBuffer()) {
-      xSemaphoreTake(uploadMutex, portMAX_DELAY);
-      uploadError = "Failed to allocate upload buffer";
-      uploadInProgress = false;
-      xSemaphoreGive(uploadMutex);
-      return;
-    }
 
     boostCPU();
 
@@ -532,7 +418,6 @@ void CrossPointWebServer::handleUpload() const {
       uploadInProgress = false;
       xSemaphoreGive(uploadMutex);
       restoreCPU();
-      freeUploadBuffer();
       Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to create file: %s\n", millis(), filePath.c_str());
       return;
     }
@@ -540,54 +425,31 @@ void CrossPointWebServer::handleUpload() const {
     Serial.printf("[%lu] [WEB] [UPLOAD] File created successfully: %s\n", millis(), filePath.c_str());
 
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    xSemaphoreTake(uploadMutex, portMAX_DELAY);
-    const bool hasError = !uploadError.isEmpty();
-    xSemaphoreGive(uploadMutex);
+    if (uploadFile && uploadError.isEmpty()) {
+      // Direct write to SD - simple and fast
+      const unsigned long writeStart = millis();
+      const size_t written = uploadFile.write(upload.buf, upload.currentSize);
+      const unsigned long writeTime = millis() - writeStart;
 
-    if (uploadFile && !hasError) {
-      // Try to write to buffer first (fast path - doesn't block on SD)
-      if (!writeToBuffer(upload.buf, upload.currentSize)) {
-        // Buffer full - need to flush to SD first
-        const size_t flushed = flushBufferToSD(UPLOAD_BATCH_WRITE_SIZE);
-        if (flushed == 0) {
-          // Direct write as fallback
-          const size_t written = uploadFile.write(upload.buf, upload.currentSize);
-          if (written != upload.currentSize) {
-            xSemaphoreTake(uploadMutex, portMAX_DELAY);
-            uploadError = "Failed to write to SD card - disk may be full";
-            xSemaphoreGive(uploadMutex);
-            uploadFile.close();
-            Serial.printf("[%lu] [WEB] [UPLOAD] WRITE ERROR - expected %d, wrote %d\n", millis(), upload.currentSize,
-                          written);
-            return;
-          }
-        } else {
-          // Try buffer again after flush
-          if (!writeToBuffer(upload.buf, upload.currentSize)) {
-            // Still can't fit - direct write
-            const size_t written = uploadFile.write(upload.buf, upload.currentSize);
-            if (written != upload.currentSize) {
-              xSemaphoreTake(uploadMutex, portMAX_DELAY);
-              uploadError = "Failed to write to SD card - disk may be full";
-              xSemaphoreGive(uploadMutex);
-              uploadFile.close();
-              return;
-            }
-          }
-        }
+      totalWriteTimeMs += writeTime;
+      writeCount++;
+
+      if (written != upload.currentSize) {
+        xSemaphoreTake(uploadMutex, portMAX_DELAY);
+        uploadError = "Failed to write to SD card - disk may be full";
+        xSemaphoreGive(uploadMutex);
+        uploadFile.close();
+        Serial.printf("[%lu] [WEB] [UPLOAD] WRITE ERROR - expected %d, wrote %d\n", millis(), upload.currentSize,
+                      written);
+        return;
       }
 
-      // Flush buffer when it reaches threshold
-      if (bufferUsed() >= UPLOAD_BATCH_WRITE_SIZE) {
-        flushBufferToSD(UPLOAD_BATCH_WRITE_SIZE);
-      }
-
-      xSemaphoreTake(uploadMutex, portMAX_DELAY);
-      uploadSize += upload.currentSize;
+      uploadSize += written;
 
       // Calculate speed every 500ms
       const unsigned long now = millis();
       if (now - lastSpeedCalcTime >= SPEED_CALC_INTERVAL_MS) {
+        xSemaphoreTake(uploadMutex, portMAX_DELAY);
         const size_t bytesSinceLastCalc = uploadSize - lastSpeedCalcSize;
         const float secondsElapsed = (now - lastSpeedCalcTime) / 1000.0f;
         if (secondsElapsed > 0) {
@@ -596,18 +458,18 @@ void CrossPointWebServer::handleUpload() const {
         lastSpeedCalcTime = now;
         lastSpeedCalcSize = uploadSize;
 
-        // Log progress
+        // Log progress with diagnostics
         const float avgSpeed = (uploadSize / 1024.0f) / ((now - uploadStartTime) / 1000.0f);
-        Serial.printf("[%lu] [WEB] [UPLOAD] Progress: %d bytes (%.1f KB), current: %.1f KB/s, avg: %.1f KB/s\n",
-                      millis(), uploadSize, uploadSize / 1024.0f, uploadSpeedKBps, avgSpeed);
+        const float avgWriteMs = writeCount > 0 ? (float)totalWriteTimeMs / writeCount : 0;
+        Serial.printf(
+            "[%lu] [WEB] [UPLOAD] %d bytes (%.1f KB), cur: %.1f KB/s, avg: %.1f KB/s, writes: %d, avgWrite: %.1fms\n",
+            millis(), uploadSize, uploadSize / 1024.0f, uploadSpeedKBps, avgSpeed, writeCount, avgWriteMs);
+        xSemaphoreGive(uploadMutex);
       }
-      xSemaphoreGive(uploadMutex);
     }
 
   } else if (upload.status == UPLOAD_FILE_END) {
     if (uploadFile) {
-      // Flush remaining buffer to SD
-      flushBufferToSD();
       uploadFile.close();
 
       xSemaphoreTake(uploadMutex, portMAX_DELAY);
@@ -615,15 +477,18 @@ void CrossPointWebServer::handleUpload() const {
         uploadSuccess = true;
         const unsigned long duration = millis() - uploadStartTime;
         const float avgSpeed = (uploadSize / 1024.0f) / (duration / 1000.0f);
+        const float avgWriteMs = writeCount > 0 ? (float)totalWriteTimeMs / writeCount : 0;
+        const float writePercent = duration > 0 ? (totalWriteTimeMs * 100.0f / duration) : 0;
         Serial.printf("[%lu] [WEB] [UPLOAD] Complete: %s (%d bytes in %lu ms, avg %.1f KB/s)\n", millis(),
                       uploadFileName.c_str(), uploadSize, duration, avgSpeed);
+        Serial.printf("[%lu] [WEB] [UPLOAD] Diagnostics: %d writes, total write time: %lu ms (%.1f%%), avg: %.1fms\n",
+                      millis(), writeCount, totalWriteTimeMs, writePercent, avgWriteMs);
       }
       uploadInProgress = false;
       xSemaphoreGive(uploadMutex);
     }
 
     restoreCPU();
-    freeUploadBuffer();
 
   } else if (upload.status == UPLOAD_FILE_ABORTED) {
     if (uploadFile) {
@@ -640,7 +505,6 @@ void CrossPointWebServer::handleUpload() const {
     xSemaphoreGive(uploadMutex);
 
     restoreCPU();
-    freeUploadBuffer();
     Serial.printf("[%lu] [WEB] [UPLOAD] Aborted\n", millis());
   }
 }
