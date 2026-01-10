@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <qrcode.h>
 
 #include <cstddef>
@@ -24,7 +25,28 @@ constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 // DNS server for captive portal (redirects all DNS queries to our IP)
 DNSServer* dnsServer = nullptr;
 constexpr uint16_t DNS_PORT = 53;
+
+// Task configuration for high-performance uploads
+constexpr uint32_t WEBSERVER_TASK_STACK_SIZE = 6144;  // 6KB stack for upload handling
+constexpr UBaseType_t WEBSERVER_TASK_PRIORITY = 5;    // Higher priority for responsiveness
+
+// WiFi performance: handleClient iterations per loop
+// Higher values improve upload throughput by processing more data per frame
+constexpr int HANDLE_CLIENT_ITERATIONS = 50;
 }  // namespace
+
+// Apply WiFi performance optimizations
+static void applyWiFiOptimizations() {
+  // Disable WiFi sleep for maximum throughput
+  WiFi.setSleep(false);
+
+  // Set maximum TX power (different for ESP32 variants)
+  // ESP32-C3: max 21dBm, ESP32: max 20.5dBm
+  // Using 78 (19.5dBm) which is safe for all variants
+  esp_wifi_set_max_tx_power(78);
+
+  Serial.printf("[%lu] [WEBACT] WiFi optimizations applied: sleep disabled, TX power maximized\n", millis());
+}
 
 void CrossPointWebServerActivity::taskTrampoline(void* param) {
   auto* self = static_cast<CrossPointWebServerActivity*>(param);
@@ -48,10 +70,10 @@ void CrossPointWebServerActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&CrossPointWebServerActivity::taskTrampoline, "WebServerActivityTask",
-              2048,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              WEBSERVER_TASK_STACK_SIZE,  // Stack size (6KB for upload handling)
+              this,                       // Parameters
+              WEBSERVER_TASK_PRIORITY,    // Priority (5 for responsiveness)
+              &displayTaskHandle          // Task handle
   );
 
   // Launch network mode selection subactivity
@@ -162,6 +184,9 @@ void CrossPointWebServerActivity::onWifiSelectionComplete(const bool connected) 
 
     exitActivity();
 
+    // Apply WiFi optimizations for maximum upload performance
+    applyWiFiOptimizations();
+
     // Start mDNS for hostname resolution
     if (MDNS.begin(AP_HOSTNAME)) {
       Serial.printf("[%lu] [WEBACT] mDNS started: http://%s.local/\n", millis(), AP_HOSTNAME);
@@ -214,6 +239,9 @@ void CrossPointWebServerActivity::startAccessPoint() {
   Serial.printf("[%lu] [WEBACT] Access Point started!\n", millis());
   Serial.printf("[%lu] [WEBACT] SSID: %s\n", millis(), AP_SSID);
   Serial.printf("[%lu] [WEBACT] IP: %s\n", millis(), connectedIP.c_str());
+
+  // Apply WiFi optimizations for maximum upload performance
+  applyWiFiOptimizations();
 
   // Start mDNS for hostname resolution
   if (MDNS.begin(AP_HOSTNAME)) {
@@ -297,9 +325,9 @@ void CrossPointWebServerActivity::loop() {
       // Call handleClient multiple times to process pending requests faster
       // This is critical for upload performance - HTTP file uploads send data
       // in chunks and each handleClient() call processes incoming data
-      constexpr int HANDLE_CLIENT_ITERATIONS = 10;
       for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
+        yield();  // Allow other tasks to run between iterations
       }
       lastHandleClientTime = millis();
     }
