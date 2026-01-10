@@ -327,7 +327,6 @@ void CrossPointWebServerActivity::loop() {
       // in chunks and each handleClient() call processes incoming data
       for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
-        yield();  // Allow other tasks to run between iterations
       }
       lastHandleClientTime = millis();
     }

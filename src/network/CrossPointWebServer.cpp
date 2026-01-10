@@ -81,9 +81,17 @@ bool CrossPointWebServer::writeToBuffer(const uint8_t* data, size_t len) const {
     return false;
   }
 
-  for (size_t i = 0; i < len; i++) {
-    uploadBuffer[uploadBufferHead] = data[i];
-    uploadBufferHead = (uploadBufferHead + 1) % UPLOAD_BUFFER_SIZE;
+  // Use memcpy for efficiency - handle wrap-around case
+  const size_t spaceToEnd = UPLOAD_BUFFER_SIZE - uploadBufferHead;
+  if (len <= spaceToEnd) {
+    // Single copy - no wrap
+    memcpy(uploadBuffer + uploadBufferHead, data, len);
+    uploadBufferHead = (uploadBufferHead + len) % UPLOAD_BUFFER_SIZE;
+  } else {
+    // Two copies - wrap around
+    memcpy(uploadBuffer + uploadBufferHead, data, spaceToEnd);
+    memcpy(uploadBuffer, data + spaceToEnd, len - spaceToEnd);
+    uploadBufferHead = len - spaceToEnd;
   }
   return true;
 }
@@ -97,17 +105,24 @@ size_t CrossPointWebServer::flushBufferToSD(size_t maxBytes) const {
   size_t toWrite = maxBytes > 0 ? std::min(available, maxBytes) : available;
   size_t totalWritten = 0;
 
-  // Write in chunks to avoid blocking too long
-  constexpr size_t CHUNK_SIZE = 4096;
-  uint8_t chunk[CHUNK_SIZE];
+  // Write larger chunks for better SD performance (16KB)
+  constexpr size_t CHUNK_SIZE = 16384;
+  static uint8_t chunk[CHUNK_SIZE];  // Static to avoid stack allocation
 
   while (toWrite > 0) {
     const size_t chunkLen = std::min(toWrite, CHUNK_SIZE);
 
-    // Copy from circular buffer to linear chunk
-    for (size_t i = 0; i < chunkLen; i++) {
-      chunk[i] = uploadBuffer[uploadBufferTail];
-      uploadBufferTail = (uploadBufferTail + 1) % UPLOAD_BUFFER_SIZE;
+    // Use memcpy - handle wrap-around case
+    const size_t dataToEnd = UPLOAD_BUFFER_SIZE - uploadBufferTail;
+    if (chunkLen <= dataToEnd) {
+      // Single copy - no wrap
+      memcpy(chunk, uploadBuffer + uploadBufferTail, chunkLen);
+      uploadBufferTail = (uploadBufferTail + chunkLen) % UPLOAD_BUFFER_SIZE;
+    } else {
+      // Two copies - wrap around
+      memcpy(chunk, uploadBuffer + uploadBufferTail, dataToEnd);
+      memcpy(chunk + dataToEnd, uploadBuffer, chunkLen - dataToEnd);
+      uploadBufferTail = chunkLen - dataToEnd;
     }
 
     const size_t written = uploadFile.write(chunk, chunkLen);
@@ -119,7 +134,6 @@ size_t CrossPointWebServer::flushBufferToSD(size_t maxBytes) const {
     }
 
     toWrite -= chunkLen;
-    yield();  // Allow WiFi stack to process
   }
 
   return totalWritten;
