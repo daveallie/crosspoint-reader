@@ -15,7 +15,7 @@ int adjustPixel(int gray);
 // Less error buildup = fewer artifacts than Floyd-Steinberg
 class AtkinsonDitherer {
  public:
-  AtkinsonDitherer(int width) : width(width) {
+  explicit AtkinsonDitherer(int width) : width(width) {
     errorRow0 = new int16_t[width + 4]();  // Current row
     errorRow1 = new int16_t[width + 4]();  // Next row
     errorRow2 = new int16_t[width + 4]();  // Row after next
@@ -26,6 +26,11 @@ class AtkinsonDitherer {
     delete[] errorRow1;
     delete[] errorRow2;
   }
+  // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
+  AtkinsonDitherer(const AtkinsonDitherer& other) = delete;
+
+  // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
+  AtkinsonDitherer& operator=(const AtkinsonDitherer& other) = delete;
 
   uint8_t processPixel(int gray, int x) {
     // Add accumulated error
@@ -111,7 +116,7 @@ class AtkinsonDitherer {
 //      7/16  X
 class FloydSteinbergDitherer {
  public:
-  FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
+  explicit FloydSteinbergDitherer(int width) : width(width), rowCount(0) {
     errorCurRow = new int16_t[width + 2]();  // +2 for boundary handling
     errorNextRow = new int16_t[width + 2]();
   }
@@ -120,6 +125,12 @@ class FloydSteinbergDitherer {
     delete[] errorCurRow;
     delete[] errorNextRow;
   }
+
+  // **1. EXPLICITLY DELETE THE COPY CONSTRUCTOR**
+  FloydSteinbergDitherer(const FloydSteinbergDitherer& other) = delete;
+
+  // **2. EXPLICITLY DELETE THE COPY ASSIGNMENT OPERATOR**
+  FloydSteinbergDitherer& operator=(const FloydSteinbergDitherer& other) = delete;
 
   // Process a single pixel and return quantized 2-bit value
   // x is the logical x position (0 to width-1), direction handled internally
