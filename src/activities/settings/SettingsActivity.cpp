@@ -16,31 +16,59 @@ namespace {
 constexpr int settingsCount = 18;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
-    SettingInfo::Enum("Sleep Screen", &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover", "None"}),
-    SettingInfo::Enum("Sleep Screen Cover Mode", &CrossPointSettings::sleepScreenCoverMode, {"Fit", "Crop"}),
-    SettingInfo::Enum("Status Bar", &CrossPointSettings::statusBar, {"None", "No Progress", "Full"}),
-    SettingInfo::Toggle("Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing),
-    SettingInfo::Toggle("Text Anti-Aliasing", &CrossPointSettings::textAntiAliasing),
-    SettingInfo::Toggle("Short Power Button Click", &CrossPointSettings::shortPwrBtn),
-    SettingInfo::Enum("Reading Orientation", &CrossPointSettings::orientation,
-                      {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}),
-    SettingInfo::Enum("Front Button Layout", &CrossPointSettings::frontButtonLayout,
-                      {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}),
-    SettingInfo::Enum("Side Button Layout (reader)", &CrossPointSettings::sideButtonLayout,
-                      {"Prev, Next", "Next, Prev"}),
-    SettingInfo::Enum("Reader Font Family", &CrossPointSettings::fontFamily,
-                      {"Bookerly", "Noto Sans", "Open Dyslexic"}),
-    SettingInfo::Enum("Reader Font Size", &CrossPointSettings::fontSize, {"Small", "Medium", "Large", "X Large"}),
-    SettingInfo::Enum("Reader Line Spacing", &CrossPointSettings::lineSpacing, {"Tight", "Normal", "Wide"}),
-    SettingInfo::Value("Reader Screen Margin", &CrossPointSettings::screenMargin, {5, 40, 5}),
-    SettingInfo::Enum("Reader Paragraph Alignment", &CrossPointSettings::paragraphAlignment,
-                      {"Justify", "Left", "Center", "Right"}),
-    SettingInfo::Enum("Time to Sleep", &CrossPointSettings::sleepTimeout,
-                      {"1 min", "5 min", "10 min", "15 min", "30 min"}),
-    SettingInfo::Enum("Refresh Frequency", &CrossPointSettings::refreshFrequency,
-                      {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}),
-    SettingInfo::Action("Calibre Settings"),
-    SettingInfo::Action("Check for updates")};
+    {"Sleep Screen",
+     SettingType::ENUM,
+     &CrossPointSettings::sleepScreen,
+     nullptr,
+     {"Dark", "Light", "Custom", "Cover"}},
+    {"Status Bar", SettingType::ENUM, &CrossPointSettings::statusBar, nullptr, {"None", "No Progress", "Full"}},
+    {"Extra Paragraph Spacing", SettingType::TOGGLE, &CrossPointSettings::extraParagraphSpacing, nullptr, {}},
+    {"Short Power Button Click", SettingType::TOGGLE, &CrossPointSettings::shortPwrBtn, nullptr, {}},
+    {"Reading Orientation",
+     SettingType::ENUM,
+     &CrossPointSettings::orientation,
+     nullptr,
+     {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}},
+    {"Front Button Layout",
+     SettingType::ENUM,
+     &CrossPointSettings::frontButtonLayout,
+     nullptr,
+     {"Bck, Cnfrm, Lft, Rght", "Lft, Rght, Bck, Cnfrm", "Lft, Bck, Cnfrm, Rght"}},
+    {"Side Button Layout (reader)",
+     SettingType::ENUM,
+     &CrossPointSettings::sideButtonLayout,
+     nullptr,
+     {"Prev, Next", "Next, Prev"}},
+    {"Reader Font Family",
+     SettingType::ENUM,
+     &CrossPointSettings::fontFamily,
+     nullptr,
+     {"Bookerly", "Noto Sans", "Open Dyslexic"}},
+    {"Reader Font Size",
+     SettingType::ENUM,
+     &CrossPointSettings::fontSize,
+     nullptr,
+     {"Small", "Medium", "Large", "X Large"}},
+    {"Reader Line Spacing", SettingType::ENUM, &CrossPointSettings::lineSpacing, nullptr, {"Tight", "Normal", "Wide"}},
+    {"Reader Paragraph Alignment",
+     SettingType::ENUM,
+     &CrossPointSettings::paragraphAlignment,
+     nullptr,
+     {"Justify", "Left", "Center", "Right"}},
+    {"Time to Sleep",
+     SettingType::ENUM,
+     &CrossPointSettings::sleepTimeout,
+     nullptr,
+     {"1 min", "5 min", "10 min", "15 min", "30 min"}},
+    {"Refresh Frequency",
+     SettingType::ENUM,
+     &CrossPointSettings::refreshFrequency,
+     nullptr,
+     {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}},
+    {"FTP Username", SettingType::TEXT, nullptr, &CrossPointSettings::ftpUsername, {}},
+    {"FTP Password", SettingType::TEXT, nullptr, &CrossPointSettings::ftpPassword, {}},
+    {"Check for updates", SettingType::ACTION, nullptr, nullptr, {}},
+};
 }  // namespace
 
 void SettingsActivity::taskTrampoline(void* param) {
@@ -127,15 +155,10 @@ void SettingsActivity::toggleCurrentSetting() {
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = (currentValue + 1) % static_cast<uint8_t>(setting.enumValues.size());
-  } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-    // Decreasing would also be nice for large ranges I think but oh well can't have everything
-    const int8_t currentValue = SETTINGS.*(setting.valuePtr);
-    // Wrap to minValue if exceeding setting value boundary
-    if (currentValue + setting.valueRange.step > setting.valueRange.max) {
-      SETTINGS.*(setting.valuePtr) = setting.valueRange.min;
-    } else {
-      SETTINGS.*(setting.valuePtr) = currentValue + setting.valueRange.step;
-    }
+  } else if (setting.type == SettingType::TEXT && setting.stringValuePtr != nullptr) {
+    // For now, TEXT settings are display-only in this UI
+    // In a future version, this could launch a text input dialog
+    return;
   } else if (setting.type == SettingType::ACTION) {
     if (strcmp(setting.name, "Calibre Settings") == 0) {
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -202,8 +225,8 @@ void SettingsActivity::render() const {
     } else if (settingsList[i].type == SettingType::ENUM && settingsList[i].valuePtr != nullptr) {
       const uint8_t value = SETTINGS.*(settingsList[i].valuePtr);
       valueText = settingsList[i].enumValues[value];
-    } else if (settingsList[i].type == SettingType::VALUE && settingsList[i].valuePtr != nullptr) {
-      valueText = std::to_string(SETTINGS.*(settingsList[i].valuePtr));
+    } else if (settingsList[i].type == SettingType::TEXT && settingsList[i].stringValuePtr != nullptr) {
+      valueText = SETTINGS.*(settingsList[i].stringValuePtr);
     }
     const auto width = renderer.getTextWidth(UI_10_FONT_ID, valueText.c_str());
     renderer.drawText(UI_10_FONT_ID, pageWidth - 20 - width, settingY, valueText.c_str(), i != selectedSettingIndex);
