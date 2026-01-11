@@ -1,7 +1,7 @@
 #pragma once
 
+#include <ESPAsyncWebServer.h>
 #include <SDCardManager.h>
-#include <WebServer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -26,9 +26,6 @@ class CrossPointWebServer {
   // Stop the web server
   void stop();
 
-  // Call this periodically to handle client requests
-  void handleClient() const;
-
   // Check if server is running
   bool isRunning() const { return running; }
 
@@ -42,7 +39,7 @@ class CrossPointWebServer {
   uint8_t getUploadProgress() const;    // 0-100%
 
  private:
-  std::unique_ptr<WebServer> server = nullptr;
+  std::unique_ptr<AsyncWebServer> server = nullptr;
   bool running = false;
   bool apMode = false;  // true when running in AP mode, false for STA mode
   uint16_t port = 80;
@@ -61,15 +58,10 @@ class CrossPointWebServer {
   mutable unsigned long uploadStartTime = 0;
   mutable unsigned long lastSpeedCalcTime = 0;
   mutable size_t lastSpeedCalcSize = 0;
-  mutable bool cpuBoosted = false;
 
   // Diagnostic counters
   mutable unsigned long totalWriteTimeMs = 0;
   mutable size_t writeCount = 0;
-
-  // CPU frequency management for upload performance
-  void boostCPU() const;
-  void restoreCPU() const;
 
   // File scanning
   void scanFiles(const char* path, const std::function<void(FileInfo)>& callback) const;
@@ -77,13 +69,14 @@ class CrossPointWebServer {
   bool isEpubFile(const String& filename) const;
 
   // Request handlers
-  void handleRoot() const;
-  void handleNotFound() const;
-  void handleStatus() const;
-  void handleFileList() const;
-  void handleFileListData() const;
-  void handleUpload() const;
-  void handleUploadPost() const;
-  void handleCreateFolder() const;
-  void handleDelete() const;
+  void handleRoot(AsyncWebServerRequest* request) const;
+  void handleNotFound(AsyncWebServerRequest* request) const;
+  void handleStatus(AsyncWebServerRequest* request) const;
+  void handleFileList(AsyncWebServerRequest* request) const;
+  void handleFileListData(AsyncWebServerRequest* request) const;
+  void handleUploadRequest(AsyncWebServerRequest* request);
+  void handleUpload(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len,
+                    bool final);
+  void handleCreateFolder(AsyncWebServerRequest* request) const;
+  void handleDelete(AsyncWebServerRequest* request) const;
 };

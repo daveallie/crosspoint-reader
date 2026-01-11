@@ -26,14 +26,9 @@ constexpr uint8_t AP_MAX_CONNECTIONS = 4;
 DNSServer* dnsServer = nullptr;
 constexpr uint16_t DNS_PORT = 53;
 
-// Task configuration for high-performance uploads
-constexpr uint32_t WEBSERVER_TASK_STACK_SIZE = 6144;  // 6KB stack for upload handling
-constexpr UBaseType_t WEBSERVER_TASK_PRIORITY = 5;    // Higher priority for responsiveness
-
-// WiFi performance: handleClient iterations per loop
-// Higher values improve upload throughput by processing more data per frame
-// With 200 iterations we can process ~300KB per loop at 1.5KB/chunk
-constexpr int HANDLE_CLIENT_ITERATIONS = 200;
+// Task configuration for display updates
+constexpr uint32_t WEBSERVER_TASK_STACK_SIZE = 4096;  // 4KB stack for display task
+constexpr UBaseType_t WEBSERVER_TASK_PRIORITY = 1;    // Low priority - display updates only
 }  // namespace
 
 // Apply WiFi performance optimizations for maximum upload throughput
@@ -333,25 +328,8 @@ void CrossPointWebServerActivity::loop() {
       dnsServer->processNextRequest();
     }
 
-    // Handle web server requests - call handleClient multiple times per loop
-    // to improve responsiveness and upload throughput
-    if (webServer && webServer->isRunning()) {
-      const unsigned long timeSinceLastHandleClient = millis() - lastHandleClientTime;
-
-      // Log if there's a significant gap between handleClient calls (>100ms)
-      if (lastHandleClientTime > 0 && timeSinceLastHandleClient > 100) {
-        Serial.printf("[%lu] [WEBACT] WARNING: %lu ms gap since last handleClient\n", millis(),
-                      timeSinceLastHandleClient);
-      }
-
-      // Call handleClient multiple times to process pending requests faster
-      // This is critical for upload performance - HTTP file uploads send data
-      // in chunks and each handleClient() call processes incoming data
-      for (int i = 0; i < HANDLE_CLIENT_ITERATIONS && webServer->isRunning(); i++) {
-        webServer->handleClient();
-      }
-      lastHandleClientTime = millis();
-    }
+    // AsyncWebServer is fully callback-based - no polling needed
+    // The server handles requests automatically in the background
 
     // Handle exit on Back button
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
