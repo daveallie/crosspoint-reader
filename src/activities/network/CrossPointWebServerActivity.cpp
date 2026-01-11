@@ -32,7 +32,8 @@ constexpr UBaseType_t WEBSERVER_TASK_PRIORITY = 5;    // Higher priority for res
 
 // WiFi performance: handleClient iterations per loop
 // Higher values improve upload throughput by processing more data per frame
-constexpr int HANDLE_CLIENT_ITERATIONS = 50;
+// With 200 iterations we can process ~300KB per loop at 1.5KB/chunk
+constexpr int HANDLE_CLIENT_ITERATIONS = 200;
 }  // namespace
 
 // Apply WiFi performance optimizations for maximum upload throughput
