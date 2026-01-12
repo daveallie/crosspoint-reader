@@ -40,6 +40,7 @@ This project is **not affiliated with Xteink**; it's built as a community projec
   - [ ] User provided fonts
   - [ ] Full UTF support
 - [x] Screen rotation
+- [x] Adjustable auto-sleep timeout (2, 5, 10, 15, 20, 30, 60 minutes, or Never)
 
 See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint.
 
