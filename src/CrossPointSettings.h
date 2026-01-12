@@ -55,6 +55,9 @@ class CrossPointSettings {
   // Short power button press actions
   enum SHORT_PWRBTN { IGNORE = 0, SLEEP = 1, PAGE_TURN = 2 };
 
+  // Hide battery percentage
+  enum HIDE_BATTERY_PERCENTAGE { HIDE_NEVER = 0, HIDE_READER = 1, HIDE_ALWAYS = 2 };
+
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
   // Sleep screen cover mode settings
@@ -85,6 +88,8 @@ class CrossPointSettings {
   uint8_t screenMargin = 5;
   // OPDS browser settings
   char opdsServerUrl[128] = "";
+  // Hide battery percentage
+  uint8_t hideBatteryPercentage = HIDE_NEVER;
 
   ~CrossPointSettings() = default;
 
