@@ -304,8 +304,9 @@ static bool uploadSuccess = false;
 static String uploadError = "";
 
 // Upload write buffer - batches small writes into larger SD card operations
-// This improves throughput by reducing the number of SD write syscalls
-constexpr size_t UPLOAD_BUFFER_SIZE = 8192;  // 8KB buffer
+// 4KB is a good balance: large enough to reduce syscall overhead, small enough
+// to keep individual write times short and avoid watchdog issues
+constexpr size_t UPLOAD_BUFFER_SIZE = 4096;  // 4KB buffer
 static uint8_t uploadBuffer[UPLOAD_BUFFER_SIZE];
 static size_t uploadBufferPos = 0;
 
@@ -316,10 +317,12 @@ static size_t writeCount = 0;
 
 static bool flushUploadBuffer() {
   if (uploadBufferPos > 0 && uploadFile) {
+    esp_task_wdt_reset();  // Reset watchdog before potentially slow SD write
     const unsigned long writeStart = millis();
     const size_t written = uploadFile.write(uploadBuffer, uploadBufferPos);
     totalWriteTime += millis() - writeStart;
     writeCount++;
+    esp_task_wdt_reset();  // Reset watchdog after SD write
 
     if (written != uploadBufferPos) {
       Serial.printf("[%lu] [WEB] [UPLOAD] Buffer flush failed: expected %d, wrote %d\n", millis(), uploadBufferPos,
@@ -385,12 +388,14 @@ void CrossPointWebServer::handleUpload() const {
       SdMan.remove(filePath.c_str());
     }
 
-    // Open file for writing
+    // Open file for writing - this can be slow due to FAT cluster allocation
+    esp_task_wdt_reset();
     if (!SdMan.openFileForWrite("WEB", filePath, uploadFile)) {
       uploadError = "Failed to create file on SD card";
       Serial.printf("[%lu] [WEB] [UPLOAD] FAILED to create file: %s\n", millis(), filePath.c_str());
       return;
     }
+    esp_task_wdt_reset();
 
     Serial.printf("[%lu] [WEB] [UPLOAD] File created successfully: %s\n", millis(), filePath.c_str());
   } else if (upload.status == UPLOAD_FILE_WRITE) {

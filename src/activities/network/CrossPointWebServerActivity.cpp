@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <GfxRenderer.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 #include <qrcode.h>
 
 #include <cstddef>
@@ -316,20 +317,18 @@ void CrossPointWebServerActivity::loop() {
                       timeSinceLastHandleClient);
       }
 
-      // Time-based processing: handle requests for up to 50ms per loop iteration
-      // This is more efficient than a fixed iteration count because:
-      // 1. Processes more data when available (during uploads)
-      // 2. Returns quickly when idle (no wasted spinning)
-      // 3. yield() between calls lets WiFi stack receive more data
-      constexpr unsigned long TIME_BUDGET_MS = 50;
-      const unsigned long handleStart = millis();
-
-      while (webServer->isRunning() && (millis() - handleStart) < TIME_BUDGET_MS) {
+      // Process HTTP requests with watchdog safety
+      // Use iteration-based approach with watchdog resets to prevent crashes
+      // Higher iteration count improves throughput during uploads
+      constexpr int MAX_ITERATIONS = 200;
+      for (int i = 0; i < MAX_ITERATIONS && webServer->isRunning(); i++) {
         webServer->handleClient();
-        // Yield between calls to let WiFi stack process incoming packets
-        // This is critical for throughput - without it, TCP flow control
-        // throttles the sender because our receive buffer fills up
+        // Yield every iteration to let WiFi stack receive more packets
         yield();
+        // Reset watchdog every 50 iterations to prevent timeout during uploads
+        if ((i & 0x3F) == 0) {  // Every 64 iterations
+          esp_task_wdt_reset();
+        }
       }
       lastHandleClientTime = millis();
     }
