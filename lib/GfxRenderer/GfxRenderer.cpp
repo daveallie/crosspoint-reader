@@ -233,23 +233,31 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
 
       // draw extended pixels
       /// amount of pixels taken from bitmap and repeated to extend
-      int extendY = 10;  // TODO: fix rounding errors if this is not a divisor of height?
+      int extendY = 20;
+      int drawExtY = 0;
       // don't draw MSB for darker extended area
-      // if (extend && renderMode != GRAYSCALE_MSB) {
-      if (extend) {
-        if (bmpY < extendY) {
-          for (int ny = 0; ny < extendY; ny++) {
+      if (extend && renderMode != GRAYSCALE_MSB) {
+        // if (extend) {
+        if (screenY - y < extendY) {
+          for (int ny = 0; ny < y / extendY / 2; ny++) {
             // TODO: handle when extendY > y
-            const uint8_t rval = val + random(2);
-            drawVal(screenX, y - (bmpY + (extendY - 3) * (ny)), renderMode == GRAYSCALE_MSB ? rval : val);
+            // const uint8_t rval = val + random(3);
+            const uint8_t rval = val;
+            -(std::rand() < (RAND_MAX + 1.0) * 0.25);
+            drawExtY = y - (screenY - y + 2 * ny * (extendY));
+            if (drawExtY > 0) drawVal(screenX, drawExtY, renderMode == BW ? rval : val);
+            drawExtY = screenY + 1 - (ny + 1) * extendY * 2;
+            if (drawExtY > 0) drawVal(screenX, drawExtY, renderMode == BW ? rval : val);
           }
           //     drawVal(screenX, 2*y - screenY, val);
         }
-        int endY = y + bitmap.getHeight();
-        // Serial.printf("[%lu] [GFX] Drawing bottom extension: screenY=%d, endY=%d\n", millis(), screenY, endY);
-        if (bmpY >= bitmap.getHeight() - extendY) {
-          for (int ny = 0; ny < extendY; ny++) {
-            drawVal(screenX, screenY + (ny + 1) * (extendY - 2), val);
+        if (screenY >= getScreenHeight() - y - extendY) {
+          for (int ny = 0; ny < y / extendY / 2; ny++) {
+            // int drawExtY = screenY + extendY + 1 + (ny) * (extendY);
+            drawExtY = getScreenHeight() - y - 1 + (getScreenHeight() - y - screenY) + (ny) * (extendY) * 2;
+            if (drawExtY < getScreenHeight()) drawVal(screenX, drawExtY, val);
+            drawExtY = screenY + (ny + 1) * (extendY) * 2;
+            if (drawExtY < getScreenHeight()) drawVal(screenX, drawExtY, val);
           }
         }
       }
