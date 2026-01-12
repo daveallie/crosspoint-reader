@@ -236,8 +236,8 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
       int extendY = 20;
       int drawExtY = 0;
       // don't draw MSB for darker extended area
-      if (extend && renderMode != GRAYSCALE_MSB) {
-        // if (extend) {
+      // if (extend && renderMode != GRAYSCALE_MSB) {
+      if (extend) {
         if (screenY - y < extendY) {
           for (int ny = 0; ny < y / extendY / 2; ny++) {
             // TODO: handle when extendY > y
