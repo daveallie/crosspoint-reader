@@ -86,7 +86,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       if (SdMan.openFileForRead("SLP", filename, file)) {
         Serial.printf("[%lu] [SLP] Randomly loading: /sleep/%s\n", millis(), files[randomFileIndex].c_str());
         delay(100);
-        Bitmap bitmap(file);
+        Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
           renderBitmapSleepScreen(bitmap);
           dir.close();
@@ -101,7 +101,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   // render a custom sleep screen instead of the default.
   FsFile file;
   if (SdMan.openFileForRead("SLP", "/sleep.bmp", file)) {
-    Bitmap bitmap(file);
+    Bitmap bitmap(file, true);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       Serial.printf("[%lu] [SLP] Loading: /sleep.bmp\n", millis());
       renderBitmapSleepScreen(bitmap);
