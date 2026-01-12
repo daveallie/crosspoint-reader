@@ -22,7 +22,7 @@ const SettingInfo settingsList[settingsCount] = {
     SettingInfo::Enum("Hide Battery %", &CrossPointSettings::hideBatteryPercentage, {"Never", "In Reader", "Always"}),
     SettingInfo::Toggle("Extra Paragraph Spacing", &CrossPointSettings::extraParagraphSpacing),
     SettingInfo::Toggle("Text Anti-Aliasing", &CrossPointSettings::textAntiAliasing),
-    SettingInfo::Toggle("Short Power Button Click", &CrossPointSettings::shortPwrBtn),
+    SettingInfo::Enum("Short Power Button Click", &CrossPointSettings::shortPwrBtn, {"Ignore", "Sleep", "Page Turn"}),
     SettingInfo::Enum("Reading Orientation", &CrossPointSettings::orientation,
                       {"Portrait", "Landscape CW", "Inverted", "Landscape CCW"}),
     SettingInfo::Enum("Front Button Layout", &CrossPointSettings::frontButtonLayout,
