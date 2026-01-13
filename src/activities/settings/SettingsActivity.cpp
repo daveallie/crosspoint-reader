@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "CalibreSettingsActivity.h"
@@ -16,12 +17,11 @@
 namespace {
 const std::vector<SettingInfo>& getSettings() {
   static std::vector<SettingInfo> filteredSettings = []() {
+    const auto& allSettings = getSettingsList();
     std::vector<SettingInfo> filtered;
-    for (const auto& setting : getSettingsList()) {
-      if (!setting.hideFromDeviceUI) {
-        filtered.push_back(setting);
-      }
-    }
+    filtered.reserve(allSettings.size());
+    std::copy_if(allSettings.begin(), allSettings.end(), std::back_inserter(filtered),
+                 [](const SettingInfo& setting) { return !setting.hideFromDeviceUI; });
     return filtered;
   }();
   return filteredSettings;
