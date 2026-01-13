@@ -261,7 +261,9 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
     return;
   }
 
-  std::string url = UrlUtils::buildUrl(serverUrl, path);
+  std::string url = UrlUtils::buildUrlWithAuth(serverUrl, path, 
+                                                SETTINGS.calibreUsername, 
+                                                SETTINGS.calibrePassword);
   Serial.printf("[%lu] [OPDS] Fetching: %s\n", millis(), url.c_str());
 
   std::string content;
@@ -335,14 +337,20 @@ void OpdsBookBrowserActivity::downloadBook(const OpdsEntry& book) {
   updateRequired = true;
 
   // Build full download URL
-  std::string downloadUrl = UrlUtils::buildUrl(SETTINGS.opdsServerUrl, book.href);
+  std::string downloadUrl = UrlUtils::buildUrlWithAuth(SETTINGS.opdsServerUrl, book.href,
+                                                        SETTINGS.calibreUsername,
+                                                        SETTINGS.calibrePassword);
 
-  // Create sanitized filename: "Title - Author.epub" or just "Title.epub" if no author
-  std::string baseName = book.title;
-  if (!book.author.empty()) {
-    baseName += " - " + book.author;
-  }
-  std::string filename = "/" + StringUtils::sanitizeFilename(baseName) + ".epub";
+  // Create Calibre-style folder structure: /Books/AuthorName/BookName/BookFile.epub
+  std::string authorFolder = book.author.empty() ? "Unknown Author" : StringUtils::sanitizeFilename(book.author);
+  std::string bookFolder = StringUtils::sanitizeFilename(book.title);
+  std::string bookFile = StringUtils::sanitizeFilename(book.title) + ".epub";
+  std::string filename = "/Books/" + authorFolder + "/" + bookFolder + "/" + bookFile;
+
+  // Create the directory structure
+  SdMan.mkdir("/Books");
+  SdMan.mkdir(("/Books/" + authorFolder).c_str());
+  SdMan.mkdir(("/Books/" + authorFolder + "/" + bookFolder).c_str());
 
   Serial.printf("[%lu] [OPDS] Downloading: %s -> %s\n", millis(), downloadUrl.c_str(), filename.c_str());
 
