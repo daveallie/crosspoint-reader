@@ -86,7 +86,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
   - "Ignore" - Require a long press to turn off the device
   - "Sleep" - A short press powers the device off
   - "Page Turn" - A short press in reading mode turns to the next page; a long press turns the device off
-- **Reading Orientation**: Set the screen orientation for reading:
+- **Reading Orientation**: Set the screen orientation for reading EPUB files:
   - "Portrait" (default) - Standard portrait orientation
   - "Landscape CW" - Landscape, rotated clockwise
   - "Inverted" - Portrait, upside down
