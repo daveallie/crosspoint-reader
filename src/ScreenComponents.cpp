@@ -39,3 +39,72 @@ void ScreenComponents::drawBattery(const GfxRenderer& renderer, const int left, 
 
   renderer.fillRect(x + 2, y + 2, filledWidth, batteryHeight - 4);
 }
+
+int ScreenComponents::drawTabBar(const GfxRenderer& renderer, const int y, const std::vector<TabInfo>& tabs) {
+  constexpr int tabPadding = 20;      // Horizontal padding between tabs
+  constexpr int leftMargin = 20;      // Left margin for first tab
+  constexpr int underlineHeight = 2;  // Height of selection underline
+  constexpr int underlineGap = 4;     // Gap between text and underline
+
+  const int lineHeight = renderer.getLineHeight(UI_12_FONT_ID);
+  const int tabBarHeight = lineHeight + underlineGap + underlineHeight;
+
+  int currentX = leftMargin;
+
+  for (const auto& tab : tabs) {
+    const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, tab.label,
+                                                tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+
+    // Draw tab label
+    renderer.drawText(UI_12_FONT_ID, currentX, y, tab.label, true,
+                      tab.selected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR);
+
+    // Draw underline for selected tab
+    if (tab.selected) {
+      renderer.fillRect(currentX, y + lineHeight + underlineGap, textWidth, underlineHeight);
+    }
+
+    currentX += textWidth + tabPadding;
+  }
+
+  return tabBarHeight;
+}
+
+void ScreenComponents::drawScrollIndicator(const GfxRenderer& renderer, const int currentPage, const int totalPages,
+                                           const int contentTop, const int contentHeight) {
+  if (totalPages <= 1) {
+    return;  // No need for indicator if only one page
+  }
+
+  const int screenWidth = renderer.getScreenWidth();
+  constexpr int indicatorWidth = 20;
+  constexpr int arrowSize = 6;
+  constexpr int margin = 5;
+
+  const int centerX = screenWidth - indicatorWidth / 2 - margin;
+  const int indicatorTop = contentTop + 10;
+  const int indicatorBottom = contentTop + contentHeight - 30;
+
+  // Draw up arrow (triangle pointing up)
+  for (int i = 0; i < arrowSize; ++i) {
+    const int lineWidth = 1 + i * 2;
+    const int startX = centerX - i;
+    renderer.drawLine(startX, indicatorTop + arrowSize - 1 - i, startX + lineWidth - 1, indicatorTop + arrowSize - 1 - i);
+  }
+
+  // Draw down arrow (triangle pointing down)
+  for (int i = 0; i < arrowSize; ++i) {
+    const int lineWidth = 1 + i * 2;
+    const int startX = centerX - i;
+    renderer.drawLine(startX, indicatorBottom - arrowSize + 1 + i, startX + lineWidth - 1,
+                      indicatorBottom - arrowSize + 1 + i);
+  }
+
+  // Draw page fraction in the middle (e.g., "1/3")
+  const std::string pageText = std::to_string(currentPage) + "/" + std::to_string(totalPages);
+  const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, pageText.c_str());
+  const int textX = centerX - textWidth / 2;
+  const int textY = (indicatorTop + indicatorBottom) / 2 - renderer.getLineHeight(SMALL_FONT_ID) / 2;
+
+  renderer.drawText(SMALL_FONT_ID, textX, textY, pageText.c_str());
+}

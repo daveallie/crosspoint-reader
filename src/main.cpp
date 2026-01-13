@@ -15,7 +15,7 @@
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
 #include "activities/home/HomeActivity.h"
-#include "activities/home/RecentBooksActivity.h"
+#include "activities/home/MyLibraryActivity.h"
 #include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
 #include "activities/settings/SettingsActivity.h"
@@ -211,7 +211,6 @@ void onGoToReader(const std::string& initialEpubPath) {
   exitActivity();
   enterNewActivity(new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome));
 }
-void onGoToReaderHome() { onGoToReader(std::string()); }
 void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
 void onGoToFileTransfer() {
@@ -224,15 +223,15 @@ void onGoToSettings() {
   enterNewActivity(new SettingsActivity(renderer, mappedInputManager, onGoHome));
 }
 
-void onGoToRecentBooks() {
+void onGoToMyLibrary() {
   exitActivity();
-  enterNewActivity(new RecentBooksActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
+  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
 }
 
 void onGoHome() {
   exitActivity();
-  enterNewActivity(new HomeActivity(renderer, mappedInputManager, onContinueReading, onGoToReaderHome, onGoToSettings,
-                                    onGoToFileTransfer, onGoToRecentBooks));
+  enterNewActivity(
+      new HomeActivity(renderer, mappedInputManager, onContinueReading, onGoToMyLibrary, onGoToSettings, onGoToFileTransfer));
 }
 
 void setupDisplayAndFonts() {

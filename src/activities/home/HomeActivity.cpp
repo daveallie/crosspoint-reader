@@ -6,7 +6,6 @@
 
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
-#include "RecentBooksStore.h"
 #include "ScreenComponents.h"
 #include "fontIds.h"
 
@@ -16,9 +15,8 @@ void HomeActivity::taskTrampoline(void* param) {
 }
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 3;  // Base: Browse, File transfer, Settings
+  int count = 3;  // Base: My Library, File transfer, Settings
   if (hasContinueReading) count++;
-  if (hasRecentBooks) count++;
   return count;
 }
 
@@ -29,9 +27,6 @@ void HomeActivity::onEnter() {
 
   // Check if we have a book to continue reading
   hasContinueReading = !APP_STATE.openEpubPath.empty() && SdMan.exists(APP_STATE.openEpubPath.c_str());
-
-  // Check if we have more than one recent book
-  hasRecentBooks = RECENT_BOOKS.getCount() > 1;
 
   if (hasContinueReading) {
     // Extract filename from path for display
@@ -95,34 +90,21 @@ void HomeActivity::loop() {
   const int menuCount = getMenuItemCount();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (hasContinueReading && hasRecentBooks) {
-      // Menu: Continue Reading, Recent Books, Browse, File transfer, Settings
+    if (hasContinueReading) {
+      // Menu: Continue Reading, My Library, File transfer, Settings
       if (selectorIndex == 0) {
         onContinueReading();
       } else if (selectorIndex == 1) {
-        onRecentBooksOpen();
-      } else if (selectorIndex == 2) {
-        onReaderOpen();
-      } else if (selectorIndex == 3) {
-        onFileTransferOpen();
-      } else if (selectorIndex == 4) {
-        onSettingsOpen();
-      }
-    } else if (hasContinueReading) {
-      // Menu: Continue Reading, Browse, File transfer, Settings
-      if (selectorIndex == 0) {
-        onContinueReading();
-      } else if (selectorIndex == 1) {
-        onReaderOpen();
+        onMyLibraryOpen();
       } else if (selectorIndex == 2) {
         onFileTransferOpen();
       } else if (selectorIndex == 3) {
         onSettingsOpen();
       }
     } else {
-      // Menu: Browse, File transfer, Settings
+      // Menu: My Library, File transfer, Settings
       if (selectorIndex == 0) {
-        onReaderOpen();
+        onMyLibraryOpen();
       } else if (selectorIndex == 1) {
         onFileTransferOpen();
       } else if (selectorIndex == 2) {
@@ -300,8 +282,8 @@ void HomeActivity::render() const {
   }
 
   // --- Bottom menu tiles ---
-  // Menu tiles: [Recent books], Browse files, File transfer, Settings
-  const int menuTileCount = hasRecentBooks ? 4 : 3;
+  // Menu tiles: My Library, File transfer, Settings
+  constexpr int menuTileCount = 3;
   const int menuTileWidth = pageWidth - 2 * margin;
   constexpr int menuTileHeight = 50;
   constexpr int menuSpacing = 10;
@@ -313,6 +295,8 @@ void HomeActivity::render() const {
   if (menuStartY > maxMenuStartY) {
     menuStartY = maxMenuStartY;
   }
+
+  constexpr const char* menuItems[3] = {"My Library", "File transfer", "Settings"};
 
   for (int i = 0; i < menuTileCount; ++i) {
     const int overallIndex = i + (getMenuItemCount() - menuTileCount);
@@ -326,16 +310,7 @@ void HomeActivity::render() const {
       renderer.drawRect(tileX, tileY, menuTileWidth, menuTileHeight);
     }
 
-    // Determine label based on tile index and whether recent books is shown
-    const char* label;
-    if (hasRecentBooks) {
-      constexpr const char* itemsWithRecent[4] = {"Recent books", "Browse files", "File transfer", "Settings"};
-      label = itemsWithRecent[i];
-    } else {
-      constexpr const char* itemsNoRecent[3] = {"Browse files", "File transfer", "Settings"};
-      label = itemsNoRecent[i];
-    }
-
+    const char* label = menuItems[i];
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, label);
     const int textX = tileX + (menuTileWidth - textWidth) / 2;
     const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);

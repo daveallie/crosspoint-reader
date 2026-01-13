@@ -13,14 +13,12 @@ class HomeActivity final : public Activity {
   int selectorIndex = 0;
   bool updateRequired = false;
   bool hasContinueReading = false;
-  bool hasRecentBooks = false;
   std::string lastBookTitle;
   std::string lastBookAuthor;
   const std::function<void()> onContinueReading;
-  const std::function<void()> onReaderOpen;
+  const std::function<void()> onMyLibraryOpen;
   const std::function<void()> onSettingsOpen;
   const std::function<void()> onFileTransferOpen;
-  const std::function<void()> onRecentBooksOpen;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();
@@ -29,15 +27,13 @@ class HomeActivity final : public Activity {
 
  public:
   explicit HomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                        const std::function<void()>& onContinueReading, const std::function<void()>& onReaderOpen,
-                        const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen,
-                        const std::function<void()>& onRecentBooksOpen)
+                        const std::function<void()>& onContinueReading, const std::function<void()>& onMyLibraryOpen,
+                        const std::function<void()>& onSettingsOpen, const std::function<void()>& onFileTransferOpen)
       : Activity("Home", renderer, mappedInput),
         onContinueReading(onContinueReading),
-        onReaderOpen(onReaderOpen),
+        onMyLibraryOpen(onMyLibraryOpen),
         onSettingsOpen(onSettingsOpen),
-        onFileTransferOpen(onFileTransferOpen),
-        onRecentBooksOpen(onRecentBooksOpen) {}
+        onFileTransferOpen(onFileTransferOpen) {}
   void onEnter() override;
   void onExit() override;
   void loop() override;
