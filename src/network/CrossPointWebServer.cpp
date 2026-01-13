@@ -338,6 +338,9 @@ static bool flushUploadBuffer() {
 void CrossPointWebServer::handleUpload() const {
   static size_t lastLoggedSize = 0;
 
+  // Reset watchdog at start of every upload callback - HTTP parsing can be slow
+  esp_task_wdt_reset();
+
   // Safety check: ensure server is still valid
   if (!running || !server) {
     Serial.printf("[%lu] [WEB] [UPLOAD] ERROR: handleUpload called but server not running!\n", millis());
@@ -347,6 +350,9 @@ void CrossPointWebServer::handleUpload() const {
   const HTTPUpload& upload = server->upload();
 
   if (upload.status == UPLOAD_FILE_START) {
+    // Reset watchdog - this is the critical 1% crash point
+    esp_task_wdt_reset();
+
     uploadFileName = upload.filename;
     uploadSize = 0;
     uploadSuccess = false;
@@ -382,9 +388,11 @@ void CrossPointWebServer::handleUpload() const {
     if (!filePath.endsWith("/")) filePath += "/";
     filePath += uploadFileName;
 
-    // Check if file already exists
+    // Check if file already exists - SD operations can be slow
+    esp_task_wdt_reset();
     if (SdMan.exists(filePath.c_str())) {
       Serial.printf("[%lu] [WEB] [UPLOAD] Overwriting existing file: %s\n", millis(), filePath.c_str());
+      esp_task_wdt_reset();
       SdMan.remove(filePath.c_str());
     }
 
