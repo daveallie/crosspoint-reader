@@ -232,9 +232,10 @@ void GfxRenderer::drawBitmap(const Bitmap& bitmap, const int x, const int y, con
       drawVal(screenX, screenY, val);
 
       // draw extended pixels
-      /// amount of pixels taken from bitmap and repeated to extend
+      // amount of pixels taken from bitmap and repeated to extend.
+      // Trade-off between risk of repeating "edgy" content like text and more quality
       int extendY = 20;
-      int extendX = 20;  // The width of the strip to be mirrored
+      int extendX = 20;
       int drawExtY = 0;
       if (extend) {
         int imgHeight = std::floor(scale * (bitmap.getHeight() - cropPixY));
