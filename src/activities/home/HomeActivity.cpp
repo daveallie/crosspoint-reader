@@ -4,19 +4,28 @@
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
+#include <cstring>
+#include <vector>
+
+#include "Battery.h"
+#include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "ScreenComponents.h"
 #include "fontIds.h"
+#include "util/StringUtils.h"
 
-void HomeActivity::taskTrampoline(void* param) {
-  auto* self = static_cast<HomeActivity*>(param);
+void HomeActivity::taskTrampoline(void *param) {
+  auto *self = static_cast<HomeActivity *>(param);
   self->displayTaskLoop();
 }
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 3;  // Base: My Library, File transfer, Settings
-  if (hasContinueReading) count++;
+  int count = 3; // Base: My Library, File transfer, Settings
+  if (hasContinueReading)
+    count++;
+  if (hasOpdsUrl)
+    count++;
   return count;
 }
 
@@ -26,7 +35,11 @@ void HomeActivity::onEnter() {
   renderingMutex = xSemaphoreCreateMutex();
 
   // Check if we have a book to continue reading
-  hasContinueReading = !APP_STATE.openEpubPath.empty() && SdMan.exists(APP_STATE.openEpubPath.c_str());
+  hasContinueReading = !APP_STATE.openEpubPath.empty() &&
+                       SdMan.exists(APP_STATE.openEpubPath.c_str());
+
+  // Check if OPDS browser URL is configured
+  hasOpdsUrl = strlen(SETTINGS.opdsServerUrl) > 0;
 
   if (hasContinueReading) {
     // Extract filename from path for display
@@ -36,10 +49,8 @@ void HomeActivity::onEnter() {
       lastBookTitle = lastBookTitle.substr(lastSlash + 1);
     }
 
-    const std::string ext4 = lastBookTitle.length() >= 4 ? lastBookTitle.substr(lastBookTitle.length() - 4) : "";
-    const std::string ext5 = lastBookTitle.length() >= 5 ? lastBookTitle.substr(lastBookTitle.length() - 5) : "";
     // If epub, try to load the metadata for title/author
-    if (ext5 == ".epub") {
+    if (StringUtils::checkFileExtension(lastBookTitle, ".epub")) {
       Epub epub(APP_STATE.openEpubPath, "/.crosspoint");
       epub.load(false);
       if (!epub.getTitle().empty()) {
@@ -48,9 +59,9 @@ void HomeActivity::onEnter() {
       if (!epub.getAuthor().empty()) {
         lastBookAuthor = std::string(epub.getAuthor());
       }
-    } else if (ext5 == ".xtch") {
+    } else if (StringUtils::checkFileExtension(lastBookTitle, ".xtch")) {
       lastBookTitle.resize(lastBookTitle.length() - 5);
-    } else if (ext4 == ".xtc") {
+    } else if (StringUtils::checkFileExtension(lastBookTitle, ".xtc")) {
       lastBookTitle.resize(lastBookTitle.length() - 4);
     }
   }
@@ -61,17 +72,18 @@ void HomeActivity::onEnter() {
   updateRequired = true;
 
   xTaskCreate(&HomeActivity::taskTrampoline, "HomeActivityTask",
-              2048,               // Stack size
-              this,               // Parameters
-              1,                  // Priority
-              &displayTaskHandle  // Task handle
+              4096,              // Stack size
+              this,              // Parameters
+              1,                 // Priority
+              &displayTaskHandle // Task handle
   );
 }
 
 void HomeActivity::onExit() {
   Activity::onExit();
 
-  // Wait until not rendering to delete task to avoid killing mid-instruction to EPD
+  // Wait until not rendering to delete task to avoid killing mid-instruction to
+  // EPD
   xSemaphoreTake(renderingMutex, portMAX_DELAY);
   if (displayTaskHandle) {
     vTaskDelete(displayTaskHandle);
@@ -82,34 +94,34 @@ void HomeActivity::onExit() {
 }
 
 void HomeActivity::loop() {
-  const bool prevPressed = mappedInput.wasPressed(MappedInputManager::Button::Up) ||
-                           mappedInput.wasPressed(MappedInputManager::Button::Left);
-  const bool nextPressed = mappedInput.wasPressed(MappedInputManager::Button::Down) ||
-                           mappedInput.wasPressed(MappedInputManager::Button::Right);
+  const bool prevPressed =
+      mappedInput.wasPressed(MappedInputManager::Button::Up) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Left);
+  const bool nextPressed =
+      mappedInput.wasPressed(MappedInputManager::Button::Down) ||
+      mappedInput.wasPressed(MappedInputManager::Button::Right);
 
   const int menuCount = getMenuItemCount();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    if (hasContinueReading) {
-      // Menu: Continue Reading, My Library, File transfer, Settings
-      if (selectorIndex == 0) {
-        onContinueReading();
-      } else if (selectorIndex == 1) {
-        onMyLibraryOpen();
-      } else if (selectorIndex == 2) {
-        onFileTransferOpen();
-      } else if (selectorIndex == 3) {
-        onSettingsOpen();
-      }
-    } else {
-      // Menu: My Library, File transfer, Settings
-      if (selectorIndex == 0) {
-        onMyLibraryOpen();
-      } else if (selectorIndex == 1) {
-        onFileTransferOpen();
-      } else if (selectorIndex == 2) {
-        onSettingsOpen();
-      }
+    // Calculate dynamic indices based on which options are available
+    int idx = 0;
+    const int continueIdx = hasContinueReading ? idx++ : -1;
+    const int myLibraryIdx = idx++;
+    const int opdsLibraryIdx = hasOpdsUrl ? idx++ : -1;
+    const int fileTransferIdx = idx++;
+    const int settingsIdx = idx;
+
+    if (selectorIndex == continueIdx) {
+      onContinueReading();
+    } else if (selectorIndex == myLibraryIdx) {
+      onMyLibraryOpen();
+    } else if (selectorIndex == opdsLibraryIdx) {
+      onOpdsBrowserOpen();
+    } else if (selectorIndex == fileTransferIdx) {
+      onFileTransferOpen();
+    } else if (selectorIndex == settingsIdx) {
+      onSettingsOpen();
     }
   } else if (prevPressed) {
     selectorIndex = (selectorIndex + menuCount - 1) % menuCount;
@@ -163,10 +175,12 @@ void HomeActivity::render() const {
     constexpr int bookmarkY = bookY + 1;
 
     // Main bookmark body (solid)
-    renderer.fillRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, !bookSelected);
+    renderer.fillRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight,
+                      !bookSelected);
 
-    // Carve out an inverted triangle notch at the bottom center to create angled points
-    const int notchHeight = bookmarkHeight / 2;  // depth of the notch
+    // Carve out an inverted triangle notch at the bottom center to create
+    // angled points
+    const int notchHeight = bookmarkHeight / 2; // depth of the notch
     for (int i = 0; i < notchHeight; ++i) {
       const int y = bookmarkY + bookmarkHeight - 1 - i;
       const int xStart = bookmarkX + i;
@@ -204,14 +218,16 @@ void HomeActivity::render() const {
     const int maxLineWidth = bookWidth - 40;
     const int spaceWidth = renderer.getSpaceWidth(UI_12_FONT_ID);
 
-    for (auto& i : words) {
+    for (auto &i : words) {
       // If we just hit the line limit (3), stop processing words
       if (lines.size() >= 3) {
         // Limit to 3 lines
         // Still have words left, so add ellipsis to last line
         lines.back().append("...");
 
-        while (!lines.back().empty() && renderer.getTextWidth(UI_12_FONT_ID, lines.back().c_str()) > maxLineWidth) {
+        while (!lines.back().empty() &&
+               renderer.getTextWidth(UI_12_FONT_ID, lines.back().c_str()) >
+                   maxLineWidth) {
           lines.back().resize(lines.back().size() - 5);
           lines.back().append("...");
         }
@@ -226,7 +242,8 @@ void HomeActivity::render() const {
         wordWidth = renderer.getTextWidth(UI_12_FONT_ID, i.c_str());
       }
 
-      int newLineWidth = renderer.getTextWidth(UI_12_FONT_ID, currentLine.c_str());
+      int newLineWidth =
+          renderer.getTextWidth(UI_12_FONT_ID, currentLine.c_str());
       if (newLineWidth > 0) {
         newLineWidth += spaceWidth;
       }
@@ -247,7 +264,8 @@ void HomeActivity::render() const {
     }
 
     // Book title text
-    int totalTextHeight = renderer.getLineHeight(UI_12_FONT_ID) * static_cast<int>(lines.size());
+    int totalTextHeight =
+        renderer.getLineHeight(UI_12_FONT_ID) * static_cast<int>(lines.size());
     if (!lastBookAuthor.empty()) {
       totalTextHeight += renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
     }
@@ -255,8 +273,9 @@ void HomeActivity::render() const {
     // Vertically center the title block within the card
     int titleYStart = bookY + (bookHeight - totalTextHeight) / 2;
 
-    for (const auto& line : lines) {
-      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected);
+    for (const auto &line : lines) {
+      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(),
+                                !bookSelected);
       titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
     }
 
@@ -264,44 +283,60 @@ void HomeActivity::render() const {
       titleYStart += renderer.getLineHeight(UI_10_FONT_ID) / 2;
       std::string trimmedAuthor = lastBookAuthor;
       // Trim author if too long
-      while (renderer.getTextWidth(UI_10_FONT_ID, trimmedAuthor.c_str()) > maxLineWidth && !trimmedAuthor.empty()) {
+      while (renderer.getTextWidth(UI_10_FONT_ID, trimmedAuthor.c_str()) >
+                 maxLineWidth &&
+             !trimmedAuthor.empty()) {
         trimmedAuthor.resize(trimmedAuthor.size() - 5);
         trimmedAuthor.append("...");
       }
-      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, trimmedAuthor.c_str(), !bookSelected);
+      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart,
+                                trimmedAuthor.c_str(), !bookSelected);
     }
 
-    renderer.drawCenteredText(UI_10_FONT_ID, bookY + bookHeight - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2,
+    renderer.drawCenteredText(UI_10_FONT_ID,
+                              bookY + bookHeight -
+                                  renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2,
                               "Continue Reading", !bookSelected);
   } else {
     // No book to continue reading
-    const int y =
-        bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID)) / 2;
+    const int y = bookY + (bookHeight - renderer.getLineHeight(UI_12_FONT_ID) -
+                           renderer.getLineHeight(UI_10_FONT_ID)) /
+                              2;
     renderer.drawCenteredText(UI_12_FONT_ID, y, "No open book");
-    renderer.drawCenteredText(UI_10_FONT_ID, y + renderer.getLineHeight(UI_12_FONT_ID), "Start reading below");
+    renderer.drawCenteredText(UI_10_FONT_ID,
+                              y + renderer.getLineHeight(UI_12_FONT_ID),
+                              "Start reading below");
   }
 
   // --- Bottom menu tiles ---
-  // Menu tiles: My Library, File transfer, Settings
-  constexpr int menuTileCount = 3;
-  const int menuTileWidth = pageWidth - 2 * margin;
-  constexpr int menuTileHeight = 50;
-  constexpr int menuSpacing = 10;
-  const int totalMenuHeight = menuTileCount * menuTileHeight + (menuTileCount - 1) * menuSpacing;
+  // Build menu items dynamically
+  std::vector<const char *> menuItems = {"My Library", "File Transfer",
+                                         "Settings"};
+  if (hasOpdsUrl) {
+    // Insert Calibre Library after My Library
+    menuItems.insert(menuItems.begin() + 1, "Calibre Library");
+  }
 
-  int menuStartY = bookY + bookHeight + 20;
+  const int menuTileWidth = pageWidth - 2 * margin;
+  constexpr int menuTileHeight = 45;
+  constexpr int menuSpacing = 8;
+  const int totalMenuHeight =
+      static_cast<int>(menuItems.size()) * menuTileHeight +
+      (static_cast<int>(menuItems.size()) - 1) * menuSpacing;
+
+  int menuStartY = bookY + bookHeight + 15;
   // Ensure we don't collide with the bottom button legend
-  const int maxMenuStartY = pageHeight - bottomMargin - totalMenuHeight - margin;
+  const int maxMenuStartY =
+      pageHeight - bottomMargin - totalMenuHeight - margin;
   if (menuStartY > maxMenuStartY) {
     menuStartY = maxMenuStartY;
   }
 
-  constexpr const char* menuItems[3] = {"My Library", "File transfer", "Settings"};
-
-  for (int i = 0; i < menuTileCount; ++i) {
-    const int overallIndex = i + (getMenuItemCount() - menuTileCount);
+  for (size_t i = 0; i < menuItems.size(); ++i) {
+    const int overallIndex = static_cast<int>(i) + (hasContinueReading ? 1 : 0);
     constexpr int tileX = margin;
-    const int tileY = menuStartY + i * (menuTileHeight + menuSpacing);
+    const int tileY =
+        menuStartY + static_cast<int>(i) * (menuTileHeight + menuSpacing);
     const bool selected = selectorIndex == overallIndex;
 
     if (selected) {
@@ -310,20 +345,34 @@ void HomeActivity::render() const {
       renderer.drawRect(tileX, tileY, menuTileWidth, menuTileHeight);
     }
 
-    const char* label = menuItems[i];
+    const char *label = menuItems[i];
     const int textWidth = renderer.getTextWidth(UI_10_FONT_ID, label);
     const int textX = tileX + (menuTileWidth - textWidth) / 2;
     const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-    const int textY = tileY + (menuTileHeight - lineHeight) / 2;  // vertically centered assuming y is top of text
+    const int textY =
+        tileY + (menuTileHeight - lineHeight) /
+                    2; // vertically centered assuming y is top of text
 
-    // Invert text when the tile is selected, to contrast with the filled background
+    // Invert text when the tile is selected, to contrast with the filled
+    // background
     renderer.drawText(UI_10_FONT_ID, textX, textY, label, !selected);
   }
 
   const auto labels = mappedInput.mapLabels("", "Confirm", "Up", "Down");
-  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3,
+                           labels.btn4);
 
-  ScreenComponents::drawBattery(renderer, 20, pageHeight - 70);
+  const bool showBatteryPercentage =
+      SETTINGS.hideBatteryPercentage !=
+      CrossPointSettings::HIDE_BATTERY_PERCENTAGE::HIDE_ALWAYS;
+  // get percentage so we can align text properly
+  const uint16_t percentage = battery.readPercentage();
+  const auto percentageText =
+      showBatteryPercentage ? std::to_string(percentage) + "%" : "";
+  const auto batteryX =
+      pageWidth - 25 -
+      renderer.getTextWidth(SMALL_FONT_ID, percentageText.c_str());
+  ScreenComponents::drawBattery(renderer, batteryX, 10, showBatteryPercentage);
 
   renderer.displayBuffer();
 }
