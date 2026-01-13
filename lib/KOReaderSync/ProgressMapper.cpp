@@ -3,7 +3,6 @@
 #include <HardwareSerial.h>
 
 #include <cmath>
-#include <regex>
 
 KOReaderPosition ProgressMapper::toKOReader(const std::shared_ptr<Epub>& epub, const CrossPointPosition& pos) {
   KOReaderPosition result;
@@ -39,7 +38,6 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
 
   const size_t bookSize = epub->getBookSize();
   if (bookSize == 0) {
-    Serial.printf("[%lu] [ProgressMapper] Book size is 0\n", millis());
     return result;
   }
 
@@ -49,7 +47,6 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
     result.spineIndex = xpathSpineIndex;
     // When we have XPath, go to page 0 of the spine - byte-based page calculation is unreliable
     result.pageNumber = 0;
-    Serial.printf("[%lu] [ProgressMapper] Got spine index from XPath: %d (page=0)\n", millis(), result.spineIndex);
   } else {
     // Fall back to percentage-based lookup for both spine and page
     const size_t targetBytes = static_cast<size_t>(bookSize * koPos.percentage);
@@ -62,8 +59,6 @@ CrossPointPosition ProgressMapper::toCrossPoint(const std::shared_ptr<Epub>& epu
         break;
       }
     }
-    Serial.printf("[%lu] [ProgressMapper] Got spine index from percentage (%.2f%%): %d\n", millis(),
-                  koPos.percentage * 100, result.spineIndex);
 
     // Estimate page number within the spine item using percentage (only when no XPath)
     if (totalPagesInSpine > 0 && result.spineIndex < epub->getSpineItemsCount()) {
