@@ -468,7 +468,10 @@ int GfxRenderer::getLineHeight(const int fontId) const {
 }
 
 void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char* btn2, const char* btn3,
-                                  const char* btn4) const {
+                                  const char* btn4) {
+  const Orientation orig_orientation = getOrientation();
+  setOrientation(Orientation::Portrait);
+
   const int pageHeight = getScreenHeight();
   constexpr int buttonWidth = 106;
   constexpr int buttonHeight = 40;
@@ -487,6 +490,8 @@ void GfxRenderer::drawButtonHints(const int fontId, const char* btn1, const char
       drawText(fontId, textX, pageHeight - buttonY + textYOffset, labels[i]);
     }
   }
+
+  setOrientation(orig_orientation);
 }
 
 void GfxRenderer::drawSideButtonHints(const int fontId, const char* topBtn, const char* bottomBtn) const {
