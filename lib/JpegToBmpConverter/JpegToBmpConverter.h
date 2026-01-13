@@ -11,5 +11,5 @@ class JpegToBmpConverter {
                                         unsigned char* pBytes_actually_read, void* pCallback_data);
 
  public:
-  static bool jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut);
+  static bool jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut, bool crop = true);
 };
