@@ -1,6 +1,5 @@
 #include "MyLibraryActivity.h"
 
-#include <Epub.h>
 #include <GfxRenderer.h>
 #include <SDCardManager.h>
 
@@ -95,24 +94,6 @@ void MyLibraryActivity::loadRecentBooks() {
     const size_t lastSlash = title.find_last_of('/');
     if (lastSlash != std::string::npos) {
       title = title.substr(lastSlash + 1);
-    }
-
-    const std::string ext5 =
-        title.length() >= 5 ? title.substr(title.length() - 5) : "";
-    const std::string ext4 =
-        title.length() >= 4 ? title.substr(title.length() - 4) : "";
-
-    // If epub, try to load the metadata for title
-    if (ext5 == ".epub") {
-      Epub epub(path, "/.crosspoint");
-      epub.load(false);
-      if (!epub.getTitle().empty()) {
-        title = std::string(epub.getTitle());
-      }
-    } else if (ext5 == ".xtch") {
-      title.resize(title.length() - 5);
-    } else if (ext4 == ".xtc") {
-      title.resize(title.length() - 4);
     }
 
     bookTitles.push_back(title);

@@ -21,7 +21,7 @@ private:
   int selectorIndex = 0;
   bool updateRequired = false;
 
-  // Recent tab state (from RecentBooksActivity)
+  // Recent tab state
   std::vector<std::string> bookTitles; // Display titles for each book
   std::vector<std::string>
       bookPaths; // Paths for each visible book (excludes missing)
