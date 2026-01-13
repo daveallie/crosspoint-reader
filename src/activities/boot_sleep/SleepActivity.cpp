@@ -9,20 +9,7 @@
 #include "CrossPointState.h"
 #include "fontIds.h"
 #include "images/CrossLarge.h"
-
-namespace {
-// Check if path has XTC extension (.xtc or .xtch)
-bool isXtcFile(const std::string& path) {
-  if (path.length() < 4) return false;
-  std::string ext4 = path.substr(path.length() - 4);
-  if (ext4 == ".xtc") return true;
-  if (path.length() >= 5) {
-    std::string ext5 = path.substr(path.length() - 5);
-    if (ext5 == ".xtch") return true;
-  }
-  return false;
-}
-}  // namespace
+#include "util/StringUtils.h"
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
@@ -62,7 +49,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   auto dir = SdMan.open("/sleep");
   if (dir && dir.isDirectory()) {
     std::vector<std::string> files;
-    char name[128];
+    char name[500];
     // collect all valid BMP files
     for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
       if (file.isDirectory()) {
@@ -99,7 +86,7 @@ void SleepActivity::renderCustomSleepScreen() const {
       if (SdMan.openFileForRead("SLP", filename, file)) {
         Serial.printf("[%lu] [SLP] Randomly loading: /sleep/%s\n", millis(), files[randomFileIndex].c_str());
         delay(100);
-        Bitmap bitmap(file);
+        Bitmap bitmap(file, true);
         if (bitmap.parseHeaders() == BmpReaderError::Ok) {
           renderBitmapSleepScreen(bitmap);
           dir.close();
@@ -114,7 +101,7 @@ void SleepActivity::renderCustomSleepScreen() const {
   // render a custom sleep screen instead of the default.
   FsFile file;
   if (SdMan.openFileForRead("SLP", "/sleep.bmp", file)) {
-    Bitmap bitmap(file);
+    Bitmap bitmap(file, true);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       Serial.printf("[%lu] [SLP] Loading: /sleep.bmp\n", millis());
       renderBitmapSleepScreen(bitmap);
@@ -212,9 +199,10 @@ void SleepActivity::renderCoverSleepScreen() const {
   }
 
   std::string coverBmpPath;
+  bool cropped = SETTINGS.sleepScreenCoverMode == CrossPointSettings::SLEEP_SCREEN_COVER_MODE::CROP;
 
-  // Check if the current book is XTC or EPUB
-  if (isXtcFile(APP_STATE.openEpubPath)) {
+  if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtc") ||
+      StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtch")) {
     // Handle XTC file
     Xtc lastXtc(APP_STATE.openEpubPath, "/.crosspoint");
     if (!lastXtc.load()) {
@@ -228,7 +216,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     }
 
     coverBmpPath = lastXtc.getCoverBmpPath();
-  } else {
+  } else if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".epub")) {
     // Handle EPUB file
     Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
     if (!lastEpub.load()) {
@@ -236,12 +224,14 @@ void SleepActivity::renderCoverSleepScreen() const {
       return renderDefaultSleepScreen();
     }
 
-    if (!lastEpub.generateCoverBmp()) {
+    if (!lastEpub.generateCoverBmp(cropped)) {
       Serial.println("[SLP] Failed to generate cover bmp");
       return renderDefaultSleepScreen();
     }
 
-    coverBmpPath = lastEpub.getCoverBmpPath();
+    coverBmpPath = lastEpub.getCoverBmpPath(cropped);
+  } else {
+    return renderDefaultSleepScreen();
   }
 
   FsFile file;

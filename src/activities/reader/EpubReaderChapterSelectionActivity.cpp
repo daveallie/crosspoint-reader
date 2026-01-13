@@ -38,7 +38,9 @@ int EpubReaderChapterSelectionActivity::getPageItems() const {
   constexpr int lineHeight = 30;
 
   const int screenHeight = renderer.getScreenHeight();
-  const int availableHeight = screenHeight - startY;
+  const int endY = screenHeight - lineHeight;
+
+  const int availableHeight = endY - startY;
   int items = availableHeight / lineHeight;
 
   // Ensure we always have at least one item per page to avoid division by zero
@@ -200,6 +202,9 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
       renderer.drawText(UI_10_FONT_ID, 20 + (item.level - 1) * 15, displayY, item.title.c_str(), !isSelected);
     }
   }
+
+  const auto labels = mappedInput.mapLabels("« Back", "Select", "Up", "Down");
+  renderer.drawButtonHints(UI_10_FONT_ID, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer();
 }

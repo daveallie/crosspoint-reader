@@ -7,6 +7,8 @@
 #include <SPI.h>
 #include <builtinFonts/all.h>
 
+#include <cstring>
+
 #include "Battery.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -14,6 +16,7 @@
 #include "MappedInputManager.h"
 #include "activities/boot_sleep/BootActivity.h"
 #include "activities/boot_sleep/SleepActivity.h"
+#include "activities/browser/OpdsBookBrowserActivity.h"
 #include "activities/home/HomeActivity.h"
 #include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/reader/ReaderActivity.h"
@@ -223,10 +226,15 @@ void onGoToSettings() {
   enterNewActivity(new SettingsActivity(renderer, mappedInputManager, onGoHome));
 }
 
+void onGoToBrowser() {
+  exitActivity();
+  enterNewActivity(new OpdsBookBrowserActivity(renderer, mappedInputManager, onGoHome));
+}
+
 void onGoHome() {
   exitActivity();
   enterNewActivity(new HomeActivity(renderer, mappedInputManager, onContinueReading, onGoToReaderHome, onGoToSettings,
-                                    onGoToFileTransfer));
+                                    onGoToFileTransfer, onGoToBrowser));
 }
 
 void setupDisplayAndFonts() {
