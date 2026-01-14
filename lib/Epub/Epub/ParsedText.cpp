@@ -204,7 +204,9 @@ void ParsedText::applyParagraphIndent() {
     return;
   }
 
-  words.front().insert(0, "\xe2\x80\x83");
+  if (style == TextBlock::JUSTIFIED || style == TextBlock::LEFT_ALIGN) {
+    words.front().insert(0, "\xe2\x80\x83");
+  }
 }
 
 // Builds break indices while opportunistically splitting the word that would overflow the current line.
