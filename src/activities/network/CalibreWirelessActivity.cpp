@@ -4,6 +4,7 @@
 #include <HardwareSerial.h>
 #include <SDCardManager.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include <cstring>
 
@@ -30,6 +31,8 @@ void CalibreWirelessActivity::networkTaskTrampoline(void* param) {
 void CalibreWirelessActivity::onEnter() {
   Activity::onEnter();
 
+  Serial.printf("[%lu] [CAL] onEnter - starting Calibre Wireless activity\n", millis());
+
   renderingMutex = xSemaphoreCreateMutex();
   stateMutex = xSemaphoreCreateMutex();
 
@@ -45,6 +48,7 @@ void CalibreWirelessActivity::onEnter() {
   bytesReceived = 0;
   inBinaryMode = false;
   recvBuffer.clear();
+  shouldStop = false;  // Reset shutdown flag
 
   updateRequired = true;
 
@@ -61,41 +65,87 @@ void CalibreWirelessActivity::onEnter() {
 void CalibreWirelessActivity::onExit() {
   Activity::onExit();
 
-  // Turn off WiFi when exiting
-  WiFi.mode(WIFI_OFF);
+  Serial.printf("[%lu] [CAL] onExit - beginning graceful shutdown\n", millis());
 
-  // Stop UDP listening
+  // Signal tasks to stop - they check this flag each iteration
+  shouldStop = true;
+
+  // Close network connections FIRST - this unblocks any waiting reads/writes
+  // and allows the network task to exit gracefully
+  Serial.printf("[%lu] [CAL] Stopping UDP listener...\n", millis());
   udp.stop();
 
-  // Close TCP client if connected
+  Serial.printf("[%lu] [CAL] Closing TCP connection...\n", millis());
   if (tcpClient.connected()) {
     tcpClient.stop();
   }
 
-  // Close any open file
+  // Close any open file to prevent corruption
   if (currentFile) {
+    Serial.printf("[%lu] [CAL] Closing open file...\n", millis());
+    currentFile.flush();
     currentFile.close();
   }
 
-  // Acquire stateMutex before deleting network task to avoid race condition
-  xSemaphoreTake(stateMutex, portMAX_DELAY);
-  if (networkTaskHandle) {
-    vTaskDelete(networkTaskHandle);
-    networkTaskHandle = nullptr;
-  }
-  xSemaphoreGive(stateMutex);
+  // Give tasks time to notice shutdown and self-delete
+  // Tasks check shouldStop each iteration and call vTaskDelete(nullptr)
+  // The discovery loop has a 500ms delay, so we wait a bit longer
+  Serial.printf("[%lu] [CAL] Waiting for tasks to self-terminate...\n", millis());
+  vTaskDelay(200 / portTICK_PERIOD_MS);
 
-  // Acquire renderingMutex before deleting display task
-  xSemaphoreTake(renderingMutex, portMAX_DELAY);
-  if (displayTaskHandle) {
-    vTaskDelete(displayTaskHandle);
-    displayTaskHandle = nullptr;
-  }
-  vSemaphoreDelete(renderingMutex);
-  renderingMutex = nullptr;
+  // Store handles locally and clear member variables
+  // This prevents double-deletion if tasks have self-deleted
+  TaskHandle_t netTask = networkTaskHandle;
+  TaskHandle_t dispTask = displayTaskHandle;
+  networkTaskHandle = nullptr;
+  displayTaskHandle = nullptr;
 
-  vSemaphoreDelete(stateMutex);
-  stateMutex = nullptr;
+  // Force delete network task if it hasn't self-terminated
+  // The task may still be blocked on vTaskDelay
+  if (netTask && eTaskGetState(netTask) != eDeleted) {
+    Serial.printf("[%lu] [CAL] Force-deleting network task...\n", millis());
+    vTaskDelete(netTask);
+  }
+
+  // Brief delay for task deletion to complete
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+
+  // Now safe to turn off WiFi - no tasks using it
+  Serial.printf("[%lu] [CAL] Disconnecting WiFi...\n", millis());
+  WiFi.disconnect(false);               // false = don't erase credentials, send disconnect frame
+  vTaskDelay(30 / portTICK_PERIOD_MS);  // Allow disconnect frame to be sent
+
+  Serial.printf("[%lu] [CAL] Setting WiFi mode OFF...\n", millis());
+  WiFi.mode(WIFI_OFF);
+  vTaskDelay(30 / portTICK_PERIOD_MS);  // Allow WiFi hardware to power down
+
+  // Force delete display task if it hasn't self-terminated
+  if (dispTask && eTaskGetState(dispTask) != eDeleted) {
+    // Acquire renderingMutex before deleting to ensure task isn't rendering
+    Serial.printf("[%lu] [CAL] Acquiring rendering mutex...\n", millis());
+    if (xSemaphoreTake(renderingMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+      Serial.printf("[%lu] [CAL] Force-deleting display task...\n", millis());
+      vTaskDelete(dispTask);
+      xSemaphoreGive(renderingMutex);
+    } else {
+      // Timeout acquiring mutex - task may have self-deleted while holding it
+      Serial.printf("[%lu] [CAL] Mutex timeout - task may have self-deleted\n", millis());
+    }
+  }
+
+  // Delete mutexes
+  Serial.printf("[%lu] [CAL] Cleaning up mutexes...\n", millis());
+  if (renderingMutex) {
+    vSemaphoreDelete(renderingMutex);
+    renderingMutex = nullptr;
+  }
+
+  if (stateMutex) {
+    vSemaphoreDelete(stateMutex);
+    stateMutex = nullptr;
+  }
+
+  Serial.printf("[%lu] [CAL] onExit complete\n", millis());
 }
 
 void CalibreWirelessActivity::loop() {
@@ -106,7 +156,7 @@ void CalibreWirelessActivity::loop() {
 }
 
 void CalibreWirelessActivity::displayTaskLoop() {
-  while (true) {
+  while (!shouldStop) {
     if (updateRequired) {
       updateRequired = false;
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -115,13 +165,19 @@ void CalibreWirelessActivity::displayTaskLoop() {
     }
     vTaskDelay(50 / portTICK_PERIOD_MS);
   }
+  // Task exits gracefully when shouldStop is set
+  Serial.printf("[%lu] [CAL] Display task exiting gracefully\n", millis());
+  vTaskDelete(nullptr);  // Delete self
 }
 
 void CalibreWirelessActivity::networkTaskLoop() {
-  while (true) {
+  while (!shouldStop) {
     xSemaphoreTake(stateMutex, portMAX_DELAY);
     const auto currentState = state;
     xSemaphoreGive(stateMutex);
+
+    // Check shouldStop again after potentially blocking mutex acquisition
+    if (shouldStop) break;
 
     switch (currentState) {
       case WirelessState::DISCOVERING:
@@ -144,18 +200,27 @@ void CalibreWirelessActivity::networkTaskLoop() {
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
+  // Task exits gracefully when shouldStop is set
+  Serial.printf("[%lu] [CAL] Network task exiting gracefully\n", millis());
+  vTaskDelete(nullptr);  // Delete self
 }
 
 void CalibreWirelessActivity::listenForDiscovery() {
+  // Check for shutdown before starting
+  if (shouldStop) return;
+
   // Broadcast "hello" on all UDP discovery ports to find Calibre
   for (const uint16_t port : UDP_PORTS) {
+    if (shouldStop) return;  // Check between broadcasts
     udp.beginPacket("255.255.255.255", port);
     udp.write(reinterpret_cast<const uint8_t*>("hello"), 5);
     udp.endPacket();
   }
 
-  // Wait for Calibre's response
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+  // Wait for Calibre's response in smaller chunks to allow faster shutdown
+  for (int i = 0; i < 10 && !shouldStop; i++) {
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+  }
 
   // Check for response
   const int packetSize = udp.parsePacket();
@@ -455,9 +520,7 @@ void CalibreWirelessActivity::handleCommand(const OpCode opcode, const std::stri
 
 void CalibreWirelessActivity::handleGetInitializationInfo(const std::string& data) {
   setState(WirelessState::WAITING);
-  setStatus("Connected to " + calibreHostname +
-            "\nWaiting for transfer...\n\nIf transfer fails, enable\n'Ignore free space' in Calibre's\nSmartDevice "
-            "plugin settings.");
+  setStatus("Connected to " + calibreHostname + "\nWaiting for transfer...");
 
   // Build response with device capabilities
   // Format must match what Calibre expects from a smart device
@@ -504,9 +567,10 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
 }
 
 void CalibreWirelessActivity::handleFreeSpace() {
-  // TODO: Report actual SD card free space instead of hardcoded value
-  // Report 10GB free space for now
-  sendJsonResponse(OpCode::OK, "{\"free_space_on_device\":10737418240}");
+  const uint64_t freeBytes = getSDCardFreeSpace();
+  char response[64];
+  snprintf(response, sizeof(response), "{\"free_space_on_device\":%llu}", static_cast<unsigned long long>(freeBytes));
+  sendJsonResponse(OpCode::OK, response);
 }
 
 void CalibreWirelessActivity::handleGetBookCount() {
@@ -736,6 +800,60 @@ std::string CalibreWirelessActivity::getDeviceUuid() const {
            mac[3], mac[4], mac[5], mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   return std::string(uuid);
+}
+
+uint64_t CalibreWirelessActivity::getSDCardFreeSpace() const {
+  // Probe available space using SdFat's preAllocate() method.
+  // preAllocate() fails if there isn't enough contiguous free space,
+  // so we can use it to find the actual available space on the SD card.
+
+  const char* testPath = "/.crosspoint/.free_space_probe";
+
+  // Ensure the crosspoint directory exists
+  SdMan.mkdir("/.crosspoint");
+
+  FsFile testFile;
+  if (!SdMan.openFileForWrite("CAL", testPath, testFile)) {
+    Serial.printf("[%lu] [CAL] Free space probe: failed to create test file\n", millis());
+    return 64ULL * 1024 * 1024 * 1024;  // Conservative fallback
+  }
+
+  // Probe sizes from large to small (exponential decrease)
+  // Start at 256GB (larger than any typical SD card) and work down
+  constexpr uint64_t probeSizes[] = {
+      256ULL * 1024 * 1024 * 1024,  // 256GB
+      128ULL * 1024 * 1024 * 1024,  // 128GB
+      64ULL * 1024 * 1024 * 1024,   // 64GB
+      32ULL * 1024 * 1024 * 1024,   // 32GB
+      16ULL * 1024 * 1024 * 1024,   // 16GB
+      8ULL * 1024 * 1024 * 1024,    // 8GB
+      4ULL * 1024 * 1024 * 1024,    // 4GB
+      2ULL * 1024 * 1024 * 1024,    // 2GB
+      1ULL * 1024 * 1024 * 1024,    // 1GB
+      512ULL * 1024 * 1024,         // 512MB
+      256ULL * 1024 * 1024,         // 256MB
+      128ULL * 1024 * 1024,         // 128MB
+      64ULL * 1024 * 1024,          // 64MB
+  };
+
+  uint64_t availableSpace = 64ULL * 1024 * 1024;  // Minimum 64MB fallback
+
+  for (const uint64_t size : probeSizes) {
+    // cppcheck-suppress useStlAlgorithm
+    if (testFile.preAllocate(size)) {
+      availableSpace = size;
+      // Truncate back to 0 to release the allocation
+      testFile.truncate(0);
+      Serial.printf("[%lu] [CAL] Free space probe: %llu bytes available\n", millis(),
+                    static_cast<unsigned long long>(availableSpace));
+      break;
+    }
+  }
+
+  testFile.close();
+  SdMan.remove(testPath);
+
+  return availableSpace;
 }
 
 void CalibreWirelessActivity::setState(WirelessState newState) {
