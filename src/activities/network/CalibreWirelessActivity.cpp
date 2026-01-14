@@ -112,7 +112,7 @@ void CalibreWirelessActivity::onExit() {
 
   // Now safe to turn off WiFi - no tasks using it
   Serial.printf("[%lu] [CAL] Disconnecting WiFi...\n", millis());
-  WiFi.disconnect(false);  // false = don't erase credentials, send disconnect frame
+  WiFi.disconnect(false);               // false = don't erase credentials, send disconnect frame
   vTaskDelay(30 / portTICK_PERIOD_MS);  // Allow disconnect frame to be sent
 
   Serial.printf("[%lu] [CAL] Setting WiFi mode OFF...\n", millis());
@@ -569,7 +569,7 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
 void CalibreWirelessActivity::handleFreeSpace() {
   const uint64_t freeBytes = getSDCardFreeSpace();
   char response[64];
-  snprintf(response, sizeof(response), "{\"free_space_on_device\":%llu}", freeBytes);
+  snprintf(response, sizeof(response), "{\"free_space_on_device\":%llu}", static_cast<unsigned long long>(freeBytes));
   sendJsonResponse(OpCode::OK, response);
 }
 
@@ -839,11 +839,13 @@ uint64_t CalibreWirelessActivity::getSDCardFreeSpace() const {
   uint64_t availableSpace = 64ULL * 1024 * 1024;  // Minimum 64MB fallback
 
   for (const uint64_t size : probeSizes) {
+    // cppcheck-suppress useStlAlgorithm
     if (testFile.preAllocate(size)) {
       availableSpace = size;
       // Truncate back to 0 to release the allocation
       testFile.truncate(0);
-      Serial.printf("[%lu] [CAL] Free space probe: %llu bytes available\n", millis(), availableSpace);
+      Serial.printf("[%lu] [CAL] Free space probe: %llu bytes available\n", millis(),
+                    static_cast<unsigned long long>(availableSpace));
       break;
     }
   }
