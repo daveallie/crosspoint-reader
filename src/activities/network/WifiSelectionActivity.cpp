@@ -37,6 +37,14 @@ void WifiSelectionActivity::onEnter() {
   savePromptSelection = 0;
   forgetPromptSelection = 0;
 
+  // Cache MAC address for display
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char macStr[32];
+  snprintf(macStr, sizeof(macStr), "MAC address: %02x-%02x-%02x-%02x-%02x-%02x",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  cachedMacAddress = std::string(macStr);
+
   // Trigger first update to show scanning message
   updateRequired = true;
 
@@ -445,17 +453,6 @@ std::string WifiSelectionActivity::getSignalStrengthIndicator(const int32_t rssi
   return "    ";  // Very weak
 }
 
-std::string WifiSelectionActivity::getMacAddressString() const {
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  
-  char macStr[32];
-  snprintf(macStr, sizeof(macStr), "MAC address: %02X-%02X-%02X-%02X-%02X-%02X",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  
-  return std::string(macStr);
-}
-
 void WifiSelectionActivity::displayTaskLoop() {
   while (true) {
     // If a subactivity is active, yield CPU time but don't render
@@ -584,8 +581,7 @@ void WifiSelectionActivity::renderNetworkList() const {
   }
 
   // Show MAC address above the network count and legend
-  std::string macAddress = getMacAddressString();
-  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 105, macAddress.c_str());
+  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 105, cachedMacAddress.c_str());
 
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
