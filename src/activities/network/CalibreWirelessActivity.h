@@ -6,6 +6,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <functional>
 #include <string>
 
@@ -66,6 +67,7 @@ class CalibreWirelessActivity final : public Activity {
   SemaphoreHandle_t renderingMutex = nullptr;
   SemaphoreHandle_t stateMutex = nullptr;
   bool updateRequired = false;
+  std::atomic<bool> shouldStop{false};  // Signal for graceful task shutdown
 
   WirelessState state = WirelessState::DISCOVERING;
   const std::function<void()> onComplete;
@@ -119,6 +121,7 @@ class CalibreWirelessActivity final : public Activity {
 
   // Utility
   std::string getDeviceUuid() const;
+  uint64_t getSDCardFreeSpace() const;
   void setState(WirelessState newState);
   void setStatus(const std::string& message);
   void setError(const std::string& message);
