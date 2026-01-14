@@ -207,7 +207,7 @@ void MyLibraryActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (currentTab == Tab::Recent) {
       if (!bookPaths.empty() && selectorIndex < static_cast<int>(bookPaths.size())) {
-        onSelectBook(bookPaths[selectorIndex]);
+        onSelectBook(bookPaths[selectorIndex], currentTab);
       }
     } else {
       // Files tab
@@ -221,7 +221,7 @@ void MyLibraryActivity::loop() {
           updateRequired = true;
         } else {
           // Open file
-          onSelectBook(basepath + files[selectorIndex]);
+          onSelectBook(basepath + files[selectorIndex], currentTab);
         }
       }
     }

@@ -212,12 +212,13 @@ void enterDeepSleep() {
 }
 
 void onGoHome();
-void onGoToMyLibraryAtPath(const std::string& path);
-void onGoToReader(const std::string& initialEpubPath) {
+void onGoToMyLibraryWithTab(const std::string& path, MyLibraryActivity::Tab tab);
+void onGoToReader(const std::string& initialEpubPath, MyLibraryActivity::Tab fromTab) {
   exitActivity();
-  enterNewActivity(new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome, onGoToMyLibraryAtPath));
+  enterNewActivity(
+      new ReaderActivity(renderer, mappedInputManager, initialEpubPath, fromTab, onGoHome, onGoToMyLibraryWithTab));
 }
-void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
+void onContinueReading() { onGoToReader(APP_STATE.openEpubPath, MyLibraryActivity::Tab::Recent); }
 
 void onGoToFileTransfer() {
   exitActivity();
@@ -234,10 +235,9 @@ void onGoToMyLibrary() {
   enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
 }
 
-void onGoToMyLibraryAtPath(const std::string& path) {
+void onGoToMyLibraryWithTab(const std::string& path, MyLibraryActivity::Tab tab) {
   exitActivity();
-  enterNewActivity(
-      new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader, MyLibraryActivity::Tab::Files, path));
+  enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader, tab, path));
 }
 
 void onGoToBrowser() {
@@ -325,7 +325,7 @@ void setup() {
     APP_STATE.openEpubPath = "";
     APP_STATE.lastSleepImage = 0;
     APP_STATE.saveToFile();
-    onGoToReader(path);
+    onGoToReader(path, MyLibraryActivity::Tab::Recent);
   }
 
   // Ensure we're not still holding the power button before leaving setup

@@ -31,7 +31,7 @@ class MyLibraryActivity final : public Activity {
 
   // Callbacks
   const std::function<void()> onGoHome;
-  const std::function<void(const std::string& path)> onSelectBook;
+  const std::function<void(const std::string& path, Tab fromTab)> onSelectBook;
 
   // Number of items that fit on a page
   int getPageItems() const;
@@ -54,7 +54,7 @@ class MyLibraryActivity final : public Activity {
  public:
   explicit MyLibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                              const std::function<void()>& onGoHome,
-                             const std::function<void(const std::string& path)>& onSelectBook,
+                             const std::function<void(const std::string& path, Tab fromTab)>& onSelectBook,
                              Tab initialTab = Tab::Recent, std::string initialPath = "/")
       : Activity("MyLibrary", renderer, mappedInput),
         currentTab(initialTab),
