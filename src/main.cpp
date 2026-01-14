@@ -6,6 +6,7 @@
 #include <SDCardManager.h>
 #include <SPI.h>
 #include <builtinFonts/all.h>
+#include <esp_system.h>
 
 #include <cstring>
 
@@ -150,6 +151,13 @@ void enterNewActivity(Activity* activity) {
 
 // Verify long press on wake-up from deep sleep
 void verifyWakeupLongPress() {
+  // Only verify button press if waking from deep sleep
+  // Skip for software resets (esp_restart) and power-on
+  esp_reset_reason_t reason = esp_reset_reason();
+  if (reason != ESP_RST_DEEPSLEEP) {
+    return;
+  }
+
   // Give the user up to 1000ms to start holding the power button, and must hold for SETTINGS.getPowerButtonDuration()
   const auto start = millis();
   bool abort = false;
