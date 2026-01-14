@@ -7,14 +7,12 @@
 
 #include <memory>
 
-namespace {
-bool isHttpsUrl(const std::string& url) { return url.rfind("https://", 0) == 0; }
-}  // namespace
+#include "util/UrlUtils.h"
 
 bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
   // Use WiFiClientSecure for HTTPS, regular WiFiClient for HTTP
   std::unique_ptr<WiFiClient> client;
-  if (isHttpsUrl(url)) {
+  if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
     secureClient->setInsecure();
     client.reset(secureClient);
@@ -47,7 +45,7 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
                                                              ProgressCallback progress) {
   // Use WiFiClientSecure for HTTPS, regular WiFiClient for HTTP
   std::unique_ptr<WiFiClient> client;
-  if (isHttpsUrl(url)) {
+  if (UrlUtils::isHttpsUrl(url)) {
     auto* secureClient = new WiFiClientSecure();
     secureClient->setInsecure();
     client.reset(secureClient);
