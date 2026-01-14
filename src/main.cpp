@@ -210,9 +210,10 @@ void enterDeepSleep() {
 }
 
 void onGoHome();
+void onGoToMyLibraryAtPath(const std::string& path);
 void onGoToReader(const std::string& initialEpubPath) {
   exitActivity();
-  enterNewActivity(new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome));
+  enterNewActivity(new ReaderActivity(renderer, mappedInputManager, initialEpubPath, onGoHome, onGoToMyLibraryAtPath));
 }
 void onContinueReading() { onGoToReader(APP_STATE.openEpubPath); }
 
@@ -229,6 +230,12 @@ void onGoToSettings() {
 void onGoToMyLibrary() {
   exitActivity();
   enterNewActivity(new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader));
+}
+
+void onGoToMyLibraryAtPath(const std::string& path) {
+  exitActivity();
+  enterNewActivity(
+      new MyLibraryActivity(renderer, mappedInputManager, onGoHome, onGoToReader, MyLibraryActivity::Tab::Files, path));
 }
 
 void onGoToBrowser() {

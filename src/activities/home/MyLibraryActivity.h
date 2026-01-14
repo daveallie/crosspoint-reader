@@ -42,6 +42,7 @@ class MyLibraryActivity final : public Activity {
   // Data loading
   void loadRecentBooks();
   void loadFiles();
+  size_t findEntry(const std::string& name) const;
 
   // Rendering
   static void taskTrampoline(void* param);
@@ -54,9 +55,10 @@ class MyLibraryActivity final : public Activity {
   explicit MyLibraryActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                              const std::function<void()>& onGoHome,
                              const std::function<void(const std::string& path)>& onSelectBook,
-                             Tab initialTab = Tab::Recent)
+                             Tab initialTab = Tab::Recent, std::string initialPath = "/")
       : Activity("MyLibrary", renderer, mappedInput),
         currentTab(initialTab),
+        basepath(initialPath.empty() ? "/" : std::move(initialPath)),
         onGoHome(onGoHome),
         onSelectBook(onSelectBook) {}
   void onEnter() override;

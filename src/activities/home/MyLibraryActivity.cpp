@@ -9,6 +9,7 @@
 #include "RecentBooksStore.h"
 #include "ScreenComponents.h"
 #include "fontIds.h"
+#include "util/StringUtils.h"
 
 namespace {
 // Layout constants
@@ -106,7 +107,7 @@ void MyLibraryActivity::loadFiles() {
 
   root.rewindDirectory();
 
-  char name[128];
+  char name[500];
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
     file.getName(name, sizeof(name));
     if (name[0] == '.' || strcmp(name, "System Volume Information") == 0) {
@@ -118,9 +119,8 @@ void MyLibraryActivity::loadFiles() {
       files.emplace_back(std::string(name) + "/");
     } else {
       auto filename = std::string(name);
-      std::string ext4 = filename.length() >= 4 ? filename.substr(filename.length() - 4) : "";
-      std::string ext5 = filename.length() >= 5 ? filename.substr(filename.length() - 5) : "";
-      if (ext5 == ".epub" || ext5 == ".xtch" || ext4 == ".xtc") {
+      if (StringUtils::checkFileExtension(filename, ".epub") || StringUtils::checkFileExtension(filename, ".xtch") ||
+          StringUtils::checkFileExtension(filename, ".xtc") || StringUtils::checkFileExtension(filename, ".txt")) {
         files.emplace_back(filename);
       }
     }
@@ -128,6 +128,13 @@ void MyLibraryActivity::loadFiles() {
   }
   root.close();
   sortFileList(files);
+}
+
+size_t MyLibraryActivity::findEntry(const std::string& name) const {
+  for (size_t i = 0; i < files.size(); i++) {
+    if (files[i] == name) return i;
+  }
+  return 0;
 }
 
 void MyLibraryActivity::taskTrampoline(void* param) {
@@ -225,11 +232,17 @@ void MyLibraryActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     if (mappedInput.getHeldTime() < GO_HOME_MS) {
       if (currentTab == Tab::Files && basepath != "/") {
-        // Go up one directory
+        // Go up one directory, remembering the directory we came from
+        const std::string oldPath = basepath;
         basepath.replace(basepath.find_last_of('/'), std::string::npos, "");
         if (basepath.empty()) basepath = "/";
         loadFiles();
-        selectorIndex = 0;
+
+        // Select the directory we just came from
+        const auto pos = oldPath.find_last_of('/');
+        const std::string dirName = oldPath.substr(pos + 1) + "/";
+        selectorIndex = static_cast<int>(findEntry(dirName));
+
         updateRequired = true;
       } else {
         // Go home
