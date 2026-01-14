@@ -160,7 +160,7 @@ unsigned char JpegToBmpConverter::jpegReadCallback(unsigned char* pBuf, const un
 }
 
 // Core function: Convert JPEG file to 2-bit BMP
-bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
+bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut, bool crop) {
   Serial.printf("[%lu] [JPG] Converting JPEG to BMP\n", millis());
 
   // Setup context for picojpeg callback
@@ -201,8 +201,12 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
     const float scaleToFitWidth = static_cast<float>(TARGET_MAX_WIDTH) / imageInfo.m_width;
     const float scaleToFitHeight = static_cast<float>(TARGET_MAX_HEIGHT) / imageInfo.m_height;
     // We scale to the smaller dimension, so we can potentially crop later.
-    // TODO: ideally, we already crop here.
-    const float scale = (scaleToFitWidth > scaleToFitHeight) ? scaleToFitWidth : scaleToFitHeight;
+    float scale = 1.0;
+    if (crop) {  // if we will crop, scale to the smaller dimension
+      scale = (scaleToFitWidth > scaleToFitHeight) ? scaleToFitWidth : scaleToFitHeight;
+    } else {  // else, scale to the larger dimension to fit
+      scale = (scaleToFitWidth < scaleToFitHeight) ? scaleToFitWidth : scaleToFitHeight;
+    }
 
     outWidth = static_cast<int>(imageInfo.m_width * scale);
     outHeight = static_cast<int>(imageInfo.m_height * scale);
