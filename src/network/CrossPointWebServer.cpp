@@ -6,9 +6,12 @@
 #include <WiFi.h>
 
 #include <algorithm>
+#include <cstring>
 
+#include "SettingsList.h"
 #include "html/FilesPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
+#include "html/SettingsPageHtml.generated.h"
 
 namespace {
 // Folders/files to hide from the web interface file browser
@@ -81,6 +84,11 @@ void CrossPointWebServer::begin() {
 
   // Delete file/folder endpoint
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+
+  // Settings endpoints
+  server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
+  server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
+  server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -554,4 +562,153 @@ void CrossPointWebServer::handleDelete() const {
     Serial.printf("[%lu] [WEB] Failed to delete: %s\n", millis(), itemPath.c_str());
     server->send(500, "text/plain", "Failed to delete item");
   }
+}
+
+void CrossPointWebServer::handleSettingsPage() const {
+  server->send(200, "text/html", SettingsPageHtml);
+  Serial.printf("[%lu] [WEB] Served settings page\n", millis());
+}
+
+void CrossPointWebServer::handleGetSettings() const {
+  const auto settings = getSettingsList();
+
+  JsonDocument doc;
+  JsonArray settingsArray = doc["settings"].to<JsonArray>();
+
+  for (const auto& setting : settings) {
+    // Skip ACTION types - they don't have web-editable values
+    if (setting.type == SettingType::ACTION) {
+      continue;
+    }
+
+    JsonObject obj = settingsArray.add<JsonObject>();
+    obj["key"] = setting.key;
+    obj["name"] = setting.name;
+
+    switch (setting.type) {
+      case SettingType::TOGGLE:
+        obj["type"] = "toggle";
+        obj["value"] = SETTINGS.*(setting.valuePtr) ? 1 : 0;
+        break;
+
+      case SettingType::ENUM: {
+        obj["type"] = "enum";
+        obj["value"] = SETTINGS.*(setting.valuePtr);
+        JsonArray opts = obj["options"].to<JsonArray>();
+        for (const auto& opt : setting.enumValues) {
+          opts.add(opt);
+        }
+        break;
+      }
+
+      case SettingType::VALUE:
+        obj["type"] = "value";
+        obj["value"] = SETTINGS.*(setting.valuePtr);
+        obj["min"] = setting.valueRange.min;
+        obj["max"] = setting.valueRange.max;
+        obj["step"] = setting.valueRange.step;
+        break;
+
+      case SettingType::STRING:
+        obj["type"] = "string";
+        obj["value"] = setting.stringPtr;
+        obj["maxLength"] = setting.stringMaxLen;
+        break;
+
+      case SettingType::ACTION:
+        // Already filtered above
+        break;
+    }
+  }
+
+  String json;
+  serializeJson(doc, json);
+  server->send(200, "application/json", json);
+  Serial.printf("[%lu] [WEB] Served settings JSON\n", millis());
+}
+
+void CrossPointWebServer::handlePostSettings() {
+  // Check if we have a body
+  if (!server->hasArg("plain")) {
+    server->send(400, "text/plain", "Missing request body");
+    return;
+  }
+
+  const String body = server->arg("plain");
+  Serial.printf("[%lu] [WEB] Received settings update: %s\n", millis(), body.c_str());
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    Serial.printf("[%lu] [WEB] JSON parse error: %s\n", millis(), error.c_str());
+    server->send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+
+  const auto settings = getSettingsList();
+  int updatedCount = 0;
+
+  // Iterate through each setting and check if it's in the request
+  for (const auto& setting : settings) {
+    // Skip ACTION types and settings without keys
+    if (setting.type == SettingType::ACTION || setting.key == nullptr) {
+      continue;
+    }
+
+    if (doc[setting.key].isNull()) {
+      continue;
+    }
+
+    switch (setting.type) {
+      case SettingType::TOGGLE: {
+        const int value = doc[setting.key].as<int>();
+        SETTINGS.*(setting.valuePtr) = value ? 1 : 0;
+        updatedCount++;
+        break;
+      }
+
+      case SettingType::ENUM: {
+        const int value = doc[setting.key].as<int>();
+        // Validate value is within range
+        if (value >= 0 && value < static_cast<int>(setting.enumValues.size())) {
+          SETTINGS.*(setting.valuePtr) = static_cast<uint8_t>(value);
+          updatedCount++;
+        }
+        break;
+      }
+
+      case SettingType::VALUE: {
+        const int value = doc[setting.key].as<int>();
+        // Validate value is within range
+        if (value >= setting.valueRange.min && value <= setting.valueRange.max) {
+          SETTINGS.*(setting.valuePtr) = static_cast<uint8_t>(value);
+          updatedCount++;
+        }
+        break;
+      }
+
+      case SettingType::STRING: {
+        const char* value = doc[setting.key].as<const char*>();
+        if (value != nullptr) {
+          strncpy(setting.stringPtr, value, setting.stringMaxLen);
+          setting.stringPtr[setting.stringMaxLen] = '\0';
+          updatedCount++;
+        }
+        break;
+      }
+
+      case SettingType::ACTION:
+        // Already filtered above
+        break;
+    }
+  }
+
+  // Save settings to file
+  if (updatedCount > 0) {
+    SETTINGS.saveToFile();
+    Serial.printf("[%lu] [WEB] Updated %d settings and saved to file\n", millis(), updatedCount);
+  }
+
+  server->send(200, "text/plain", "Settings updated: " + String(updatedCount));
 }

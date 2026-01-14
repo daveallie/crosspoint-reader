@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings - CrossPoint Reader</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+        color: #333;
+      }
+      h1 {
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+      }
+      h2 {
+        color: #34495e;
+        margin-top: 0;
+      }
+      .card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 15px 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .nav-links {
+        margin: 20px 0;
+      }
+      .nav-links a {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-right: 10px;
+      }
+      .nav-links a:hover {
+        background-color: #2980b9;
+      }
+      .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .setting-row:last-child {
+        border-bottom: none;
+      }
+      .setting-label {
+        font-weight: 500;
+        color: #2c3e50;
+      }
+      .setting-control {
+        min-width: 150px;
+        text-align: right;
+      }
+      select, input[type="number"], input[type="text"] {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        min-width: 120px;
+      }
+      select:focus, input:focus {
+        outline: none;
+        border-color: #3498db;
+      }
+      input[type="text"] {
+        min-width: 200px;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+        display: inline-block;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 26px;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      input:checked + .toggle-slider {
+        background-color: #27ae60;
+      }
+      input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+      }
+      .save-btn {
+        display: block;
+        width: 100%;
+        padding: 14px;
+        background-color: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+      .save-btn:hover {
+        background-color: #219a52;
+      }
+      .save-btn:disabled {
+        background-color: #95a5a6;
+        cursor: not-allowed;
+      }
+      .status-message {
+        padding: 12px;
+        border-radius: 4px;
+        margin-top: 15px;
+        display: none;
+      }
+      .status-message.success {
+        background-color: #d4edda;
+        color: #155724;
+        display: block;
+      }
+      .status-message.error {
+        background-color: #f8d7da;
+        color: #721c24;
+        display: block;
+      }
+      .loading {
+        text-align: center;
+        padding: 40px;
+        color: #7f8c8d;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Settings</h1>
+
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/files">File Manager</a>
+      <a href="/settings">Settings</a>
+    </div>
+
+    <div class="card">
+      <div id="settings-container">
+        <div class="loading">Loading settings...</div>
+      </div>
+      <button id="save-btn" class="save-btn" style="display: none;">Save Settings</button>
+      <div id="status-message" class="status-message"></div>
+    </div>
+
+    <div class="card">
+      <p style="text-align: center; color: #95a5a6; margin: 0">
+        CrossPoint E-Reader
+      </p>
+    </div>
+
+  <script>
+    let originalSettings = {};
+    let currentSettings = {};
+
+    async function fetchSettings() {
+      try {
+        const response = await fetch('/api/settings');
+        if (!response.ok) {
+          throw new Error('Failed to fetch settings');
+        }
+        const data = await response.json();
+        renderSettings(data.settings);
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        document.getElementById('settings-container').innerHTML =
+          '<div class="loading" style="color: #e74c3c;">Failed to load settings. Please refresh the page.</div>';
+      }
+    }
+
+    function renderSettings(settings) {
+      const container = document.getElementById('settings-container');
+      container.innerHTML = '';
+
+      settings.forEach(setting => {
+        originalSettings[setting.key] = setting.value;
+        currentSettings[setting.key] = setting.value;
+
+        const row = document.createElement('div');
+        row.className = 'setting-row';
+
+        const label = document.createElement('span');
+        label.className = 'setting-label';
+        label.textContent = setting.name;
+
+        const control = document.createElement('div');
+        control.className = 'setting-control';
+
+        switch (setting.type) {
+          case 'toggle':
+            control.innerHTML = `
+              <label class="toggle-switch">
+                <input type="checkbox" id="${setting.key}" ${setting.value ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            `;
+            break;
+
+          case 'enum':
+            let options = setting.options.map((opt, idx) =>
+              `<option value="${idx}" ${setting.value === idx ? 'selected' : ''}>${opt}</option>`
+            ).join('');
+            control.innerHTML = `<select id="${setting.key}">${options}</select>`;
+            break;
+
+          case 'value':
+            control.innerHTML = `
+              <input type="number" id="${setting.key}"
+                value="${setting.value}"
+                min="${setting.min}"
+                max="${setting.max}"
+                step="${setting.step}">
+            `;
+            break;
+
+          case 'string':
+            control.innerHTML = `
+              <input type="text" id="${setting.key}"
+                value="${setting.value || ''}"
+                maxlength="${setting.maxLength}"
+                placeholder="Enter URL...">
+            `;
+            break;
+        }
+
+        row.appendChild(label);
+        row.appendChild(control);
+        container.appendChild(row);
+
+        // Add change listener
+        const input = control.querySelector('input, select');
+        if (input) {
+          input.addEventListener('change', () => updateCurrentValue(setting));
+          input.addEventListener('input', () => updateCurrentValue(setting));
+        }
+      });
+
+      document.getElementById('save-btn').style.display = 'block';
+    }
+
+    function updateCurrentValue(setting) {
+      const element = document.getElementById(setting.key);
+      if (!element) return;
+
+      switch (setting.type) {
+        case 'toggle':
+          currentSettings[setting.key] = element.checked ? 1 : 0;
+          break;
+        case 'enum':
+        case 'value':
+          currentSettings[setting.key] = parseInt(element.value, 10);
+          break;
+        case 'string':
+          currentSettings[setting.key] = element.value;
+          break;
+      }
+    }
+
+    async function saveSettings() {
+      const saveBtn = document.getElementById('save-btn');
+      const statusMsg = document.getElementById('status-message');
+
+      // Find changed settings
+      const changes = {};
+      for (const key in currentSettings) {
+        if (currentSettings[key] !== originalSettings[key]) {
+          changes[key] = currentSettings[key];
+        }
+      }
+
+      if (Object.keys(changes).length === 0) {
+        statusMsg.className = 'status-message success';
+        statusMsg.textContent = 'No changes to save.';
+        setTimeout(() => { statusMsg.className = 'status-message'; }, 3000);
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(changes)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save settings');
+        }
+
+        // Update original settings to match current
+        for (const key in changes) {
+          originalSettings[key] = changes[key];
+        }
+
+        statusMsg.className = 'status-message success';
+        statusMsg.textContent = 'Settings saved successfully!';
+      } catch (error) {
+        console.error('Error saving settings:', error);
+        statusMsg.className = 'status-message error';
+        statusMsg.textContent = 'Failed to save settings. Please try again.';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Settings';
+        setTimeout(() => { statusMsg.className = 'status-message'; }, 3000);
+      }
+    }
+
+    document.getElementById('save-btn').addEventListener('click', saveSettings);
+    window.onload = fetchSettings;
+  </script>
+  </body>
+</html>
