@@ -145,6 +145,11 @@ void KeyboardEntryActivity::loop() {
       // Clamp column to valid range for new row
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
+    } else {
+      // Wrap to bottom row
+      selectedRow = NUM_ROWS - 1;
+      const int maxCol = getRowLength(selectedRow) - 1;
+      if (selectedCol > maxCol) selectedCol = maxCol;
     }
     updateRequired = true;
   }
@@ -154,16 +159,24 @@ void KeyboardEntryActivity::loop() {
       selectedRow++;
       const int maxCol = getRowLength(selectedRow) - 1;
       if (selectedCol > maxCol) selectedCol = maxCol;
+    } else {
+      // Wrap to top row
+      selectedRow = 0;
+      const int maxCol = getRowLength(selectedRow) - 1;
+      if (selectedCol > maxCol) selectedCol = maxCol;
     }
     updateRequired = true;
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
+    const int maxCol = getRowLength(selectedRow) - 1;
+
     // Special bottom row case
     if (selectedRow == SPECIAL_ROW) {
       // Bottom row has special key widths
       if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
-        // In shift key, do nothing
+        // In shift key, wrap to end of row
+        selectedCol = maxCol;
       } else if (selectedCol >= SPACE_COL && selectedCol < BACKSPACE_COL) {
         // In space bar, move to shift
         selectedCol = SHIFT_COL;
@@ -180,10 +193,9 @@ void KeyboardEntryActivity::loop() {
 
     if (selectedCol > 0) {
       selectedCol--;
-    } else if (selectedRow > 0) {
-      // Wrap to previous row
-      selectedRow--;
-      selectedCol = getRowLength(selectedRow) - 1;
+    } else {
+      // Wrap to end of current row
+      selectedCol = maxCol;
     }
     updateRequired = true;
   }
@@ -204,7 +216,8 @@ void KeyboardEntryActivity::loop() {
         // In backspace, move to done
         selectedCol = DONE_COL;
       } else if (selectedCol >= DONE_COL) {
-        // At done button, do nothing
+        // At done button, wrap to beginning of row
+        selectedCol = SHIFT_COL;
       }
       updateRequired = true;
       return;
@@ -212,9 +225,8 @@ void KeyboardEntryActivity::loop() {
 
     if (selectedCol < maxCol) {
       selectedCol++;
-    } else if (selectedRow < NUM_ROWS - 1) {
-      // Wrap to next row
-      selectedRow++;
+    } else {
+      // Wrap to beginning of current row
       selectedCol = 0;
     }
     updateRequired = true;
