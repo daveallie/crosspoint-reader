@@ -354,36 +354,43 @@ std::vector<size_t> liangBreakIndexes(const std::vector<CodepointInfo>& cps,
     return {};
   }
 
+  // Liang scores: one entry per augmented char (leading/trailing dots included).
   std::vector<uint8_t> scores(augmented.charCount(), 0);
 
+  // Walk every starting character position and stream bytes through the trie.
   for (size_t charStart = 0; charStart < augmented.charByteOffsets.size(); ++charStart) {
-    size_t byteStart = augmented.charByteOffsets[charStart];
+    const size_t byteStart = augmented.charByteOffsets[charStart];
     AutomatonState state = root;
+
     for (size_t cursor = byteStart; cursor < augmented.bytes.size(); ++cursor) {
       AutomatonState next;
       if (!transition(automaton, state, augmented.bytes[cursor], next)) {
-        break;
+        break;  // No more matches for this prefix.
       }
       state = next;
 
       if (state.levels && state.levelsLen > 0) {
         size_t offset = 0;
+        // Each packed byte stores the byte-distance delta and the Liang level digit.
         for (size_t i = 0; i < state.levelsLen; ++i) {
           const uint8_t packed = state.levels[i];
           const size_t dist = static_cast<size_t>(packed / 10);
           const uint8_t level = static_cast<uint8_t>(packed % 10);
+
           offset += dist;
           const size_t splitByte = byteStart + offset;
           if (splitByte >= augmented.byteToCharIndex.size()) {
             continue;
           }
+
           const int32_t boundary = augmented.byteToCharIndex[splitByte];
           if (boundary < 0) {
-            continue;
+            continue;  // Mid-codepoint byte, wait for the next one.
           }
           if (boundary < 2 || boundary + 2 > static_cast<int32_t>(augmented.charCount())) {
-            continue;
+            continue;  // Skip splits that land in the leading/trailing sentinels.
           }
+
           const size_t idx = static_cast<size_t>(boundary);
           if (idx >= scores.size()) {
             continue;

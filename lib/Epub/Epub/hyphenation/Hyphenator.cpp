@@ -48,28 +48,6 @@ std::vector<Hyphenator::BreakInfo> buildExplicitBreakInfos(const std::vector<Cod
     breaks.push_back({cps[i + 1].byteOffset, isSoftHyphen(cp)});
   }
 
-  if (breaks.empty()) {
-    return breaks;
-  }
-
-  // Sort by byte offset so we can deduplicate sequential markers in-place.
-  std::sort(breaks.begin(), breaks.end(), [](const Hyphenator::BreakInfo& lhs, const Hyphenator::BreakInfo& rhs) {
-    return lhs.byteOffset < rhs.byteOffset;
-  });
-
-  // Deduplicate in-place: merge entries at same offset while retaining "needs hyphen" flag.
-  size_t writePos = 0;
-  for (size_t readPos = 1; readPos < breaks.size(); ++readPos) {
-    if (breaks[readPos].byteOffset == breaks[writePos].byteOffset) {
-      // Merge: explicit hyphen wins over soft hyphen at same offset.
-      breaks[writePos].requiresInsertedHyphen =
-          breaks[writePos].requiresInsertedHyphen || breaks[readPos].requiresInsertedHyphen;
-    } else {
-      breaks[++writePos] = breaks[readPos];
-    }
-  }
-  breaks.resize(writePos + 1);
-
   return breaks;
 }
 
