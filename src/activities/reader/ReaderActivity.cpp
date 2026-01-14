@@ -72,50 +72,6 @@ std::unique_ptr<Txt> ReaderActivity::loadTxt(const std::string& path) {
   return nullptr;
 }
 
-void ReaderActivity::onSelectBookFile(const std::string& path) {
-  currentBookPath = path;  // Track current book path
-  exitActivity();
-  enterNewActivity(new FullScreenMessageActivity(renderer, mappedInput, "Loading..."));
-
-  if (isXtcFile(path)) {
-    // Load XTC file
-    auto xtc = loadXtc(path);
-    if (xtc) {
-      onGoToXtcReader(std::move(xtc));
-    } else {
-      exitActivity();
-      enterNewActivity(new FullScreenMessageActivity(renderer, mappedInput, "Failed to load XTC",
-                                                     EpdFontFamily::REGULAR, EInkDisplay::HALF_REFRESH));
-      delay(2000);
-      goToLibrary();
-    }
-  } else if (isTxtFile(path)) {
-    // Load TXT file
-    auto txt = loadTxt(path);
-    if (txt) {
-      onGoToTxtReader(std::move(txt));
-    } else {
-      exitActivity();
-      enterNewActivity(new FullScreenMessageActivity(renderer, mappedInput, "Failed to load TXT",
-                                                     EpdFontFamily::REGULAR, EInkDisplay::HALF_REFRESH));
-      delay(2000);
-      goToLibrary();
-    }
-  } else {
-    // Load EPUB file
-    auto epub = loadEpub(path);
-    if (epub) {
-      onGoToEpubReader(std::move(epub));
-    } else {
-      exitActivity();
-      enterNewActivity(new FullScreenMessageActivity(renderer, mappedInput, "Failed to load epub",
-                                                     EpdFontFamily::REGULAR, EInkDisplay::HALF_REFRESH));
-      delay(2000);
-      goToLibrary();
-    }
-  }
-}
-
 void ReaderActivity::goToLibrary(const std::string& fromBookPath) {
   // If coming from a book, start in that book's folder; otherwise start from root
   const auto initialPath = fromBookPath.empty() ? "/" : extractFolderPath(fromBookPath);
