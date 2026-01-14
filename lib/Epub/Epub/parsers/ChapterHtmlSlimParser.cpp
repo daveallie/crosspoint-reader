@@ -65,15 +65,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
 
   // Special handling for tables - show placeholder text instead of dropping silently
   if (strcmp(name, "table") == 0) {
-    // Flush any partial word
-    if (self->partWordBufferIndex > 0 && self->currentTextBlock) {
-      self->partWordBuffer[self->partWordBufferIndex] = '\0';
-      self->currentTextBlock->addWord(self->partWordBuffer, EpdFontFamily::REGULAR);
-      self->partWordBufferIndex = 0;
-    }
-
     // Add placeholder text
-    self->startNewTextBlock((TextBlock::Style)self->paragraphAlignment);
+    self->startNewTextBlock(TextBlock::CENTER_ALIGN);
     if (self->currentTextBlock) {
       self->currentTextBlock->addWord("[Table omitted]", EpdFontFamily::ITALIC);
     }
