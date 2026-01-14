@@ -17,29 +17,6 @@
 #include "fontIds.h"
 #include "util/StringUtils.h"
 
-namespace {
-// UTF-8 safe string truncation - removes one character from the end
-// Returns the new size after removing one UTF-8 character
-size_t utf8RemoveLastChar(std::string& str) {
-  if (str.empty()) return 0;
-  size_t pos = str.size() - 1;
-  // Walk back to find the start of the last UTF-8 character
-  // UTF-8 continuation bytes start with 10xxxxxx (0x80-0xBF)
-  while (pos > 0 && (static_cast<unsigned char>(str[pos]) & 0xC0) == 0x80) {
-    --pos;
-  }
-  str.resize(pos);
-  return pos;
-}
-
-// Truncate string by removing N UTF-8 characters from the end
-void utf8TruncateChars(std::string& str, size_t numChars) {
-  for (size_t i = 0; i < numChars && !str.empty(); ++i) {
-    utf8RemoveLastChar(str);
-  }
-}
-}  // namespace
-
 void HomeActivity::taskTrampoline(void* param) {
   auto* self = static_cast<HomeActivity*>(param);
   self->displayTaskLoop();
@@ -382,7 +359,7 @@ void HomeActivity::render() {
         while (!lines.back().empty() && renderer.getTextWidth(UI_12_FONT_ID, lines.back().c_str()) > maxLineWidth) {
           // Remove "..." first, then remove one UTF-8 char, then add "..." back
           lines.back().resize(lines.back().size() - 3);  // Remove "..."
-          utf8RemoveLastChar(lines.back());
+          StringUtils::utf8RemoveLastChar(lines.back());
           lines.back().append("...");
         }
         break;
@@ -391,7 +368,7 @@ void HomeActivity::render() {
       int wordWidth = renderer.getTextWidth(UI_12_FONT_ID, i.c_str());
       while (wordWidth > maxLineWidth && !i.empty()) {
         // Word itself is too long, trim it (UTF-8 safe)
-        utf8RemoveLastChar(i);
+        StringUtils::utf8RemoveLastChar(i);
         // Check if we have room for ellipsis
         std::string withEllipsis = i + "...";
         wordWidth = renderer.getTextWidth(UI_12_FONT_ID, withEllipsis.c_str());
@@ -444,7 +421,7 @@ void HomeActivity::render() {
       if (!lastBookAuthor.empty()) {
         std::string trimmedAuthor = lastBookAuthor;
         while (renderer.getTextWidth(UI_10_FONT_ID, trimmedAuthor.c_str()) > maxLineWidth && !trimmedAuthor.empty()) {
-          utf8RemoveLastChar(trimmedAuthor);
+          StringUtils::utf8RemoveLastChar(trimmedAuthor);
         }
         if (renderer.getTextWidth(UI_10_FONT_ID, trimmedAuthor.c_str()) <
             renderer.getTextWidth(UI_10_FONT_ID, lastBookAuthor.c_str())) {
@@ -478,14 +455,14 @@ void HomeActivity::render() {
       // Trim author if too long (UTF-8 safe)
       bool wasTrimmed = false;
       while (renderer.getTextWidth(UI_10_FONT_ID, trimmedAuthor.c_str()) > maxLineWidth && !trimmedAuthor.empty()) {
-        utf8RemoveLastChar(trimmedAuthor);
+        StringUtils::utf8RemoveLastChar(trimmedAuthor);
         wasTrimmed = true;
       }
       if (wasTrimmed && !trimmedAuthor.empty()) {
         // Make room for ellipsis
         while (renderer.getTextWidth(UI_10_FONT_ID, (trimmedAuthor + "...").c_str()) > maxLineWidth &&
                !trimmedAuthor.empty()) {
-          utf8RemoveLastChar(trimmedAuthor);
+          StringUtils::utf8RemoveLastChar(trimmedAuthor);
         }
         trimmedAuthor.append("...");
       }
