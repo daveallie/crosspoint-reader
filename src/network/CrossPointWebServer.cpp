@@ -72,6 +72,7 @@ void CrossPointWebServer::begin() {
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
+  server->on("/api/folders", HTTP_GET, [this] { handleFolderList(); });
 
   // Upload endpoint with special handling for multipart form data
   server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
@@ -81,6 +82,9 @@ void CrossPointWebServer::begin() {
 
   // Delete file/folder endpoint
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
+
+  // Move/rename file/folder endpoint
+  server->on("/move", HTTP_POST, [this] { handleMove(); });
 
   server->onNotFound([this] { handleNotFound(); });
   Serial.printf("[%lu] [WEB] [MEM] Free heap after route setup: %d bytes\n", millis(), ESP.getFreeHeap());
@@ -554,4 +558,153 @@ void CrossPointWebServer::handleDelete() const {
     Serial.printf("[%lu] [WEB] Failed to delete: %s\n", millis(), itemPath.c_str());
     server->send(500, "text/plain", "Failed to delete item");
   }
+}
+
+void CrossPointWebServer::handleMove() const {
+  // Get source and destination paths from form data
+  if (!server->hasArg("sourcePath")) {
+    server->send(400, "text/plain", "Missing source path");
+    return;
+  }
+  if (!server->hasArg("destPath")) {
+    server->send(400, "text/plain", "Missing destination path");
+    return;
+  }
+
+  String sourcePath = server->arg("sourcePath");
+  String destPath = server->arg("destPath");
+
+  // Validate source path
+  if (sourcePath.isEmpty() || sourcePath == "/") {
+    server->send(400, "text/plain", "Cannot move root directory");
+    return;
+  }
+
+  // Validate destination path
+  if (destPath.isEmpty()) {
+    server->send(400, "text/plain", "Destination path cannot be empty");
+    return;
+  }
+
+  // Ensure paths start with /
+  if (!sourcePath.startsWith("/")) {
+    sourcePath = "/" + sourcePath;
+  }
+  if (!destPath.startsWith("/")) {
+    destPath = "/" + destPath;
+  }
+
+  // Security check on source: prevent moving protected items
+  const String sourceName = sourcePath.substring(sourcePath.lastIndexOf('/') + 1);
+  if (sourceName.startsWith(".")) {
+    Serial.printf("[%lu] [WEB] Move rejected - hidden/system item: %s\n", millis(), sourcePath.c_str());
+    server->send(403, "text/plain", "Cannot move system files");
+    return;
+  }
+
+  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+    if (sourceName.equals(HIDDEN_ITEMS[i])) {
+      Serial.printf("[%lu] [WEB] Move rejected - protected item: %s\n", millis(), sourcePath.c_str());
+      server->send(403, "text/plain", "Cannot move protected items");
+      return;
+    }
+  }
+
+  // Check if source exists
+  if (!SdMan.exists(sourcePath.c_str())) {
+    Serial.printf("[%lu] [WEB] Move failed - source not found: %s\n", millis(), sourcePath.c_str());
+    server->send(404, "text/plain", "Source item not found");
+    return;
+  }
+
+  // Check if destination already exists
+  if (SdMan.exists(destPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Move failed - destination already exists: %s\n", millis(), destPath.c_str());
+    server->send(400, "text/plain", "Destination already exists");
+    return;
+  }
+
+  // Ensure destination parent directory exists
+  const int lastSlash = destPath.lastIndexOf('/');
+  if (lastSlash > 0) {
+    const String parentDir = destPath.substring(0, lastSlash);
+    if (!SdMan.exists(parentDir.c_str())) {
+      Serial.printf("[%lu] [WEB] Move failed - destination directory does not exist: %s\n", millis(), parentDir.c_str());
+      server->send(400, "text/plain", "Destination directory does not exist");
+      return;
+    }
+  }
+
+  Serial.printf("[%lu] [WEB] Attempting to move: %s -> %s\n", millis(), sourcePath.c_str(), destPath.c_str());
+
+  // Perform the move using rename
+  if (SdMan.rename(sourcePath.c_str(), destPath.c_str())) {
+    Serial.printf("[%lu] [WEB] Successfully moved: %s -> %s\n", millis(), sourcePath.c_str(), destPath.c_str());
+    server->send(200, "text/plain", "Moved successfully");
+  } else {
+    Serial.printf("[%lu] [WEB] Failed to move: %s -> %s\n", millis(), sourcePath.c_str(), destPath.c_str());
+    server->send(500, "text/plain", "Failed to move item");
+  }
+}
+
+void CrossPointWebServer::handleFolderList() const {
+  Serial.printf("[%lu] [WEB] Building folder list...\n", millis());
+  
+  String jsonResponse = "[";
+  jsonResponse += "\"/\"";
+  
+  collectFoldersRecursively("/", jsonResponse);
+  
+  jsonResponse += "]";
+  
+  Serial.printf("[%lu] [WEB] Served folder list\n", millis());
+  server->send(200, "application/json", jsonResponse);
+}
+
+void CrossPointWebServer::collectFoldersRecursively(const char* path, String& json) const {
+  FsFile dir = SdMan.open(path);
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return;
+  }
+  
+  FsFile entry = dir.openNextFile();
+  char name[128];
+  
+  while (entry) {
+    if (entry.isDirectory()) {
+      entry.getName(name, sizeof(name));
+      String folderName = String(name);
+      
+      // Skip hidden folders
+      bool shouldSkip = folderName.startsWith(".");
+      
+      // Check against protected folders
+      if (!shouldSkip) {
+        for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+          if (folderName.equals(HIDDEN_ITEMS[i])) {
+            shouldSkip = true;
+            break;
+          }
+        }
+      }
+      
+      if (!shouldSkip) {
+        String folderPath = String(path);
+        if (!folderPath.endsWith("/")) folderPath += "/";
+        folderPath += folderName;
+        
+        json += ",\"" + folderPath + "\"";
+        
+        // Recurse into subfolder
+        collectFoldersRecursively(folderPath.c_str(), json);
+      }
+    }
+    
+    entry.close();
+    yield();  // Allow other tasks to process
+    entry = dir.openNextFile();
+  }
+  
+  dir.close();
 }
