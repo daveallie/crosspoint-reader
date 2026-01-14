@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <HardwareSerial.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 
 #include <ctime>
@@ -19,6 +20,10 @@ void addAuthHeaders(HTTPClient& http) {
   http.addHeader("x-auth-user", KOREADER_STORE.getUsername().c_str());
   http.addHeader("x-auth-key", KOREADER_STORE.getMd5Password().c_str());
 }
+
+bool isHttpsUrl(const std::string& url) {
+  return url.rfind("https://", 0) == 0;
+}
 }  // namespace
 
 KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
@@ -27,14 +32,20 @@ KOReaderSyncClient::Error KOReaderSyncClient::authenticate() {
     return NO_CREDENTIALS;
   }
 
-  const std::unique_ptr<WiFiClientSecure> client(new WiFiClientSecure);
-  client->setInsecure();
-  HTTPClient http;
-
   std::string url = KOREADER_STORE.getBaseUrl() + "/users/auth";
   Serial.printf("[%lu] [KOSync] Authenticating: %s\n", millis(), url.c_str());
 
-  http.begin(*client, url.c_str());
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+
+  if (isHttpsUrl(url)) {
+    secureClient.reset(new WiFiClientSecure);
+    secureClient->setInsecure();
+    http.begin(*secureClient, url.c_str());
+  } else {
+    http.begin(plainClient, url.c_str());
+  }
   addAuthHeaders(http);
 
   const int httpCode = http.GET();
@@ -59,23 +70,31 @@ KOReaderSyncClient::Error KOReaderSyncClient::getProgress(const std::string& doc
     return NO_CREDENTIALS;
   }
 
-  const std::unique_ptr<WiFiClientSecure> client(new WiFiClientSecure);
-  client->setInsecure();
-  HTTPClient http;
-
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress/" + documentHash;
   Serial.printf("[%lu] [KOSync] Getting progress: %s\n", millis(), url.c_str());
 
-  http.begin(*client, url.c_str());
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+
+  if (isHttpsUrl(url)) {
+    secureClient.reset(new WiFiClientSecure);
+    secureClient->setInsecure();
+    http.begin(*secureClient, url.c_str());
+  } else {
+    http.begin(plainClient, url.c_str());
+  }
   addAuthHeaders(http);
 
   const int httpCode = http.GET();
 
   if (httpCode == 200) {
-    // Parse JSON response
-    JsonDocument doc;
-    const DeserializationError error = deserializeJson(doc, *client);
+    // Parse JSON response from response string
+    String responseBody = http.getString();
     http.end();
+
+    JsonDocument doc;
+    const DeserializationError error = deserializeJson(doc, responseBody);
 
     if (error) {
       Serial.printf("[%lu] [KOSync] JSON parse failed: %s\n", millis(), error.c_str());
@@ -114,14 +133,20 @@ KOReaderSyncClient::Error KOReaderSyncClient::updateProgress(const KOReaderProgr
     return NO_CREDENTIALS;
   }
 
-  const std::unique_ptr<WiFiClientSecure> client(new WiFiClientSecure);
-  client->setInsecure();
-  HTTPClient http;
-
   std::string url = KOREADER_STORE.getBaseUrl() + "/syncs/progress";
   Serial.printf("[%lu] [KOSync] Updating progress: %s\n", millis(), url.c_str());
 
-  http.begin(*client, url.c_str());
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+
+  if (isHttpsUrl(url)) {
+    secureClient.reset(new WiFiClientSecure);
+    secureClient->setInsecure();
+    http.begin(*secureClient, url.c_str());
+  } else {
+    http.begin(plainClient, url.c_str());
+  }
   addAuthHeaders(http);
   http.addHeader("Content-Type", "application/json");
 

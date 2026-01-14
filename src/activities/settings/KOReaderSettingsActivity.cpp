@@ -112,14 +112,18 @@ void KOReaderSettingsActivity::handleSelection() {
           updateRequired = true;
         }));
   } else if (selectedIndex == 2) {
-    // Sync Server URL
+    // Sync Server URL - prefill with https:// if empty to save typing
+    const std::string currentUrl = KOREADER_STORE.getServerUrl();
+    const std::string prefillUrl = currentUrl.empty() ? "https://" : currentUrl;
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
-        renderer, mappedInput, "Sync Server URL", KOREADER_STORE.getServerUrl(), 10,
+        renderer, mappedInput, "Sync Server URL", prefillUrl, 10,
         128,    // maxLength - URLs can be long
         false,  // not password
         [this](const std::string& url) {
-          KOREADER_STORE.setServerUrl(url);
+          // Clear if user just left the prefilled https://
+          const std::string urlToSave = (url == "https://" || url == "http://") ? "" : url;
+          KOREADER_STORE.setServerUrl(urlToSave);
           KOREADER_STORE.saveToFile();
           exitActivity();
           updateRequired = true;

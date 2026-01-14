@@ -57,7 +57,7 @@ class KOReaderCredentialStore {
   void setServerUrl(const std::string& url);
   const std::string& getServerUrl() const { return serverUrl; }
 
-  // Get base URL for API calls (with https:// normalization, falls back to default)
+  // Get base URL for API calls (with http:// normalization if no protocol, falls back to default)
   std::string getBaseUrl() const;
 
   // Document matching method

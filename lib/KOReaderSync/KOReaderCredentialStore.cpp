@@ -153,9 +153,9 @@ std::string KOReaderCredentialStore::getBaseUrl() const {
     return DEFAULT_SERVER_URL;
   }
 
-  // Normalize URL: add https:// if no protocol specified
+  // Normalize URL: add http:// if no protocol specified (local servers typically don't have SSL)
   if (serverUrl.find("://") == std::string::npos) {
-    return "https://" + serverUrl;
+    return "http://" + serverUrl;
   }
 
   return serverUrl;
