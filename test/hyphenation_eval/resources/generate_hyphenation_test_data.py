@@ -6,7 +6,8 @@ hyphenations using the pyphen library, which can be used to test and validate
 the hyphenation implementations (e.g., German, English, Russian).
 
 Usage:
-    python generate_hyphenation_test_data.py <input_file> <output_file> [--language de_DE]
+    python generate_hyphenation_test_data.py <input_file> <output_file>
+        [--language de_DE] [--max-words 5000] [--min-prefix 2] [--min-suffix 2]
 
 Requirements:
     pip install pyphen
@@ -54,7 +55,13 @@ def clean_word(word):
 
 
 def generate_hyphenation_data(
-    input_file, output_file, language="de_DE", min_length=6, max_words=None
+    input_file,
+    output_file,
+    language="de_DE",
+    min_length=6,
+    max_words=5000,
+    min_prefix=2,
+    min_suffix=2,
 ):
     """
     Generate hyphenation test data from a text file.
@@ -64,7 +71,9 @@ def generate_hyphenation_data(
         output_file: Path to output file with hyphenation data
         language: Language code for pyphen (e.g., 'de_DE', 'en_US')
         min_length: Minimum word length to include
-        max_words: Maximum number of words to include (None for all)
+        max_words: Maximum number of words to include (default: 5000)
+        min_prefix: Minimum characters allowed before the first hyphen (default: 2)
+        min_suffix: Minimum characters allowed after the last hyphen (default: 2)
     """
     print(f"Reading from: {input_file}")
 
@@ -86,9 +95,11 @@ def generate_hyphenation_data(
     print(f"Found {len(word_counts)} unique words")
 
     # Initialize pyphen hyphenator
-    print(f"Initializing hyphenator for language: {language}")
+    print(
+        f"Initializing hyphenator for language: {language} (min_prefix={min_prefix}, min_suffix={min_suffix})"
+    )
     try:
-        hyphenator = pyphen.Pyphen(lang=language)
+        hyphenator = pyphen.Pyphen(lang=language, left=min_prefix, right=min_suffix)
     except KeyError:
         print(f"Error: Language '{language}' not found in pyphen.")
         print("Available languages include: de_DE, en_US, en_GB, fr_FR, etc.")
@@ -129,6 +140,8 @@ def generate_hyphenation_data(
         f.write(f"# Hyphenation Test Data\n")
         f.write(f"# Source: {Path(input_file).name}\n")
         f.write(f"# Language: {language}\n")
+        f.write(f"# Min prefix: {min_prefix}\n")
+        f.write(f"# Min suffix: {min_suffix}\n")
         f.write(f"# Total words: {len(hyphenation_data)}\n")
         f.write(f"# Format: word | hyphenated_form | frequency_in_source\n")
         f.write(f"#\n")
@@ -186,7 +199,20 @@ Examples:
     parser.add_argument(
         "--max-words",
         type=int,
-        help="Maximum number of words to include (default: all)",
+        default=5000,
+        help="Maximum number of words to include (default: 5000)",
+    )
+    parser.add_argument(
+        "--min-prefix",
+        type=int,
+        default=2,
+        help="Minimum characters permitted before the first hyphen (default: 2)",
+    )
+    parser.add_argument(
+        "--min-suffix",
+        type=int,
+        default=2,
+        help="Minimum characters permitted after the last hyphen (default: 2)",
     )
 
     args = parser.parse_args()
@@ -197,6 +223,8 @@ Examples:
         language=args.language,
         min_length=args.min_length,
         max_words=args.max_words,
+        min_prefix=args.min_prefix,
+        min_suffix=args.min_suffix,
     )
 
 
