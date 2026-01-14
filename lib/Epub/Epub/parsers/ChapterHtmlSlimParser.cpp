@@ -97,6 +97,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
       self->startNewTextBlock((TextBlock::Style)self->paragraphAlignment);
+      if (strcmp(name, "li") == 0) {
+        self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);
+      }
     }
   } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
     self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
@@ -148,6 +151,20 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
         // Skip the current byte (0xC2) and the next byte (0xAD)
         i++;       // Increment 'i' one more time to skip the 0xAD byte
         continue;  // Skip the rest of the loop and move to the next iteration
+      }
+    }
+
+    // Skip Zero Width No-Break Space / BOM (U+FEFF) = 0xEF 0xBB 0xBF
+    const XML_Char FEFF_BYTE_1 = static_cast<XML_Char>(0xEF);
+    const XML_Char FEFF_BYTE_2 = static_cast<XML_Char>(0xBB);
+    const XML_Char FEFF_BYTE_3 = static_cast<XML_Char>(0xBF);
+
+    if (s[i] == FEFF_BYTE_1) {
+      // Check if the next two bytes complete the 3-byte sequence
+      if ((i + 2 < len) && (s[i + 1] == FEFF_BYTE_2) && (s[i + 2] == FEFF_BYTE_3)) {
+        // Sequence 0xEF 0xBB 0xBF found!
+        i += 2;    // Skip the next two bytes
+        continue;  // Move to the next iteration
       }
     }
 
