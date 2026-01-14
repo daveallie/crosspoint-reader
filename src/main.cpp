@@ -151,7 +151,7 @@ void enterNewActivity(Activity* activity) {
 
 // Verify long press on wake-up from deep sleep
 void verifyWakeupLongPress() {
-  // Skip verification for software resets (esp_restart after format, OTA, etc.)
+  // Skip verification for software resets (for example when calling esp_restart after sd card format)
   // All other cases (deep sleep wake, power on, etc.) still require long press
   if (esp_reset_reason() == ESP_RST_SW) {
     return;
