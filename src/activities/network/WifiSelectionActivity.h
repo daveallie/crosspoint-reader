@@ -90,6 +90,7 @@ class WifiSelectionActivity final : public ActivityWithSubactivity {
   void attemptConnection();
   void checkConnectionStatus();
   std::string getSignalStrengthIndicator(int32_t rssi) const;
+  std::string getMacAddressString() const;
 
  public:
   explicit WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,

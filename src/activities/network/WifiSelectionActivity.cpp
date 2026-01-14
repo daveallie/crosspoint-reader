@@ -445,6 +445,17 @@ std::string WifiSelectionActivity::getSignalStrengthIndicator(const int32_t rssi
   return "    ";  // Very weak
 }
 
+std::string WifiSelectionActivity::getMacAddressString() const {
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  
+  char macStr[24];
+  snprintf(macStr, sizeof(macStr), "MAC address: %02X-%02X-%02X-%02X-%02X-%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  
+  return std::string(macStr);
+}
+
 void WifiSelectionActivity::displayTaskLoop() {
   while (true) {
     // If a subactivity is active, yield CPU time but don't render
@@ -571,6 +582,10 @@ void WifiSelectionActivity::renderNetworkList() const {
     snprintf(countStr, sizeof(countStr), "%zu networks found", networks.size());
     renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 90, countStr);
   }
+
+  // Show MAC address above the network count and legend
+  std::string macAddress = getMacAddressString();
+  renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 105, macAddress.c_str());
 
   // Draw help text
   renderer.drawText(SMALL_FONT_ID, 20, pageHeight - 75, "* = Encrypted | + = Saved");
