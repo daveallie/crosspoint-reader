@@ -14,6 +14,7 @@ class HomeActivity final : public Activity {
   bool updateRequired = false;
   bool hasContinueReading = false;
   bool hasOpdsUrl = false;
+  uint32_t lastBookSeconds = 0;
   std::string lastBookTitle;
   std::string lastBookAuthor;
   const std::function<void()> onContinueReading;
@@ -26,6 +27,8 @@ class HomeActivity final : public Activity {
   [[noreturn]] void displayTaskLoop();
   void render() const;
   int getMenuItemCount() const;
+  void loadReadingTime();
+  static std::string formatDuration(uint32_t seconds);
 
  public:
   explicit HomeActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
