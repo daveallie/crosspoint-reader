@@ -78,14 +78,11 @@ std::vector<Hyphenator::BreakInfo> Hyphenator::breakOffsets(const std::string& w
     indexes = hyphenator->breakIndexes(cps);
   }
 
-  // Only add fallback breaks if needed and deduplicate if both language and fallback breaks exist.
-  if (includeFallback) {
+  // Only add fallback breaks if needed
+  if (includeFallback && indexes.empty()) {
     for (size_t idx = minPrefix; idx + minSuffix <= cps.size(); ++idx) {
       indexes.push_back(idx);
     }
-    // Only deduplicate if we have both language-specific and fallback breaks.
-    std::sort(indexes.begin(), indexes.end());
-    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
   }
 
   if (indexes.empty()) {

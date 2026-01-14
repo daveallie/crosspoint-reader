@@ -112,10 +112,6 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   // Ensure any word that would overflow even as the first entry on a line is split using fallback hyphenation.
   for (size_t i = 0; i < wordWidths.size(); ++i) {
     while (wordWidths[i] > pageWidth) {
-      // Try language-aware hyphenation first; only fall back to heuristics when no dictionary break fits.
-      if (hyphenateWordAtIndex(i, pageWidth, renderer, fontId, wordWidths, /*allowFallbackBreaks=*/false)) {
-        continue;
-      }
       if (!hyphenateWordAtIndex(i, pageWidth, renderer, fontId, wordWidths, /*allowFallbackBreaks=*/true)) {
         break;
       }
@@ -279,10 +275,7 @@ bool ParsedText::hyphenateWordAtIndex(const size_t wordIndex, const int availabl
   const auto style = *styleIt;
 
   // Collect candidate breakpoints (byte offsets and hyphen requirements).
-  auto breakInfos = Hyphenator::breakOffsets(word, /*allowFallback=*/false);
-  if (breakInfos.empty() && allowFallbackBreaks) {
-    breakInfos = Hyphenator::breakOffsets(word, /*allowFallback=*/true);
-  }
+  auto breakInfos = Hyphenator::breakOffsets(word, allowFallbackBreaks);
   if (breakInfos.empty()) {
     return false;
   }
