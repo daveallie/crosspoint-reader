@@ -7,6 +7,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "ScreenComponents.h"
+#include "WifiCredentialStore.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
@@ -154,6 +155,12 @@ void OpdsBookBrowserActivity::loop() {
 
 void OpdsBookBrowserActivity::displayTaskLoop() {
   while (true) {
+    // If a subactivity is active, yield CPU time but don't render
+    if (subActivity) {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      continue;
+    }
+
     if (updateRequired) {
       updateRequired = false;
       xSemaphoreTake(renderingMutex, portMAX_DELAY);
@@ -374,8 +381,27 @@ void OpdsBookBrowserActivity::checkAndConnectWifi() {
     return;
   }
 
-  // Not connected - launch WiFi selection screen directly
-  launchWifiSelection();
+  // Try to connect to default WiFi if available
+  WIFI_STORE.loadFromFile();
+  const bool hasDefaultSSID = !WIFI_STORE.getDefaultSSID().empty();
+
+  if (hasDefaultSSID) {
+    statusMessage = "Connecting to WiFi...";
+    updateRequired = true;
+  }
+
+  WIFI_STORE.ensureWifiConnected(
+      *this, renderer, mappedInput,
+      [this]() {
+        state = BrowserState::LOADING;
+        statusMessage = "Loading...";
+        updateRequired = true;
+        fetchFeed(currentPath);
+      },
+      [this]() {
+        // User cancelled WiFi selection - go home
+        onGoHome();
+      });
 }
 
 void OpdsBookBrowserActivity::launchWifiSelection() {
