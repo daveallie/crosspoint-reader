@@ -438,14 +438,14 @@ void HomeActivity::render() {
       const int boxX = (pageWidth - boxWidth) / 2;
       const int boxY = titleYStart - boxPadding;
 
-      // Draw white filled box
-      renderer.fillRect(boxX, boxY, boxWidth, boxHeight, false);
-      // Draw black border around the box
-      renderer.drawRect(boxX, boxY, boxWidth, boxHeight, true);
+      // Draw box (inverted when selected: black box instead of white)
+      renderer.fillRect(boxX, boxY, boxWidth, boxHeight, bookSelected);
+      // Draw border around the box (inverted when selected: white border instead of black)
+      renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
     }
 
     for (const auto& line : lines) {
-      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), !bookSelected || coverRendered);
+      renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), coverRendered ? bookSelected : !bookSelected);
       titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
     }
 
@@ -466,13 +466,13 @@ void HomeActivity::render() {
         }
         trimmedAuthor.append("...");
       }
-      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, trimmedAuthor.c_str(), !bookSelected || coverRendered);
+      renderer.drawCenteredText(UI_10_FONT_ID, titleYStart, trimmedAuthor.c_str(), coverRendered ? bookSelected : !bookSelected);
     }
 
     // "Continue Reading" label at the bottom
     const int continueY = bookY + bookHeight - renderer.getLineHeight(UI_10_FONT_ID) * 3 / 2;
     if (coverRendered) {
-      // Draw white box behind "Continue Reading" text
+      // Draw box behind "Continue Reading" text (inverted when selected: black box instead of white)
       const char* continueText = "Continue Reading";
       const int continueTextWidth = renderer.getTextWidth(UI_10_FONT_ID, continueText);
       constexpr int continuePadding = 6;
@@ -480,9 +480,9 @@ void HomeActivity::render() {
       const int continueBoxHeight = renderer.getLineHeight(UI_10_FONT_ID) + continuePadding;
       const int continueBoxX = (pageWidth - continueBoxWidth) / 2;
       const int continueBoxY = continueY - continuePadding / 2;
-      renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, false);
-      renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, true);
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, true);
+      renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
+      renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
+      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, bookSelected);
     } else {
       renderer.drawCenteredText(UI_10_FONT_ID, continueY, "Continue Reading", !bookSelected);
     }
