@@ -17,7 +17,7 @@ parser.add_argument("--2bit", dest="is2Bit", action="store_true", help="generate
 parser.add_argument("--additional-intervals", dest="additional_intervals", action="append", help="Additional code point intervals to export as min,max. This argument can be repeated.")
 args = parser.parse_args()
 
-GlyphProps = namedtuple("GlyphProps", ["width", "height", "advance_x", "left", "top", "data_length", "data_offset", "code_point"])
+GlyphProps = namedtuple("GlyphProps", ["width", "height", "advance_x", "left", "top", "data_length", "data_offset", "compressed", "code_point"])
 
 font_stack = [freetype.Face(f) for f in args.fontstack]
 is2Bit = args.is2Bit
@@ -124,7 +124,6 @@ def load_glyph(code_point):
             face.load_glyph(glyph_index, freetype.FT_LOAD_RENDER)
             return face
         face_index += 1
-    print(f"code point {code_point} ({hex(code_point)}) not found in font stack!", file=sys.stderr)
     return None
 
 unmerged_intervals = sorted(intervals + add_ints)
@@ -242,6 +241,13 @@ for i_start, i_end in intervals:
 
         # Build output data
         packed = bytes(pixels)
+        # DEFLATE compressed data without zlib header/footer
+        compressed = zlib.compress(packed, wbits=-15)
+        is_compressed = len(compressed) < len(packed) * 0.9
+        # Use compressed data only if it's at least 10% smaller
+        if is_compressed:
+            packed = compressed
+
         glyph = GlyphProps(
             width = bitmap.width,
             height = bitmap.rows,
@@ -250,6 +256,7 @@ for i_start, i_end in intervals:
             top = face.glyph.bitmap_top,
             data_length = len(packed),
             data_offset = total_size,
+            compressed = 'true' if is_compressed else 'false',
             code_point = code_point,
         )
         total_size += len(packed)
