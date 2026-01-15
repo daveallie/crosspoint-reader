@@ -19,15 +19,7 @@
  * https://github.com/kovidgoyal/calibre/blob/master/src/calibre/devices/smart_device_app/driver.py
  */
 class CalibreWirelessActivity final : public Activity {
-  enum class WirelessState {
-    DISCOVERING,
-    CONNECTING,
-    WAITING,
-    RECEIVING,
-    COMPLETE,
-    DISCONNECTED,
-    ERROR
-  };
+  enum class WirelessState { DISCOVERING, CONNECTING, WAITING, RECEIVING, COMPLETE, DISCONNECTED, ERROR };
 
   enum OpCode : uint8_t {
     OK = 0,

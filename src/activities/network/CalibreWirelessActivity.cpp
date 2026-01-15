@@ -433,8 +433,10 @@ bool CalibreWirelessActivity::readJsonMessage(std::string& message) {
       const char* lengthKey = "\"length\"";
       for (size_t i = bracketPos; i < recvBuffer.size() && i < bracketPos + 2000; i++) {
         char c = recvBuffer[i];
-        if (c == '{' || c == '[') depth++;
-        else if (c == '}' || c == ']') depth--;
+        if (c == '{' || c == '[')
+          depth++;
+        else if (c == '}' || c == ']')
+          depth--;
         else if (depth == 2 && c == '"' && i + 8 <= recvBuffer.size()) {
           bool match = true;
           for (size_t j = 0; j < 8 && match; j++) {
@@ -674,8 +676,10 @@ void CalibreWirelessActivity::handleSendBook(const std::string& data) {
 
   for (size_t i = 0; i < data.size(); i++) {
     char c = data[i];
-    if (c == '{' || c == '[') depth++;
-    else if (c == '}' || c == ']') depth--;
+    if (c == '{' || c == '[')
+      depth++;
+    else if (c == '}' || c == ']')
+      depth--;
     else if (depth == 1 && c == '"' && i + 8 <= data.size()) {
       bool match = true;
       for (size_t j = 0; j < 8 && match; j++) {
