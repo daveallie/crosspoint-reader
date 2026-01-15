@@ -325,6 +325,9 @@ void HomeActivity::render() {
   }
 
   if (hasContinueReading) {
+    // When cover is shown, invert text colors on selection; without cover, invert normally
+    const bool invertText = coverRendered ? bookSelected : !bookSelected;
+
     // Split into words (avoid stringstream to keep this light on the MCU)
     std::vector<std::string> words;
     words.reserve(8);
@@ -444,9 +447,6 @@ void HomeActivity::render() {
       renderer.drawRect(boxX, boxY, boxWidth, boxHeight, !bookSelected);
     }
 
-    // When cover is shown, invert text colors on selection; without cover, invert normally
-    const bool invertText = coverRendered ? bookSelected : !bookSelected;
-
     for (const auto& line : lines) {
       renderer.drawCenteredText(UI_12_FONT_ID, titleYStart, line.c_str(), invertText);
       titleYStart += renderer.getLineHeight(UI_12_FONT_ID);
@@ -485,9 +485,9 @@ void HomeActivity::render() {
       const int continueBoxY = continueY - continuePadding / 2;
       renderer.fillRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, bookSelected);
       renderer.drawRect(continueBoxX, continueBoxY, continueBoxWidth, continueBoxHeight, !bookSelected);
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, bookSelected);
+      renderer.drawCenteredText(UI_10_FONT_ID, continueY, continueText, invertText);
     } else {
-      renderer.drawCenteredText(UI_10_FONT_ID, continueY, "Continue Reading", !bookSelected);
+      renderer.drawCenteredText(UI_10_FONT_ID, continueY, "Continue Reading", invertText);
     }
   } else {
     // No book to continue reading
