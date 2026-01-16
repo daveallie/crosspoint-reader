@@ -2,6 +2,7 @@
 
 #include <WebServer.h>
 #include <WebSocketsServer.h>
+#include <WiFiUdp.h>
 
 #include <vector>
 
@@ -25,7 +26,7 @@ class CrossPointWebServer {
   void stop();
 
   // Call this periodically to handle client requests
-  void handleClient() const;
+  void handleClient();
 
   // Check if server is running
   bool isRunning() const { return running; }
@@ -40,6 +41,8 @@ class CrossPointWebServer {
   bool apMode = false;  // true when running in AP mode, false for STA mode
   uint16_t port = 80;
   uint16_t wsPort = 81;  // WebSocket port
+  WiFiUDP udp;
+  bool udpActive = false;
 
   // WebSocket upload state
   void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);

@@ -16,6 +16,8 @@ namespace {
 // Note: Items starting with "." are automatically hidden
 const char* HIDDEN_ITEMS[] = {"System Volume Information", "XTCache"};
 constexpr size_t HIDDEN_ITEMS_COUNT = sizeof(HIDDEN_ITEMS) / sizeof(HIDDEN_ITEMS[0]);
+constexpr uint16_t UDP_PORTS[] = {54982, 48123, 39001, 44044, 59678};
+constexpr uint16_t LOCAL_UDP_PORT = 8134;
 
 // Static pointer for WebSocket callback (WebSocketsServer requires C-style callback)
 CrossPointWebServer* wsInstance = nullptr;
@@ -108,6 +110,9 @@ void CrossPointWebServer::begin() {
   wsServer->onEvent(wsEventCallback);
   Serial.printf("[%lu] [WEB] WebSocket server started\n", millis());
 
+  udpActive = udp.begin(LOCAL_UDP_PORT);
+  Serial.printf("[%lu] [WEB] Discovery UDP %s on port %d\n", millis(), udpActive ? "enabled" : "failed", LOCAL_UDP_PORT);
+
   running = true;
 
   Serial.printf("[%lu] [WEB] Web server started on port %d\n", millis(), port);
@@ -145,6 +150,11 @@ void CrossPointWebServer::stop() {
     Serial.printf("[%lu] [WEB] WebSocket server stopped\n", millis());
   }
 
+  if (udpActive) {
+    udp.stop();
+    udpActive = false;
+  }
+
   // Brief delay to allow any in-flight handleClient() calls to complete
   delay(20);
 
@@ -163,7 +173,7 @@ void CrossPointWebServer::stop() {
   Serial.printf("[%lu] [WEB] [MEM] Free heap final: %d bytes\n", millis(), ESP.getFreeHeap());
 }
 
-void CrossPointWebServer::handleClient() const {
+void CrossPointWebServer::handleClient() {
   static unsigned long lastDebugPrint = 0;
 
   // Check running flag FIRST before accessing server
@@ -188,6 +198,28 @@ void CrossPointWebServer::handleClient() const {
   // Handle WebSocket events
   if (wsServer) {
     wsServer->loop();
+  }
+
+  // Respond to discovery broadcasts
+  if (udpActive) {
+    int packetSize = udp.parsePacket();
+    if (packetSize > 0) {
+      char buffer[16];
+      int len = udp.read(buffer, sizeof(buffer) - 1);
+      if (len > 0) {
+        buffer[len] = '\0';
+        if (strcmp(buffer, "hello") == 0) {
+          String hostname = WiFi.getHostname();
+          if (hostname.isEmpty()) {
+            hostname = "crosspoint";
+          }
+          String message = "crosspoint (on " + hostname + ");" + String(wsPort);
+          udp.beginPacket(udp.remoteIP(), udp.remotePort());
+          udp.write(reinterpret_cast<const uint8_t*>(message.c_str()), message.length());
+          udp.endPacket();
+        }
+      }
+    }
   }
 }
 
