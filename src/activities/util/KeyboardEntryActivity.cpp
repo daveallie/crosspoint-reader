@@ -98,6 +98,7 @@ void KeyboardEntryActivity::handleKeyPress() {
     if (selectedCol >= SHIFT_COL && selectedCol < SPACE_COL) {
       // Shift toggle
       shiftActive = !shiftActive;
+      updateRequired = true;
       return;
     }
 
@@ -361,6 +362,7 @@ void KeyboardEntryActivity::renderItemWithSelector(const int x, const int y, con
 void KeyboardEntryActivity::onCapsHeld() {
   waitForCapsRelease();
   shiftActive = !shiftActive;
+  updateRequired = true;
 }
 
 void KeyboardEntryActivity::waitForCapsRelease() {
