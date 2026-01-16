@@ -23,9 +23,9 @@ OpdsParser::~OpdsParser() {
 }
 
 void OpdsParser::push(const char* xmlData, const size_t length) {
-    if (errorOccured) {
-        return;
-    }
+  if (errorOccured) {
+    return;
+  }
 
   XML_SetUserData(parser, this);
   XML_SetElementHandler(parser, startElement, endElement);
@@ -64,16 +64,14 @@ void OpdsParser::push(const char* xmlData, const size_t length) {
 }
 
 void OpdsParser::finish() {
-    if (XML_Parse(parser, nullptr, 0, XML_TRUE) != XML_STATUS_OK) {
-        errorOccured = true;
-        XML_ParserFree(parser);
-        parser = nullptr;
-    }
+  if (XML_Parse(parser, nullptr, 0, XML_TRUE) != XML_STATUS_OK) {
+    errorOccured = true;
+    XML_ParserFree(parser);
+    parser = nullptr;
+  }
 }
 
-bool OpdsParser::error() const  {
-    return errorOccured;
-}
+bool OpdsParser::error() const { return errorOccured; }
 
 void OpdsParser::clear() {
   entries.clear();

@@ -2,9 +2,8 @@
 
 #include <GfxRenderer.h>
 #include <HardwareSerial.h>
-#include <WiFi.h>
-
 #include <OpdsStream.h>
+#include <WiFi.h>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -269,15 +268,14 @@ void OpdsBookBrowserActivity::fetchFeed(const std::string& path) {
   OpdsParser parser;
 
   {
-      OpdsParserStream stream{parser};
-      if (!HttpDownloader::fetchUrl(url, stream)) {
-        state = BrowserState::ERROR;
-        errorMessage = "Failed to fetch feed";
-        updateRequired = true;
-        return;
-      }
+    OpdsParserStream stream{parser};
+    if (!HttpDownloader::fetchUrl(url, stream)) {
+      state = BrowserState::ERROR;
+      errorMessage = "Failed to fetch feed";
+      updateRequired = true;
+      return;
+    }
   }
-
 
   if (parser.error()) {
     state = BrowserState::ERROR;

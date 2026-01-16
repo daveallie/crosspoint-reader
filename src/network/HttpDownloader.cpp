@@ -2,10 +2,9 @@
 
 #include <HTTPClient.h>
 #include <HardwareSerial.h>
+#include <StreamString.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
-
-#include <StreamString.h>
 
 #include <memory>
 

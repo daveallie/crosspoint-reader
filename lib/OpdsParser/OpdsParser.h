@@ -59,7 +59,7 @@ class OpdsParser {
    * Get the parsed entries (both navigation and book entries).
    * @return Vector of OpdsEntry entries
    */
-  const std::vector<OpdsEntry>& getEntries() const & { return entries; }
+  const std::vector<OpdsEntry>& getEntries() const& { return entries; }
   std::vector<OpdsEntry> getEntries() && { return std::move(entries); }
 
   /**
