@@ -32,6 +32,7 @@ class CalibreConnectActivity final : public ActivityWithSubactivity {
   std::string currentUploadName;
   std::string lastCompleteName;
   unsigned long lastCompleteAt = 0;
+  bool exitRequested = false;
 
   static void taskTrampoline(void* param);
   [[noreturn]] void displayTaskLoop();

@@ -22,6 +22,7 @@ PREFS.defaults['port'] = 81
 PREFS.defaults['path'] = '/'
 PREFS.defaults['chunk_size'] = 2048
 PREFS.defaults['debug'] = False
+PREFS.defaults['fetch_metadata'] = False
 
 
 class CrossPointConfigWidget(QWidget):
@@ -35,18 +36,21 @@ class CrossPointConfigWidget(QWidget):
         self.chunk_size = QSpinBox(self)
         self.chunk_size.setRange(512, 65536)
         self.debug = QCheckBox('Enable debug logging', self)
+        self.fetch_metadata = QCheckBox('Fetch metadata (slower device list)', self)
 
         self.host.setText(PREFS['host'])
         self.port.setValue(PREFS['port'])
         self.path.setText(PREFS['path'])
         self.chunk_size.setValue(PREFS['chunk_size'])
         self.debug.setChecked(PREFS['debug'])
+        self.fetch_metadata.setChecked(PREFS['fetch_metadata'])
 
         layout.addRow('Host', self.host)
         layout.addRow('Port', self.port)
         layout.addRow('Upload path', self.path)
         layout.addRow('Chunk size', self.chunk_size)
         layout.addRow('', self.debug)
+        layout.addRow('', self.fetch_metadata)
 
         self.log_view = QPlainTextEdit(self)
         self.log_view.setReadOnly(True)
@@ -67,6 +71,7 @@ class CrossPointConfigWidget(QWidget):
         PREFS['path'] = self.path.text().strip() or PREFS.defaults['path']
         PREFS['chunk_size'] = int(self.chunk_size.value())
         PREFS['debug'] = bool(self.debug.isChecked())
+        PREFS['fetch_metadata'] = bool(self.fetch_metadata.isChecked())
 
     def _refresh_logs(self):
         self.log_view.setPlainText(get_log_text())

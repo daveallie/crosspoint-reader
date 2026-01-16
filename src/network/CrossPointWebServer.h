@@ -73,6 +73,7 @@ class CrossPointWebServer {
   void handleStatus() const;
   void handleFileList() const;
   void handleFileListData() const;
+  void handleDownload() const;
   void handleUpload() const;
   void handleUploadPost() const;
   void handleCreateFolder() const;

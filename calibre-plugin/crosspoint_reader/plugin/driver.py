@@ -1,9 +1,13 @@
 import os
 import time
+import urllib.parse
+import urllib.request
 
 from calibre.devices.errors import ControlError
 from calibre.devices.interface import DevicePlugin
 from calibre.devices.usbms.deviceconfig import DeviceConfig
+from calibre.devices.usbms.books import Book
+from calibre.ebooks.metadata.book.base import Metadata
 
 from . import ws_client
 from .config import CrossPointConfigWidget, PREFS
@@ -105,6 +109,35 @@ class CrossPointDevice(DeviceConfig, DevicePlugin):
         else:
             self.report_progress = report_progress
 
+    def _http_base(self):
+        host = self.device_host or PREFS['host']
+        return f'http://{host}'
+
+    def _http_get_json(self, path, params=None, timeout=5):
+        url = self._http_base() + path
+        if params:
+            url += '?' + urllib.parse.urlencode(params)
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as resp:
+                data = resp.read().decode('utf-8', 'ignore')
+        except Exception as exc:
+            raise ControlError(desc=f'HTTP request failed: {exc}')
+        try:
+            import json
+            return json.loads(data)
+        except Exception as exc:
+            raise ControlError(desc=f'Invalid JSON response: {exc}')
+
+    def _http_post_form(self, path, data, timeout=5):
+        url = self._http_base() + path
+        body = urllib.parse.urlencode(data).encode('utf-8')
+        req = urllib.request.Request(url, data=body, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read().decode('utf-8', 'ignore')
+        except Exception as exc:
+            raise ControlError(desc=f'HTTP request failed: {exc}')
+
     def config_widget(self):
         return CrossPointConfigWidget()
 
@@ -112,8 +145,37 @@ class CrossPointDevice(DeviceConfig, DevicePlugin):
         config_widget.save()
 
     def books(self, oncard=None, end_session=True):
-        # Device does not expose a browsable library yet.
-        return []
+        if oncard is not None:
+            return []
+        entries = self._http_get_json('/api/files', params={'path': '/'})
+        books = []
+        fetch_metadata = PREFS['fetch_metadata']
+        for entry in entries:
+            if entry.get('isDirectory'):
+                continue
+            if not entry.get('isEpub'):
+                continue
+            name = entry.get('name', '')
+            if not name:
+                continue
+            size = entry.get('size', 0)
+            lpath = '/' + name if not name.startswith('/') else name
+            title = os.path.splitext(os.path.basename(name))[0]
+            meta = Metadata(title, [])
+            if fetch_metadata:
+                try:
+                    from calibre.customize.ui import quick_metadata
+                    from calibre.ebooks.metadata.meta import get_metadata
+                    with self._download_temp(lpath) as tf:
+                        with quick_metadata:
+                            m = get_metadata(tf, stream_type='epub', force_read_metadata=True)
+                        if m is not None:
+                            meta = m
+                except Exception as exc:
+                    self._log(f'[CrossPoint] metadata read failed for {lpath}: {exc}')
+            book = Book('', lpath, size=size, other=meta)
+            books.append(book)
+        return books
 
     def sync_booklists(self, booklists, end_session=True):
         # No on-device metadata sync supported.
@@ -175,8 +237,39 @@ class CrossPointDevice(DeviceConfig, DevicePlugin):
         return
 
     def delete_books(self, paths, end_session=True):
-        # Deletion not supported in current device API.
-        raise ControlError(desc='Device does not support deleting books')
+        for path in paths:
+            status, body = self._http_post_form('/delete', {'path': path, 'type': 'file'})
+            if status != 200:
+                raise ControlError(desc=f'Delete failed for {path}: {body}')
+
+    def remove_books_from_metadata(self, paths, booklists):
+        for path in paths:
+            for bl in booklists:
+                for book in tuple(bl):
+                    if path == book.path or path == book.lpath:
+                        bl.remove_book(book)
+
+    def get_file(self, path, outfile, end_session=True, this_book=None, total_books=None):
+        url = self._http_base() + '/download'
+        params = urllib.parse.urlencode({'path': path})
+        try:
+            with urllib.request.urlopen(url + '?' + params, timeout=10) as resp:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    outfile.write(chunk)
+        except Exception as exc:
+            raise ControlError(desc=f'Failed to download {path}: {exc}')
+
+    def _download_temp(self, path):
+        from calibre.ptempfile import PersistentTemporaryFile
+        tf = PersistentTemporaryFile(suffix='.epub')
+        self.get_file(path, tf)
+        tf.flush()
+        tf.seek(0)
+        return tf
+
 
     def eject(self):
         self.is_connected = False

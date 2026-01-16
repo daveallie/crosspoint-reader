@@ -90,6 +90,7 @@ void CrossPointWebServer::begin() {
 
   server->on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server->on("/api/files", HTTP_GET, [this] { handleFileListData(); });
+  server->on("/download", HTTP_GET, [this] { handleDownload(); });
 
   // Upload endpoint with special handling for multipart form data
   server->on("/upload", HTTP_POST, [this] { handleUploadPost(); }, [this] { handleUpload(); });
@@ -380,6 +381,69 @@ void CrossPointWebServer::handleFileListData() const {
   // End of streamed response, empty chunk to signal client
   server->sendContent("");
   Serial.printf("[%lu] [WEB] Served file listing page for path: %s\n", millis(), currentPath.c_str());
+}
+
+void CrossPointWebServer::handleDownload() const {
+  if (!server->hasArg("path")) {
+    server->send(400, "text/plain", "Missing path");
+    return;
+  }
+
+  String itemPath = server->arg("path");
+  if (itemPath.isEmpty() || itemPath == "/") {
+    server->send(400, "text/plain", "Invalid path");
+    return;
+  }
+  if (!itemPath.startsWith("/")) {
+    itemPath = "/" + itemPath;
+  }
+
+  const String itemName = itemPath.substring(itemPath.lastIndexOf('/') + 1);
+  if (itemName.startsWith(".")) {
+    server->send(403, "text/plain", "Cannot access system files");
+    return;
+  }
+  for (size_t i = 0; i < HIDDEN_ITEMS_COUNT; i++) {
+    if (itemName.equals(HIDDEN_ITEMS[i])) {
+      server->send(403, "text/plain", "Cannot access protected items");
+      return;
+    }
+  }
+
+  if (!SdMan.exists(itemPath.c_str())) {
+    server->send(404, "text/plain", "Item not found");
+    return;
+  }
+
+  FsFile file = SdMan.open(itemPath.c_str());
+  if (!file) {
+    server->send(500, "text/plain", "Failed to open file");
+    return;
+  }
+  if (file.isDirectory()) {
+    file.close();
+    server->send(400, "text/plain", "Path is a directory");
+    return;
+  }
+
+  String contentType = "application/octet-stream";
+  if (isEpubFile(itemPath)) {
+    contentType = "application/epub+zip";
+  }
+
+  char nameBuf[128] = {0};
+  String filename = "download";
+  if (file.getName(nameBuf, sizeof(nameBuf))) {
+    filename = nameBuf;
+  }
+
+  server->setContentLength(file.size());
+  server->sendHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+  server->send(200, contentType.c_str(), "");
+
+  WiFiClient client = server->client();
+  client.write(file);
+  file.close();
 }
 
 // Static variables for upload handling

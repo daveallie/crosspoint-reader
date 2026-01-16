@@ -4,6 +4,7 @@
 #include <HardwareSerial.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
+#include <base64.h>
 
 #include <cstring>
 #include <memory>
@@ -31,7 +32,9 @@ bool HttpDownloader::fetchUrl(const std::string& url, std::string& outContent) {
 
   // Add Basic HTTP auth if credentials are configured
   if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    http.setAuthorization(SETTINGS.opdsUsername, SETTINGS.opdsPassword);
+    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
+    String encoded = base64::encode(credentials.c_str());
+    http.addHeader("Authorization", "Basic " + encoded);
   }
 
   const int httpCode = http.GET();
@@ -70,7 +73,9 @@ HttpDownloader::DownloadError HttpDownloader::downloadToFile(const std::string& 
 
   // Add Basic HTTP auth if credentials are configured
   if (strlen(SETTINGS.opdsUsername) > 0 && strlen(SETTINGS.opdsPassword) > 0) {
-    http.setAuthorization(SETTINGS.opdsUsername, SETTINGS.opdsPassword);
+    std::string credentials = std::string(SETTINGS.opdsUsername) + ":" + SETTINGS.opdsPassword;
+    String encoded = base64::encode(credentials.c_str());
+    http.addHeader("Authorization", "Basic " + encoded);
   }
 
   const int httpCode = http.GET();

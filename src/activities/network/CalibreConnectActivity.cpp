@@ -33,6 +33,7 @@ void CalibreConnectActivity::onEnter() {
   currentUploadName.clear();
   lastCompleteName.clear();
   lastCompleteAt = 0;
+  exitRequested = false;
 
   xTaskCreate(&CalibreConnectActivity::taskTrampoline, "CalibreConnectTask",
               2048,               // Stack size
@@ -124,8 +125,7 @@ void CalibreConnectActivity::loop() {
   }
 
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-    onComplete();
-    return;
+    exitRequested = true;
   }
 
   if (webServer && webServer->isRunning()) {
@@ -135,17 +135,17 @@ void CalibreConnectActivity::loop() {
     }
 
     esp_task_wdt_reset();
-    constexpr int MAX_ITERATIONS = 500;
+    constexpr int MAX_ITERATIONS = 80;
     for (int i = 0; i < MAX_ITERATIONS && webServer->isRunning(); i++) {
       webServer->handleClient();
-      if ((i & 0x1F) == 0x1F) {
+      if ((i & 0x07) == 0x07) {
         esp_task_wdt_reset();
       }
-      if ((i & 0x3F) == 0x3F) {
+      if ((i & 0x0F) == 0x0F) {
         yield();
         if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-          onComplete();
-          return;
+          exitRequested = true;
+          break;
         }
       }
     }
@@ -181,6 +181,11 @@ void CalibreConnectActivity::loop() {
       updateRequired = true;
     }
   }
+
+  if (exitRequested) {
+    onComplete();
+    return;
+  }
 }
 
 void CalibreConnectActivity::displayTaskLoop() {
@@ -215,10 +220,14 @@ void CalibreConnectActivity::render() const {
 
 void CalibreConnectActivity::renderServerRunning() const {
   constexpr int LINE_SPACING = 24;
-  constexpr int TOP_PADDING = 18;
+  constexpr int SMALL_SPACING = 20;
+  constexpr int SECTION_SPACING = 40;
+  constexpr int TOP_PADDING = 14;
   renderer.drawCenteredText(UI_12_FONT_ID, 15, "Connect to Calibre", true, EpdFontFamily::BOLD);
 
-  int y = 60 + TOP_PADDING;
+  int y = 55 + TOP_PADDING;
+  renderer.drawCenteredText(UI_10_FONT_ID, y, "Network", true, EpdFontFamily::BOLD);
+  y += LINE_SPACING;
   std::string ssidInfo = "Network: " + connectedSSID;
   if (ssidInfo.length() > 28) {
     ssidInfo.replace(25, ssidInfo.length() - 25, "...");
@@ -226,22 +235,17 @@ void CalibreConnectActivity::renderServerRunning() const {
   renderer.drawCenteredText(UI_10_FONT_ID, y, ssidInfo.c_str());
   renderer.drawCenteredText(UI_10_FONT_ID, y + LINE_SPACING, ("IP: " + connectedIP).c_str());
 
-  y += LINE_SPACING * 2;
-  renderer.drawCenteredText(SMALL_FONT_ID, y, "Install the CrossPoint Reader");
-  renderer.drawCenteredText(SMALL_FONT_ID, y + LINE_SPACING, "device plugin in Calibre.");
+  y += LINE_SPACING * 2 + SECTION_SPACING;
+  renderer.drawCenteredText(UI_10_FONT_ID, y, "Setup", true, EpdFontFamily::BOLD);
+  y += LINE_SPACING;
+  renderer.drawCenteredText(SMALL_FONT_ID, y, "1) Install CrossPoint Reader plugin");
+  renderer.drawCenteredText(SMALL_FONT_ID, y + SMALL_SPACING, "2) Be on the same WiFi network");
+  renderer.drawCenteredText(SMALL_FONT_ID, y + SMALL_SPACING * 2, "3) In Calibre: \"Send to device\"");
+  renderer.drawCenteredText(SMALL_FONT_ID, y + SMALL_SPACING * 3, "Keep this screen open while sending");
 
-  y += LINE_SPACING * 2;
-  renderer.drawCenteredText(SMALL_FONT_ID, y, "Make sure your computer is");
-  renderer.drawCenteredText(SMALL_FONT_ID, y + LINE_SPACING, "on the same WiFi network.");
-
-  y += LINE_SPACING * 2;
-  renderer.drawCenteredText(SMALL_FONT_ID, y, "Then in Calibre, click");
-  renderer.drawCenteredText(SMALL_FONT_ID, y + LINE_SPACING, "\"Send to device\".");
-
-  y += LINE_SPACING * 2;
-  renderer.drawCenteredText(SMALL_FONT_ID, y, "Leave this screen open while sending.");
-
-  y += LINE_SPACING * 2;
+  y += SMALL_SPACING * 3 + SECTION_SPACING;
+  renderer.drawCenteredText(UI_10_FONT_ID, y, "Status", true, EpdFontFamily::BOLD);
+  y += LINE_SPACING;
   if (lastProgressTotal > 0 && lastProgressReceived <= lastProgressTotal) {
     std::string label = "Receiving";
     if (!currentUploadName.empty()) {
@@ -254,9 +258,9 @@ void CalibreConnectActivity::renderServerRunning() const {
     constexpr int barWidth = 300;
     constexpr int barHeight = 16;
     constexpr int barX = (480 - barWidth) / 2;
-    ScreenComponents::drawProgressBar(renderer, barX, y + 28, barWidth, barHeight, lastProgressReceived,
+    ScreenComponents::drawProgressBar(renderer, barX, y + 22, barWidth, barHeight, lastProgressReceived,
                                       lastProgressTotal);
-    y += 46;
+    y += 40;
   }
 
   if (lastCompleteAt > 0 && (millis() - lastCompleteAt) < 6000) {

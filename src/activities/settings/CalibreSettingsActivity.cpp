@@ -116,8 +116,8 @@ void CalibreSettingsActivity::handleSelection() {
     exitActivity();
     enterNewActivity(new KeyboardEntryActivity(
         renderer, mappedInput, "Password", SETTINGS.opdsPassword, 10,
-        63,    // maxLength
-        true,  // password mode
+        63,     // maxLength
+        false,  // not password mode
         [this](const std::string& password) {
           strncpy(SETTINGS.opdsPassword, password.c_str(), sizeof(SETTINGS.opdsPassword) - 1);
           SETTINGS.opdsPassword[sizeof(SETTINGS.opdsPassword) - 1] = '\0';
