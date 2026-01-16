@@ -98,18 +98,30 @@ class WebSocketClient:
         self.sock.sendall(header + masked)
 
     def read_text(self):
-        opcode, payload = self._read_frame()
-        if opcode == 0x8:
-            code = None
-            reason = ''
-            if len(payload) >= 2:
-                code = struct.unpack('!H', payload[:2])[0]
-                reason = payload[2:].decode('utf-8', 'ignore')
-            self._log('Server closed connection', code, reason)
-            raise WebSocketError('Connection closed')
-        if opcode != 0x1:
-            return ''
-        return payload.decode('utf-8', 'ignore')
+        deadline = time.time() + self.timeout
+        while True:
+            if time.time() > deadline:
+                raise WebSocketError('Timed out waiting for text frame')
+            opcode, payload = self._read_frame()
+            if opcode == 0x8:
+                code = None
+                reason = ''
+                if len(payload) >= 2:
+                    code = struct.unpack('!H', payload[:2])[0]
+                    reason = payload[2:].decode('utf-8', 'ignore')
+                self._log('Server closed connection', code, reason)
+                raise WebSocketError('Connection closed')
+            if opcode == 0x9:
+                # Ping -> respond with Pong
+                self._send_frame(0xA, payload)
+                continue
+            if opcode == 0xA:
+                # Pong -> ignore
+                continue
+            if opcode != 0x1:
+                self._log('Ignoring non-text opcode', opcode, len(payload))
+                continue
+            return payload.decode('utf-8', 'ignore')
 
     def _read_frame(self):
         if self.sock is None:
@@ -251,6 +263,8 @@ def upload_file(host, port, upload_path, filename, filepath, chunk_size=16384, d
 
         msg = client.read_text()
         client._log('Received', msg)
+        if not msg:
+            raise WebSocketError('Unexpected response: <empty>')
         if msg.startswith('ERROR'):
             raise WebSocketError(msg)
         if msg != 'READY':

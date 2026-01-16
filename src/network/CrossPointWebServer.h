@@ -4,6 +4,8 @@
 #include <WebSocketsServer.h>
 #include <WiFiUdp.h>
 
+#include <memory>
+#include <string>
 #include <vector>
 
 // Structure to hold file information
@@ -16,6 +18,16 @@ struct FileInfo {
 
 class CrossPointWebServer {
  public:
+  struct WsUploadStatus {
+    bool inProgress = false;
+    size_t received = 0;
+    size_t total = 0;
+    std::string filename;
+    std::string lastCompleteName;
+    size_t lastCompleteSize = 0;
+    unsigned long lastCompleteAt = 0;
+  };
+
   CrossPointWebServer();
   ~CrossPointWebServer();
 
@@ -30,6 +42,8 @@ class CrossPointWebServer {
 
   // Check if server is running
   bool isRunning() const { return running; }
+
+  WsUploadStatus getWsUploadStatus() const;
 
   // Get the port number
   uint16_t getPort() const { return port; }

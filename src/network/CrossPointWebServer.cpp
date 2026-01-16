@@ -30,6 +30,9 @@ size_t wsUploadSize = 0;
 size_t wsUploadReceived = 0;
 unsigned long wsUploadStartTime = 0;
 bool wsUploadInProgress = false;
+String wsLastCompleteName;
+size_t wsLastCompleteSize = 0;
+unsigned long wsLastCompleteAt = 0;
 }  // namespace
 
 // File listing page template - now using generated headers:
@@ -221,6 +224,18 @@ void CrossPointWebServer::handleClient() {
       }
     }
   }
+}
+
+CrossPointWebServer::WsUploadStatus CrossPointWebServer::getWsUploadStatus() const {
+  WsUploadStatus status;
+  status.inProgress = wsUploadInProgress;
+  status.received = wsUploadReceived;
+  status.total = wsUploadSize;
+  status.filename = wsUploadFileName.c_str();
+  status.lastCompleteName = wsLastCompleteName.c_str();
+  status.lastCompleteSize = wsLastCompleteSize;
+  status.lastCompleteAt = wsLastCompleteAt;
+  return status;
 }
 
 void CrossPointWebServer::handleRoot() const {
@@ -812,6 +827,10 @@ void CrossPointWebServer::onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* 
       if (wsUploadReceived >= wsUploadSize) {
         wsUploadFile.close();
         wsUploadInProgress = false;
+
+        wsLastCompleteName = wsUploadFileName;
+        wsLastCompleteSize = wsUploadSize;
+        wsLastCompleteAt = millis();
 
         unsigned long elapsed = millis() - wsUploadStartTime;
         float kbps = (elapsed > 0) ? (wsUploadSize / 1024.0) / (elapsed / 1000.0) : 0;
