@@ -14,9 +14,7 @@ constexpr size_t READ_BUFFER_SIZE = 512;
 constexpr size_t MAX_CSS_SIZE = 64 * 1024;
 
 // Check if character is CSS whitespace
-bool isCssWhitespace(const char c) {
-  return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
-}
+bool isCssWhitespace(const char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f'; }
 
 // Read entire file into string (with size limit)
 std::string readFileContent(FsFile& file) {
@@ -88,8 +86,7 @@ size_t skipAtRule(const std::string& css, const size_t start) {
 
 // Extract next rule from CSS content
 // Returns true if a rule was found, with selector and body filled
-bool extractNextRule(const std::string& css, size_t& pos,
-                     std::string& selector, std::string& body) {
+bool extractNextRule(const std::string& css, size_t& pos, std::string& selector, std::string& body) {
   selector.clear();
   body.clear();
 
@@ -126,8 +123,10 @@ bool extractNextRule(const std::string& css, size_t& pos,
   size_t bodyEnd = bodyStart;
 
   while (bodyEnd < css.size() && depth > 0) {
-    if (css[bodyEnd] == '{') ++depth;
-    else if (css[bodyEnd] == '}') --depth;
+    if (css[bodyEnd] == '{')
+      ++depth;
+    else if (css[bodyEnd] == '}')
+      --depth;
     ++bodyEnd;
   }
 
@@ -402,8 +401,7 @@ CssStyle CssParser::parseDeclarations(const std::string& declBlock) {
 
 // Rule processing
 
-void CssParser::processRuleBlock(const std::string& selectorGroup,
-                                  const std::string& declarations) {
+void CssParser::processRuleBlock(const std::string& selectorGroup, const std::string& declarations) {
   const CssStyle style = parseDeclarations(declarations);
 
   // Only store if any properties were set
@@ -458,8 +456,7 @@ bool CssParser::loadFromStream(FsFile& source) {
 
 // Style resolution
 
-CssStyle CssParser::resolveStyle(const std::string& tagName,
-                                  const std::string& classAttr) const {
+CssStyle CssParser::resolveStyle(const std::string& tagName, const std::string& classAttr) const {
   CssStyle result;
   const std::string tag = normalized(tagName);
 
@@ -498,6 +495,4 @@ CssStyle CssParser::resolveStyle(const std::string& tagName,
 
 // Inline style parsing (static - doesn't need rule database)
 
-CssStyle CssParser::parseInlineStyle(const std::string& styleValue) {
-  return parseDeclarations(styleValue);
-}
+CssStyle CssParser::parseInlineStyle(const std::string& styleValue) { return parseDeclarations(styleValue); }

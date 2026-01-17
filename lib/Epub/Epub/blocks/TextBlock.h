@@ -30,8 +30,7 @@ class TextBlock final : public Block {
  public:
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
                      std::list<EpdFontFamily::Style> word_styles, const Style style,
-                     const BlockStyle& blockStyle = BlockStyle(),
-                     std::list<bool> word_underlines = std::list<bool>())
+                     const BlockStyle& blockStyle = BlockStyle(), std::list<bool> word_underlines = std::list<bool>())
       : words(std::move(words)),
         wordXpos(std::move(word_xpos)),
         wordStyles(std::move(word_styles)),

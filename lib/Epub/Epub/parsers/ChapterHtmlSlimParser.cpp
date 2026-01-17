@@ -59,7 +59,8 @@ void ChapterHtmlSlimParser::updateEffectiveInlineStyle() {
   // Start with block-level styles
   effectiveBold = currentBlockStyle.hasFontWeight() && currentBlockStyle.fontWeight == CssFontWeight::Bold;
   effectiveItalic = currentBlockStyle.hasFontStyle() && currentBlockStyle.fontStyle == CssFontStyle::Italic;
-  effectiveUnderline = currentBlockStyle.hasTextDecoration() && currentBlockStyle.decoration == CssTextDecoration::Underline;
+  effectiveUnderline =
+      currentBlockStyle.hasTextDecoration() && currentBlockStyle.decoration == CssTextDecoration::Underline;
 
   // Apply inline style stack in order
   for (const auto& entry : inlineStyleStack) {
@@ -90,9 +91,7 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style, cons
   currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing, blockStyle));
 }
 
-void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
-  startNewTextBlock(style, BlockStyle{});
-}
+void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) { startNewTextBlock(style, BlockStyle{}); }
 
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
@@ -174,8 +173,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   }
 
   // Determine if this is a block element
-  bool isBlockElement =
-      matches(name, HEADER_TAGS, NUM_HEADER_TAGS) || matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS);
+  bool isBlockElement = matches(name, HEADER_TAGS, NUM_HEADER_TAGS) || matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS);
 
   // Compute CSS style for this element
   CssStyle cssStyle;
@@ -415,8 +413,8 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   // Check if any style state will change after we decrement depth
   // If so, we MUST flush the partWordBuffer with the CURRENT style first
   // Note: depth hasn't been decremented yet, so we check against (depth - 1)
-  const bool willPopStyleStack = !self->inlineStyleStack.empty() &&
-                           self->inlineStyleStack.back().depth == self->depth - 1;
+  const bool willPopStyleStack =
+      !self->inlineStyleStack.empty() && self->inlineStyleStack.back().depth == self->depth - 1;
   const bool willClearBold = self->boldUntilDepth == self->depth - 1;
   const bool willClearItalic = self->italicUntilDepth == self->depth - 1;
   const bool willClearUnderline = self->underlineUntilDepth == self->depth - 1;
@@ -426,10 +424,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
   // Flush buffer with current style BEFORE any style changes
   if (self->partWordBufferIndex > 0) {
     // Flush if style will change OR if we're closing a block/structural element
-    const bool shouldFlush = styleWillChange ||
-        matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
-        matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) ||
-        matches(name, UNDERLINE_TAGS, NUM_UNDERLINE_TAGS) || self->depth == 1;
+    const bool shouldFlush = styleWillChange || matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) ||
+                             matches(name, HEADER_TAGS, NUM_HEADER_TAGS) || matches(name, BOLD_TAGS, NUM_BOLD_TAGS) ||
+                             matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) ||
+                             matches(name, UNDERLINE_TAGS, NUM_UNDERLINE_TAGS) || self->depth == 1;
 
     if (shouldFlush) {
       // Use combined depth-based and CSS-based style

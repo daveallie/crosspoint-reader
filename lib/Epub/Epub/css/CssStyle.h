@@ -3,31 +3,16 @@
 #include <cstdint>
 
 // Text alignment options matching CSS text-align property
-enum class TextAlign : uint8_t {
-  None = 0,
-  Left = 1,
-  Right = 2,
-  Center = 3,
-  Justify = 4
-};
+enum class TextAlign : uint8_t { None = 0, Left = 1, Right = 2, Center = 3, Justify = 4 };
 
 // Font style options matching CSS font-style property
-enum class CssFontStyle : uint8_t {
-  Normal = 0,
-  Italic = 1
-};
+enum class CssFontStyle : uint8_t { Normal = 0, Italic = 1 };
 
 // Font weight options - CSS supports 100-900, we simplify to normal/bold
-enum class CssFontWeight : uint8_t {
-  Normal = 0,
-  Bold = 1
-};
+enum class CssFontWeight : uint8_t { Normal = 0, Bold = 1 };
 
 // Text decoration options
-enum class CssTextDecoration : uint8_t {
-  None = 0,
-  Underline = 1
-};
+enum class CssTextDecoration : uint8_t { None = 0, Underline = 1 };
 
 // Bitmask for tracking which properties have been explicitly set
 struct CssPropertyFlags {
@@ -42,13 +27,21 @@ struct CssPropertyFlags {
   uint16_t paddingBottom : 1;
   uint16_t reserved : 7;
 
-  CssPropertyFlags() : alignment(0), fontStyle(0), fontWeight(0), decoration(0),
-                       indent(0), marginTop(0), marginBottom(0),
-                       paddingTop(0), paddingBottom(0), reserved(0) {}
+  CssPropertyFlags()
+      : alignment(0),
+        fontStyle(0),
+        fontWeight(0),
+        decoration(0),
+        indent(0),
+        marginTop(0),
+        marginBottom(0),
+        paddingTop(0),
+        paddingBottom(0),
+        reserved(0) {}
 
   [[nodiscard]] bool anySet() const {
-    return alignment || fontStyle || fontWeight || decoration ||
-           indent || marginTop || marginBottom || paddingTop || paddingBottom;
+    return alignment || fontStyle || fontWeight || decoration || indent || marginTop || marginBottom || paddingTop ||
+           paddingBottom;
   }
 
   void clearAll() {
@@ -65,13 +58,13 @@ struct CssStyle {
   CssFontWeight fontWeight = CssFontWeight::Normal;
   CssTextDecoration decoration = CssTextDecoration::None;
 
-  float indentPixels = 0.0f;     // First-line indent in pixels
-  int8_t marginTop = 0;          // Vertical spacing before block (in lines, 0-2)
-  int8_t marginBottom = 0;       // Vertical spacing after block (in lines, 0-2)
-  int8_t paddingTop = 0;         // Padding before (in lines, 0-2)
-  int8_t paddingBottom = 0;      // Padding after (in lines, 0-2)
+  float indentPixels = 0.0f;  // First-line indent in pixels
+  int8_t marginTop = 0;       // Vertical spacing before block (in lines, 0-2)
+  int8_t marginBottom = 0;    // Vertical spacing after block (in lines, 0-2)
+  int8_t paddingTop = 0;      // Padding before (in lines, 0-2)
+  int8_t paddingBottom = 0;   // Padding after (in lines, 0-2)
 
-  CssPropertyFlags defined;      // Tracks which properties were explicitly set
+  CssPropertyFlags defined;  // Tracks which properties were explicitly set
 
   // Apply properties from another style, only overwriting if the other style
   // has that property explicitly defined
