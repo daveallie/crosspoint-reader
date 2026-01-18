@@ -19,8 +19,8 @@ class EpubReaderMenuActivity final : public ActivityWithSubactivity {
   int nextPageNumber = 0;
   bool updateRequired = false;
   const std::function<void()> onGoBack;
-  
-  //Reset to first section to prevent out of bound issue when render setting changes
+
+  // Reset to first section to prevent out of bound issue when render setting changes
   const std::function<void()> resetSectionHelper;
   const std::function<void(int newSpineIndex)> onSelectSpineIndex;
 
