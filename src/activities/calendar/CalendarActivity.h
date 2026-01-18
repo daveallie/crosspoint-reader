@@ -19,15 +19,7 @@
  * 7. Enter deep sleep
  */
 
-enum class CalendarState {
-  INIT,
-  CONNECTING_WIFI,
-  FETCHING_IMAGE,
-  SAVING_IMAGE,
-  RENDERING,
-  SCHEDULING_SLEEP,
-  ERROR
-};
+enum class CalendarState { INIT, CONNECTING_WIFI, FETCHING_IMAGE, RENDERING, ERROR };
 
 class CalendarActivity final : public Activity {
  public:
@@ -47,8 +39,6 @@ class CalendarActivity final : public Activity {
   void startWifiConnection();
   bool checkWifiConnection();
   bool fetchAndSaveImage();
-  void renderSleepScreen();
-  void scheduleWakeAndSleep();
   void handleError(const char* message);
   void renderStatus(const char* status);
 

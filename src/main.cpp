@@ -7,6 +7,7 @@
 #include <SPI.h>
 #include <builtinFonts/all.h>
 #include <esp_sleep.h>
+#include <WiFi.h>
 
 #include <cstring>
 
@@ -198,6 +199,11 @@ void waitForPowerRelease() {
 
 // Enter deep sleep mode
 void enterDeepSleep() {
+  // If calendar mode enabled, use calendar sleep screen to show /sleep.bmp
+  if (SETTINGS.calendarModeEnabled) {
+    SETTINGS.sleepScreen = CrossPointSettings::CALENDAR;
+  }
+
   exitActivity();
   enterNewActivity(new SleepActivity(renderer, mappedInputManager));
 
@@ -209,6 +215,34 @@ void enterDeepSleep() {
   waitForPowerRelease();
   // Enter Deep Sleep
   esp_deep_sleep_start();
+}
+
+// Calendar mode deep sleep - renders custom sleep screen and schedules timer wake
+void enterCalendarDeepSleep(uint8_t refreshHours) {
+  // Set sleep screen to CALENDAR to use /sleep.bmp directly (bypasses /sleep/ directory)
+  SETTINGS.sleepScreen = CrossPointSettings::CALENDAR;
+
+  // Transition to SleepActivity to render the custom image
+  exitActivity();
+  enterNewActivity(new SleepActivity(renderer, mappedInputManager));
+
+  // Put display to sleep
+  einkDisplay.deepSleep();
+
+  // Disconnect WiFi to save power
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  // Calculate sleep duration
+  uint64_t sleepDurationUs = (uint64_t)refreshHours * 60ULL * 60ULL * 1000000ULL;
+  Serial.printf("[%lu] [CAL] Sleep duration: %llu us (%d hours)\n", millis(), sleepDurationUs, refreshHours);
+
+  // Enable timer + GPIO wakeup
+  esp_sleep_enable_timer_wakeup(sleepDurationUs);
+  esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
+
+  Serial.printf("[%lu] [CAL] Entering deep sleep\n", millis());
+  esp_deep_sleep_start();  // Never returns
 }
 
 void onGoHome();
@@ -291,9 +325,30 @@ void setup() {
   }
 
   SETTINGS.loadFromFile();
+  APP_STATE.loadFromFile();
 
   // Check if this is a timer wake for calendar mode
   esp_sleep_wakeup_cause_t wakeupCause = esp_sleep_get_wakeup_cause();
+
+  // Check if calendar needs refresh (backup for power loss)
+  if (SETTINGS.calendarModeEnabled && wakeupCause != ESP_SLEEP_WAKEUP_TIMER) {
+    // Not a timer wake - check if we need a backup fetch
+    time_t now;
+    time(&now);
+    uint32_t elapsed = (now > APP_STATE.lastCalendarFetch) ?
+                       (now - APP_STATE.lastCalendarFetch) : UINT32_MAX;
+    uint32_t thresholdSec = SETTINGS.calendarRefreshHours * 3600;
+
+    // If time is valid and elapsed > threshold, trigger backup fetch
+    if (now > 1700000000 && elapsed > thresholdSec) {
+      Serial.printf("[%lu] [   ] Calendar stale, triggering backup fetch\n", millis());
+      setupDisplayAndFonts();
+      exitActivity();
+      enterNewActivity(new CalendarActivity(renderer, mappedInputManager));
+      return;
+    }
+  }
+
   if (wakeupCause == ESP_SLEEP_WAKEUP_TIMER && SETTINGS.calendarModeEnabled) {
     Serial.printf("[%lu] [   ] Timer wake detected - entering calendar mode\n", millis());
     setupDisplayAndFonts();
@@ -313,7 +368,6 @@ void setup() {
   exitActivity();
   enterNewActivity(new BootActivity(renderer, mappedInputManager));
 
-  APP_STATE.loadFromFile();
   if (APP_STATE.openEpubPath.empty()) {
     onGoHome();
   } else {

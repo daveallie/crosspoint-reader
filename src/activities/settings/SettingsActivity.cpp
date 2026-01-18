@@ -10,10 +10,11 @@
 #include "MappedInputManager.h"
 #include "OtaUpdateActivity.h"
 #include "fontIds.h"
+#include "../calendar/CalendarActivity.h"
 
 // Define the static settings list
 namespace {
-constexpr int settingsCount = 20;
+constexpr int settingsCount = 23;
 const SettingInfo settingsList[settingsCount] = {
     // Should match with SLEEP_SCREEN_MODE
     SettingInfo::Enum("Sleep Screen", &CrossPointSettings::sleepScreen, {"Dark", "Light", "Custom", "Cover", "None"}),
@@ -41,6 +42,10 @@ const SettingInfo settingsList[settingsCount] = {
                       {"1 min", "5 min", "10 min", "15 min", "30 min"}),
     SettingInfo::Enum("Refresh Frequency", &CrossPointSettings::refreshFrequency,
                       {"1 page", "5 pages", "10 pages", "15 pages", "30 pages"}),
+    // Calendar mode settings
+    SettingInfo::Toggle("Calendar Mode", &CrossPointSettings::calendarModeEnabled),
+    SettingInfo::Value("Calendar Refresh (hrs)", &CrossPointSettings::calendarRefreshHours, {1, 24, 1}),
+    SettingInfo::Action("Test Calendar Now"),
     SettingInfo::Action("Calibre Settings"),
     SettingInfo::Action("Check for updates")};
 }  // namespace
@@ -154,6 +159,11 @@ void SettingsActivity::toggleCurrentSetting() {
         exitActivity();
         updateRequired = true;
       }));
+      xSemaphoreGive(renderingMutex);
+    } else if (strcmp(setting.name, "Test Calendar Now") == 0) {
+      xSemaphoreTake(renderingMutex, portMAX_DELAY);
+      exitActivity();
+      enterNewActivity(new CalendarActivity(renderer, mappedInput));
       xSemaphoreGive(renderingMutex);
     }
   } else {

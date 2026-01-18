@@ -5,16 +5,18 @@
 #include <SDCardManager.h>
 #include <WiFi.h>
 #include <esp_sleep.h>
+#include <time.h>
 
 #include "../../CrossPointSettings.h"
+#include "../../CrossPointState.h"
 #include "../../WifiCredentialStore.h"
 #include "../../fontIds.h"
-#include "../boot_sleep/SleepActivity.h"
 
 // External functions from main.cpp
 extern void exitActivity();
 extern void enterNewActivity(Activity* activity);
 extern void enterDeepSleep();
+extern void enterCalendarDeepSleep(uint8_t refreshHours);
 
 void CalendarActivity::onEnter() {
   Activity::onEnter();
@@ -23,7 +25,8 @@ void CalendarActivity::onEnter() {
 
   Serial.printf("[%lu] [CAL] Calendar mode starting\n", millis());
 
-  // Begin WiFi connection
+  // Show status and begin WiFi connection
+  renderStatus("Connecting...");
   startWifiConnection();
 }
 
@@ -125,42 +128,6 @@ bool CalendarActivity::fetchAndSaveImage() {
   return totalWritten > 0;
 }
 
-void CalendarActivity::renderSleepScreen() {
-  Serial.printf("[%lu] [CAL] Rendering sleep screen\n", millis());
-
-  // Force sleep screen mode to CUSTOM to use our downloaded image
-  SETTINGS.sleepScreen = CrossPointSettings::CUSTOM;
-
-  // Create and enter SleepActivity to render the image
-  exitActivity();
-  enterNewActivity(new SleepActivity(renderer, mappedInput));
-}
-
-void CalendarActivity::scheduleWakeAndSleep() {
-  Serial.printf("[%lu] [CAL] Scheduling wake in %d hours\n", millis(), SETTINGS.calendarRefreshHours);
-
-  // Disconnect WiFi to save power
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-
-  // Calculate sleep duration in microseconds
-  uint64_t sleepDurationUs = (uint64_t)SETTINGS.calendarRefreshHours * 60ULL * 60ULL * 1000000ULL;
-
-  Serial.printf("[%lu] [CAL] Sleep duration: %llu us (%d hours)\n", millis(), sleepDurationUs,
-                SETTINGS.calendarRefreshHours);
-
-  // Enable timer wakeup
-  esp_sleep_enable_timer_wakeup(sleepDurationUs);
-
-  // Also keep GPIO wakeup for power button (allows manual wake for normal use)
-  esp_deep_sleep_enable_gpio_wakeup(1ULL << 3, ESP_GPIO_WAKEUP_GPIO_LOW);  // Power button pin
-
-  Serial.printf("[%lu] [CAL] Entering deep sleep\n", millis());
-
-  // Enter deep sleep
-  esp_deep_sleep_start();
-}
-
 void CalendarActivity::handleError(const char* message) {
   Serial.printf("[%lu] [CAL] Error: %s\n", millis(), message);
   errorMessage = message;
@@ -171,8 +138,11 @@ void CalendarActivity::handleError(const char* message) {
 }
 
 void CalendarActivity::renderStatus(const char* status) {
-  // Minimal status rendering - just log for now
   Serial.printf("[%lu] [CAL] Status: %s\n", millis(), status);
+
+  renderer.clearScreen();
+  renderer.drawCenteredText(UI_12_FONT_ID, renderer.getScreenHeight() / 2, status, true, EpdFontFamily::BOLD);
+  renderer.displayBuffer();
 }
 
 void CalendarActivity::loop() {
@@ -184,6 +154,15 @@ void CalendarActivity::loop() {
     case CalendarState::CONNECTING_WIFI:
       if (checkWifiConnection()) {
         Serial.printf("[%lu] [CAL] WiFi connected, IP: %s\n", millis(), WiFi.localIP().toString().c_str());
+
+        // Sync time via NTP
+        configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+        struct tm timeinfo;
+        if (getLocalTime(&timeinfo, 5000)) {
+          Serial.printf("[%lu] [CAL] NTP time synced\n", millis());
+        }
+
+        renderStatus("Fetching...");
         state = CalendarState::FETCHING_IMAGE;
         stateStartTime = millis();
       } else if (millis() - stateStartTime > WIFI_TIMEOUT_MS) {
@@ -194,6 +173,17 @@ void CalendarActivity::loop() {
     case CalendarState::FETCHING_IMAGE:
       if (fetchAndSaveImage()) {
         Serial.printf("[%lu] [CAL] Image saved successfully\n", millis());
+
+        // Save fetch timestamp
+        time_t now;
+        time(&now);
+        if (now > 1700000000) {  // Sanity check - after Nov 2023
+          APP_STATE.lastCalendarFetch = now;
+          APP_STATE.saveToFile();
+          Serial.printf("[%lu] [CAL] Saved fetch timestamp: %lu\n", millis(), (unsigned long)now);
+        }
+
+        renderStatus("Image saved!");
         state = CalendarState::RENDERING;
       } else {
         // Check if we have a cached image
@@ -207,14 +197,9 @@ void CalendarActivity::loop() {
       break;
 
     case CalendarState::RENDERING:
-      renderSleepScreen();
-      // After SleepActivity renders, we need to schedule sleep
-      state = CalendarState::SCHEDULING_SLEEP;
-      break;
-
-    case CalendarState::SCHEDULING_SLEEP:
-      scheduleWakeAndSleep();
-      // Should never reach here - device sleeps
+      Serial.printf("[%lu] [CAL] Rendering complete, entering deep sleep\n", millis());
+      enterCalendarDeepSleep(SETTINGS.calendarRefreshHours);
+      // Never reaches here - device enters deep sleep
       break;
 
     case CalendarState::ERROR:
@@ -224,7 +209,7 @@ void CalendarActivity::loop() {
           state = CalendarState::RENDERING;
         } else {
           // No cached image - just sleep with default screen and try again later
-          scheduleWakeAndSleep();
+          enterCalendarDeepSleep(SETTINGS.calendarRefreshHours);
         }
       }
       break;
