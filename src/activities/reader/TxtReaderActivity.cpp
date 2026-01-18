@@ -32,7 +32,7 @@ size_t findUtf8Boundary(const std::string& str, size_t pos) {
 
 // Binary search to find max characters that fit in width
 // Returns the position (byte offset) where to break the string
-size_t findBreakPosition(GfxRenderer& renderer, int fontId, const std::string& line, int maxWidth) {
+size_t findBreakPosition(const GfxRenderer& renderer, int fontId, const std::string& line, int maxWidth) {
   if (line.empty()) return 0;
 
   // First check if the whole line fits
