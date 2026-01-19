@@ -132,7 +132,10 @@ void EpubReaderChapterSelectionActivity::renderScreen() {
   for (int tocIndex = pageStartIndex; tocIndex < epub->getTocItemsCount() && tocIndex < pageStartIndex + pageItems;
        tocIndex++) {
     auto item = epub->getTocItem(tocIndex);
-    renderer.drawText(UI_10_FONT_ID, 20 + (item.level - 1) * 15, 60 + (tocIndex % pageItems) * 30, item.title.c_str(),
+    const int indentSize = 20 + (item.level - 1) * 15;
+    const std::string chapterName =
+        renderer.truncatedText(UI_10_FONT_ID, item.title.c_str(), pageWidth - 40 - indentSize);
+    renderer.drawText(UI_10_FONT_ID, indentSize, 60 + (tocIndex % pageItems) * 30, chapterName.c_str(),
                       tocIndex != selectorIndex);
   }
 
